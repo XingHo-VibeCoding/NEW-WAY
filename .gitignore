@@ -1,0 +1,19 @@
+# 环境变量：存密码和数据库连接串，永远不上传（第 23 天会用到 .env）
+.env
+.env.local
+.env.*.local
+
+# 环境依赖：体积巨大，让别人自己 npm install
+node_modules/
+
+# AI 工具的本地记忆缓存，跟作业无关，不上传
+.workbuddy/
+
+# 日志
+npm-debug.log*
+yarn-debug.log*
+
+# 编辑器和系统产生的垃圾文件
+.vscode/
+.DS_Store
+Thumbs.db
