@@ -1,19 +1,71 @@
-# 环境变量：存密码和数据库连接串，永远不上传（第 23 天会用到 .env）
+# ==========================================
+# 今日热搜 · 忽略规则
+# 写在最前面的一句话：凡是不能给别人看的东西，都在这份名单里。
+# 名单上的文件，Git 既不会存档（commit），也不会上传（push）。
+# 注意：# 注释必须单独占一行，不能写在规则后面（写了会导致规则失效）。
+# ==========================================
+
+# ---------- 1. 机密：环境变量、密码、API 密钥 ----------
+# .env 存数据库密码和密钥，一旦上传，全世界都能看见
 .env
-.env.local
-.env.*.local
+.env.*
+# 例外：样例文件不含真密码，可以上传给队友照着填
+!.env.example
+# 证书私钥
+*.pem
+*.key
+*.p12
+*.pfx
+# 自定义密钥文件
+secrets.json
+secrets.*
+credentials.json
+config/credentials.json
+# 任何名字里带 api-key / apikey / secret 的文件
+*api-key*
+*apikey*
+*secret*
 
-# 环境依赖：体积巨大，让别人自己 npm install
+# ---------- 2. 依赖目录 ----------
+# 体积动辄几百 MB，别人 npm install 就能装回来
 node_modules/
+jspm_packages/
+.pnpm-store/
+bower_components/
 
-# AI 工具的本地记忆缓存，跟作业无关，不上传
-.workbuddy/
+# ---------- 3. 本地数据库文件 ----------
+# 本地数据库可能含真实用户数据，且跟别人电脑不通用
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlitedb
+*.mdb
+*.ldb
+*.realm
+*.sql.gz
+dump.rdb
+data/
 
-# 日志
+# ---------- 4. 构建产物 ----------
+# 由源码生成的，上传源码就够了
+dist/
+build/
+out/
+.cache/
+.vite/
+coverage/
+
+# ---------- 5. 日志 ----------
+*.log
+logs/
 npm-debug.log*
 yarn-debug.log*
+pnpm-debug.log*
 
-# 编辑器和系统产生的垃圾文件
+# ---------- 6. 编辑器、系统、AI 缓存 ----------
 .vscode/
+.idea/
 .DS_Store
 Thumbs.db
+.workbuddy/
