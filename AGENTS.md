@@ -66,4 +66,8 @@
 - [x] Day 1 · GitHub 账号注册
 - [x] Day 1 · 工作区文件夹
 - [x] Day 1 · AGENTS.md 规则文件
-- [ ] Day 2 · 建第一个代码仓库
+- [x] Day 2 · 建第一个代码仓库（本地提交 + 推送 GitHub）
+- [x] Day 2 · 补全 .gitignore 忽略规则（确保 `.env` 不入库）
+- [x] Day 3 · 需求研究，产出 `research.md`
+- [x] Day 4 · 产品需求文档，产出 `PRD.md`（v1.1，42 条验收标准）
+- [x] Day 5 · 技术设计文档 + 数据流图，产出 `TECH_DESIGN.md`；收尾把 3 处差异同步进 PRD（升 v1.2）
