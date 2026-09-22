@@ -1,46 +1,681 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vibe Coding 30 天 · Day 2</title>
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #ffffff;
-      color: #1f2328;
-      font-family: -apple-system, "Microsoft YaHei", sans-serif;
-    }
-    main {
-      text-align: center;
-      padding: 40px;
-      border: 1px solid #d0d7de;
-      border-radius: 12px;
-      max-width: 520px;
-    }
-    h1 { font-size: 24px; font-weight: 500; margin: 0 0 12px; }
-    p { font-size: 15px; color: #57606a; line-height: 1.7; margin: 0 0 8px; }
-    .tag {
-      display: inline-block;
-      margin-top: 16px;
-      padding: 4px 12px;
-      border: 1px solid #d0d7de;
-      border-radius: 999px;
-      font-size: 13px;
-      color: #57606a;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>简册 · Ledger and Career</title>
+<!--
+  简册 MVP · 第 1 步：页面 + 字段 + 行为
+  本步只做：四个页面的结构、全部字段的输入与展示位、页面切换 / 分类联动 / 表单校验
+  本步不做：数据存储、列表渲染、数字计算、导出导入（第 2 步及以后接入）
+  PRD：PRD.md v1.2 ｜ 字段口径：TECH_DESIGN.md 第五节
+  模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
+-->
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --line: #e3e6ea;
+    --line-2: #eef0f3;
+    --text: #1f2328;
+    --text-2: #6b7280;
+    --text-3: #9aa1ab;
+    --brand: #2f5fe0;
+    --brand-soft: #eef3ff;
+    --income: #16a34a;
+    --expense: #dc2626;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ---------- 导航条 ---------- */
+  .navbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+  }
+  .navbar-inner {
+    max-width: 720px; margin: 0 auto; padding: 0 20px;
+    height: 58px; display: flex; align-items: center; gap: 16px;
+  }
+  .brand { font-size: 16px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
+  .brand-en { font-size: 11px; font-weight: 400; color: var(--text-3); letter-spacing: 0; margin-left: 6px; }
+  /* 导航分两个模块：账簿面 / 简历面（AGENTS.md 附三第 2 条统一叫法） */
+  .nav-links { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .nav-group { display: flex; align-items: center; gap: 2px; }
+  .nav-group + .nav-group { padding-left: 12px; border-left: 1px solid var(--line); }
+  .nav-module {
+    font-size: 11px; color: var(--text-3); letter-spacing: .5px;
+    margin-right: 3px; white-space: nowrap;
+  }
+  .nav-btn {
+    border: 0; background: none; font: inherit; cursor: pointer;
+    color: var(--text-2); padding: 6px 12px; border-radius: 8px;
+    transition: background .15s, color .15s;
+  }
+  .nav-btn:hover { background: var(--line-2); color: var(--text); }
+  .nav-btn.is-active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+
+  /* ---------- 容器与卡片 ---------- */
+  .wrap { max-width: 720px; margin: 0 auto; padding: 20px; }
+  .page { display: none; }
+  .page.is-active { display: block; }
+
+  /* 页面顶部的模块标签：这页属于账簿面还是简历面 */
+  .page-module {
+    display: inline-block; font-size: 11px; letter-spacing: 1px;
+    color: var(--brand); background: var(--brand-soft);
+    border-radius: 999px; padding: 2px 10px; margin-bottom: 12px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .card-sub { font-size: 12px; color: var(--text-3); margin: 0 0 16px; }
+
+  /* ---------- 底牌页：大数字 ---------- */
+  .power { text-align: center; padding: 30px 20px 22px; }
+  .power-label { font-size: 13px; color: var(--text-2); }
+  .power-value { font-size: 42px; font-weight: 700; letter-spacing: -1.5px; line-height: 1.2; margin: 4px 0 0; }
+  .power-value.is-empty { color: var(--text-3); font-size: 28px; letter-spacing: 0; }
+  .power-unit { font-size: 16px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 4px; }
+  .power-value.is-empty .power-unit { font-size: 14px; }
+  .power-hint { font-size: 13px; color: var(--text-2); margin: 8px 0 0; }
+
+  /* ---------- 三个数字 ---------- */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stats.is-two { grid-template-columns: repeat(2, 1fr); }
+  .stat { background: var(--bg); border-radius: 8px; padding: 12px 8px; text-align: center; }
+  .stat-label { font-size: 12px; color: var(--text-3); }
+  .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .stat-value.is-empty { color: var(--text-3); font-weight: 400; }
+
+  /* ---------- 两个大按钮 ---------- */
+  .big-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .big-btn {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px; font: inherit; text-align: left; cursor: pointer;
+    transition: border-color .15s, transform .1s;
+  }
+  .big-btn:hover { border-color: var(--brand); }
+  .big-btn:active { transform: scale(.99); }
+  .big-btn strong { display: block; font-size: 15px; margin-bottom: 2px; }
+  .big-btn span { font-size: 12px; color: var(--text-3); }
+
+  /* ---------- 表单字段 ---------- */
+  .field { margin-bottom: 15px; }
+  .field > label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  .req { color: var(--expense); margin-left: 2px; }
+  .opt { color: var(--text-3); font-weight: 400; font-size: 12px; margin-left: 6px; }
+
+  input[type="text"], input[type="number"], input[type="date"], select {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; color: var(--text); background: var(--card);
+  }
+  input::placeholder { color: var(--text-3); }
+  input:focus, select:focus {
+    outline: none; border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+
+  .field-err { display: none; font-size: 12px; color: var(--expense); margin: 5px 0 0; }
+  .field.has-error .field-err { display: block; }
+  .field.has-error input, .field.has-error select { border-color: var(--expense); }
+
+  /* ---------- 收 / 支 分段控件 ---------- */
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg label { position: relative; margin: 0; }
+  .seg input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .seg span {
+    display: block; padding: 7px 22px; font-size: 13px; cursor: pointer;
+    color: var(--text-2); background: var(--card); border-right: 1px solid var(--line);
+    transition: background .15s, color .15s;
+  }
+  .seg label:last-child span { border-right: 0; }
+  .seg input:checked + span { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+  .seg input:focus-visible + span { box-shadow: inset 0 0 0 2px var(--brand); }
+
+  /* ---------- 按钮 ---------- */
+  .btn {
+    font: inherit; font-size: 14px; padding: 8px 20px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--text); cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: var(--line-2); }
+  .btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 500; }
+  .btn-primary:hover { background: #2750c4; border-color: #2750c4; }
+  .btn-mini { padding: 3px 10px; font-size: 13px; line-height: 1.4; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 2px; }
+
+  /* ---------- 月份切换条 ---------- */
+  .month-bar { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 14px; }
+  .month-label { font-size: 14px; font-weight: 600; letter-spacing: .5px; min-width: 78px; text-align: center; }
+
+  /* ---------- 空态与占位说明 ---------- */
+  .empty { text-align: center; padding: 22px 12px; color: var(--text-3); font-size: 13px; }
+  .todo-note {
+    font-size: 12px; color: var(--text-3); line-height: 1.7;
+    background: var(--bg); border: 1px dashed var(--line);
+    border-radius: 8px; padding: 10px 12px; margin-top: 14px;
+  }
+
+  /* ---------- 浮动提示 ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 34px; z-index: 50;
+    transform: translateX(-50%) translateY(12px);
+    background: #1f2328; color: #fff;
+    padding: 10px 18px; border-radius: 8px; font-size: 13px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+  .toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
 </head>
 <body>
-  <main>
-    <h1>Vibe Coding 30 天</h1>
-    <p>Day 2 · 仓库已建好，第一次提交成功。</p>
-    <p>这是一个占位页面，网站功能从第 7 天开始做。</p>
-    <span class="tag">2026-09-17</span>
-  </main>
+
+<header class="navbar">
+  <div class="navbar-inner">
+    <div class="brand">简册<span class="brand-en">Ledger and Career</span></div>
+    <nav class="nav-links">
+      <div class="nav-group">
+        <span class="nav-module">账簿面</span>
+        <button type="button" class="nav-btn is-active" data-page="home">底牌页</button>
+        <button type="button" class="nav-btn" data-page="expense">记一笔</button>
+      </div>
+      <div class="nav-group">
+        <span class="nav-module">简历面</span>
+        <button type="button" class="nav-btn" data-page="entry">记一条</button>
+        <button type="button" class="nav-btn" data-page="resume">简历预览</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ================= 页面 1：底牌页（默认） ================= -->
+  <section id="page-home" class="page is-active">
+
+    <div class="page-module">账簿面</div>
+
+    <div class="card power">
+      <div class="power-label">还能撑</div>
+      <div class="power-value is-empty">—<span class="power-unit">个月</span></div>
+      <p class="power-hint" id="power-hint">先填一下你能动用的存款</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">本月</h2>
+      <p class="card-sub">本月 = 电脑系统时间所在的自然月</p>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">本月收入</div>
+          <div class="stat-value is-empty">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">本月支出</div>
+          <div class="stat-value is-empty">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">本月结余</div>
+          <div class="stat-value is-empty">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="big-actions">
+      <button type="button" class="big-btn" data-goto="expense">
+        <strong>记一笔</strong><span>三秒记下今天的收支</span>
+      </button>
+      <button type="button" class="big-btn" data-goto="entry">
+        <strong>记一条</strong><span>记下今天做成了什么</span>
+      </button>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">设置个人参数</h2>
+      <p class="card-sub">只填一次。填了才能算出「还能撑几个月」。</p>
+      <form id="form-profile" novalidate>
+        <div class="field">
+          <label for="pf-savings">
+            可动用存款<span class="req">*</span>
+            <span class="opt">能立刻拿出来花的，不含定期、不含借出去的钱</span>
+          </label>
+          <input type="number" id="pf-savings" step="0.01" placeholder="例如 30000">
+          <p class="field-err" id="err-pf-savings"></p>
+        </div>
+        <div class="field">
+          <label for="pf-monthly">
+            月均支出<span class="opt">选填；不填就用近 3 个月记账自动算</span>
+          </label>
+          <input type="number" id="pf-monthly" step="0.01" placeholder="例如 5800">
+          <p class="field-err" id="err-pf-monthly"></p>
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">保存参数</button>
+          <button type="button" class="btn" id="btn-export">导出备份</button>
+          <button type="button" class="btn" id="btn-import">导入备份</button>
+        </div>
+      </form>
+      <div class="todo-note">
+        本步只做字段与校验，参数没往任何地方存。<br>
+        「保存参数」→ 第 5 步；「导出 / 导入备份」→ 第 8 步。
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ================= 页面 2：记一笔 ================= -->
+  <section id="page-expense" class="page">
+
+    <div class="page-module">账簿面</div>
+
+    <div class="card">
+      <h2 class="card-title">记一笔</h2>
+      <p class="card-sub">填金额、选收 / 支、选分类（三项必填），日期默认今天</p>
+      <form id="form-expense" novalidate>
+        <div class="field">
+          <label for="ex-date">日期<span class="req">*</span></label>
+          <input type="date" id="ex-date">
+          <p class="field-err" id="err-ex-date"></p>
+        </div>
+
+        <div class="field">
+          <label for="ex-amount">金额<span class="req">*</span><span class="opt">正数，最多两位小数</span></label>
+          <input type="number" id="ex-amount" step="0.01" placeholder="例如 38.50">
+          <p class="field-err" id="err-ex-amount"></p>
+        </div>
+
+        <div class="field">
+          <label>收 / 支<span class="req">*</span></label>
+          <div class="seg">
+            <label><input type="radio" name="ex-type" value="支出" checked><span>支出</span></label>
+            <label><input type="radio" name="ex-type" value="收入"><span>收入</span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="ex-category">分类<span class="req">*</span><span class="opt">选项随收 / 支切换</span></label>
+          <select id="ex-category"></select>
+          <p class="field-err" id="err-ex-category"></p>
+        </div>
+
+        <div class="field">
+          <label for="ex-note">备注<span class="opt">选填，不超过 50 字</span></label>
+          <input type="text" id="ex-note" maxlength="50" placeholder="例如 楼下快餐">
+          <p class="field-err" id="err-ex-note"></p>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="reset" class="btn">清空重填</button>
+        </div>
+      </form>
+      <div class="todo-note">本步「保存」只走到校验通过，不写数据。真正存进去在第 3 步。</div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">流水列表</h2>
+      <p class="card-sub">默认显示当前月，可左右切换月份</p>
+
+      <div class="month-bar">
+        <button type="button" class="btn btn-mini" id="btn-prev-month">&larr;</button>
+        <span class="month-label" id="month-label">2026-09</span>
+        <button type="button" class="btn btn-mini" id="btn-next-month">&rarr;</button>
+      </div>
+
+      <div class="stats is-two">
+        <div class="stat">
+          <div class="stat-label">本月收入</div>
+          <div class="stat-value is-empty">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">本月支出</div>
+          <div class="stat-value is-empty">—</div>
+        </div>
+      </div>
+
+      <div class="empty">还没有流水记录</div>
+      <div class="todo-note">列表渲染、月份切换、合计计算在第 3 步接入。</div>
+    </div>
+
+  </section>
+
+  <!-- ================= 页面 3：记一条 ================= -->
+  <section id="page-entry" class="page">
+
+    <div class="page-module">简历面</div>
+
+    <div class="card">
+      <h2 class="card-title">记一条</h2>
+      <p class="card-sub">随手记下今天做成了什么，攒成将来写简历的原料</p>
+      <form id="form-entry" novalidate>
+        <div class="field">
+          <label for="en-start">开始时间<span class="req">*</span></label>
+          <input type="date" id="en-start">
+          <p class="field-err" id="err-en-start"></p>
+        </div>
+
+        <div class="field">
+          <label for="en-end">结束时间<span class="opt">选填，留空 = 到现在还在做</span></label>
+          <input type="date" id="en-end">
+          <p class="field-err" id="err-en-end"></p>
+        </div>
+
+        <div class="field">
+          <label for="en-content">做成了什么<span class="req">*</span><span class="opt">一句话</span></label>
+          <input type="text" id="en-content" maxlength="100" placeholder="例如 把首页加载从 5 秒压到 2 秒">
+          <p class="field-err" id="err-en-content"></p>
+        </div>
+
+        <div class="field">
+          <label for="en-org">公司 / 团队<span class="opt">选填</span></label>
+          <input type="text" id="en-org" maxlength="50" placeholder="例如 某某科技">
+          <p class="field-err" id="err-en-org"></p>
+        </div>
+
+        <div class="field">
+          <label for="en-role">职位<span class="opt">选填</span></label>
+          <input type="text" id="en-role" maxlength="50" placeholder="例如 前端工程师">
+          <p class="field-err" id="err-en-role"></p>
+        </div>
+
+        <div class="field">
+          <label for="en-result">量化结果<span class="opt">选填</span></label>
+          <input type="text" id="en-result" maxlength="50" placeholder="例如 响应快 3 秒">
+          <p class="field-err" id="err-en-result"></p>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="reset" class="btn">清空重填</button>
+        </div>
+      </form>
+      <div class="todo-note">本步「保存」只走到校验通过，不写数据。真正存进去在第 6 步。</div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">经历列表</h2>
+      <p class="card-sub">按结束时间从新到旧排，还在做的排最前面</p>
+      <div class="empty">还没有经历记录</div>
+      <div class="todo-note">列表渲染在第 6 步接入。</div>
+    </div>
+
+  </section>
+
+  <!-- ================= 页面 4：简历预览 ================= -->
+  <section id="page-resume" class="page">
+
+    <div class="page-module">简历面</div>
+
+    <div class="card">
+      <h2 class="card-title">简历预览</h2>
+      <p class="card-sub">攒下的经历会在这里按时间排成一份简历</p>
+      <div class="empty">先去「记一条」记下你的成果，这里会自动排成一份简历</div>
+      <div class="btn-row" style="margin-top: 14px;">
+        <button type="button" class="btn" id="btn-print">打印 / 另存为 PDF</button>
+      </div>
+      <div class="todo-note">简历渲染与打印样式在第 7 步接入。</div>
+    </div>
+
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     1. 写死的配置
+     ============================================================ */
+
+  // 分类：PRD 5.1 规定写死两组，不分一级二级
+  const CATEGORIES = {
+    '支出': ['餐饮', '交通', '房租', '购物', '医疗', '娱乐', '其他'],
+    '收入': ['工资', '兼职', '理财收益', '其他']
+  };
+
+  /* ============================================================
+     2. 小工具
+     ============================================================ */
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  // 今天的日期，格式 2026-09-22（用本地时区，不用 UTC，避免差一天）
+  function todayStr() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  // 当前月份，格式 2026-09
+  function currentMonthStr() {
+    return todayStr().slice(0, 7);
+  }
+
+  const toastEl = $('#toast');
+  let toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('is-show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('is-show'), 2600);
+  }
+
+  /* ============================================================
+     3. 页面切换
+     ============================================================ */
+
+  function showPage(name) {
+    $$('.page').forEach((p) => p.classList.toggle('is-active', p.id === 'page-' + name));
+    $$('.nav-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.page === name));
+    window.scrollTo(0, 0);
+  }
+
+  /* ============================================================
+     4. 表单校验
+     ============================================================ */
+
+  // 给某个字段显示 / 清除错误提示。controlId 是输入控件的 id。
+  function setErr(controlId, msg) {
+    const control = document.getElementById(controlId);
+    const field = control ? control.closest('.field') : null;
+    if (!field) return true;                                  // 找不到字段就不拦，避免脚本整体崩掉
+    const err = field.querySelector('.field-err');
+    if (msg) {
+      field.classList.add('has-error');
+      if (err) err.textContent = msg;
+      return false;
+    }
+    field.classList.remove('has-error');
+    if (err) err.textContent = '';
+    return true;
+  }
+
+  function clearErrs(form) {
+    form.querySelectorAll('.field.has-error').forEach((f) => {
+      f.classList.remove('has-error');
+      const err = f.querySelector('.field-err');
+      if (err) err.textContent = '';
+    });
+  }
+
+  // 金额校验：必填、正数、最多两位小数
+  function checkAmount(raw) {
+    if (raw === '') return '请填写金额';
+    const n = Number(raw);
+    if (!isFinite(n)) return '金额只能填数字';
+    if (n <= 0) return '金额要大于 0';
+    if (!/^\d+(\.\d{1,2})?$/.test(raw)) return '金额最多两位小数';
+    return '';
+  }
+
+  // 选填的金额类字段（月均支出）
+  function checkOptionalAmount(raw, label) {
+    if (raw === '') return '';
+    const n = Number(raw);
+    if (!isFinite(n)) return label + '只能填数字';
+    if (n <= 0) return label + '要大于 0';
+    return '';
+  }
+
+  /* ============================================================
+     5. 分类下拉：随收 / 支联动
+     ============================================================ */
+
+  function selectedType() {
+    return document.querySelector('input[name="ex-type"]:checked').value;
+  }
+
+  function rebuildCategories() {
+    const type = selectedType();
+    const sel = $('#ex-category');
+    sel.textContent = '';                                   // 先清空
+    CATEGORIES[type].forEach((c) => {
+      const opt = document.createElement('option');          // 用 DOM 建节点，不拼 HTML 字符串
+      opt.value = c;
+      opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  }
+
+  /* ============================================================
+     6. 初始化
+     ============================================================ */
+
+  function init() {
+    const today = todayStr();
+
+    // 6.1 日期字段默认今天
+    $('#ex-date').value = today;
+    $('#en-start').value = today;
+
+    // 6.2 列表上方的月份标签显示当前月
+    $('#month-label').textContent = currentMonthStr();
+
+    // 6.3 分类下拉初始化
+    rebuildCategories();
+
+    // 6.4 导航条切换页面
+    $$('.nav-btn').forEach((b) => {
+      b.addEventListener('click', () => showPage(b.dataset.page));
+    });
+
+    // 6.5 底牌页两个大按钮
+    $$('[data-goto]').forEach((b) => {
+      b.addEventListener('click', () => showPage(b.dataset.goto));
+    });
+
+    // 6.6 收 / 支切换 → 重建分类选项
+    $$('input[name="ex-type"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        rebuildCategories();
+        setErr('ex-category', '');
+      });
+    });
+
+    // 6.7 记一笔：保存（本步只校验）
+    $('#form-expense').addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearErrs(e.currentTarget);
+
+      let ok = true;
+      ok = setErr('ex-date', $('#ex-date').value === '' ? '请选择日期' : '') && ok;
+      ok = setErr('ex-amount', checkAmount($('#ex-amount').value.trim())) && ok;
+      ok = setErr('ex-category', $('#ex-category').value ? '' : '请选择分类') && ok;
+
+      if (ok) toast('校验通过 ✓ 数据存储将在第 3 步接入');
+    });
+
+    // 6.8 记一笔：清空重填后，日期补回今天
+    $('#form-expense').addEventListener('reset', (e) => {
+      const form = e.currentTarget;
+      setTimeout(() => {
+        $('#ex-date').value = todayStr();
+        clearErrs(form);
+      }, 0);
+    });
+
+    // 6.9 记一条：保存（本步只校验）
+    $('#form-entry').addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearErrs(e.currentTarget);
+
+      const start = $('#en-start').value;
+      const end = $('#en-end').value;
+
+      let ok = true;
+      ok = setErr('en-start', start === '' ? '请选择开始时间' : '') && ok;
+      ok = setErr('en-content', $('#en-content').value.trim() === '' ? '请填写做成了什么' : '') && ok;
+      // 结束时间选填；填了就不能早于开始时间（2026-09-22 这种字符串可以直接比大小）
+      ok = setErr('en-end', (end !== '' && start !== '' && end < start) ? '结束时间不能早于开始时间' : '') && ok;
+
+      if (ok) toast('校验通过 ✓ 数据存储将在第 6 步接入');
+    });
+
+    // 6.10 记一条：清空重填后，开始时间补回今天
+    $('#form-entry').addEventListener('reset', (e) => {
+      const form = e.currentTarget;
+      setTimeout(() => {
+        $('#en-start').value = todayStr();
+        clearErrs(form);
+      }, 0);
+    });
+
+    // 6.11 个人参数：保存（本步只校验）
+    $('#form-profile').addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearErrs(e.currentTarget);
+
+      const savings = $('#pf-savings').value.trim();
+      const monthly = $('#pf-monthly').value.trim();
+
+      let ok = true;
+      if (savings === '') {
+        ok = setErr('pf-savings', '请填写你能动用的存款') && ok;
+      } else if (!isFinite(Number(savings)) || Number(savings) < 0) {
+        ok = setErr('pf-savings', '存款只能是 0 或正数') && ok;
+      } else {
+        ok = setErr('pf-savings', '') && ok;
+      }
+      ok = setErr('pf-monthly', checkOptionalAmount(monthly, '月均支出')) && ok;
+
+      if (ok) toast('校验通过 ✓ 参数保存将在第 5 步接入');
+    });
+
+    // 6.12 还没接的功能：点了给明确提示，不假装能用
+    $('#btn-export').addEventListener('click', () => toast('导出备份将在第 8 步接入'));
+    $('#btn-import').addEventListener('click', () => toast('导入备份将在第 8 步接入'));
+    $('#btn-print').addEventListener('click', () => toast('打印将在第 7 步接入'));
+    $('#btn-prev-month').addEventListener('click', () => toast('月份切换将在第 3 步接入'));
+    $('#btn-next-month').addEventListener('click', () => toast('月份切换将在第 3 步接入'));
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+})();
+</script>
+
 </body>
 </html>
