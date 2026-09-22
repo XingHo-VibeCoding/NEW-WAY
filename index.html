@@ -6,18 +6,62 @@
 <title>简册 · Ledger and Career</title>
 <!--
   简册 MVP · 进度：第 1 步（页面 + 字段 + 行为）✓ ｜ 第 2 步（数据底座）✓ ｜ 第 3 步（记一笔能用了）✓
-                     ｜ 第 4 步（编辑 / 删除）✓
+                     ｜ 第 4 步（编辑 / 删除）✓ ｜ 第 5 步（底牌页数字）✓ ｜ 第 6 步（记一条能用了）✓
+                     ｜ 第 7 步（经历的编辑 / 删除）✓ ｜ 第 8 步（简历预览页）✓ ｜ 第 9 步（简历抬头 + 「成果：」前缀）✓
+                     ｜ 第 10 步（导出 / 导入备份）✓
   第 1 步：四个页面的结构、全部字段的输入与展示位、页面切换 / 分类联动 / 表单校验
   第 2 步：数据底座 —— localStorage 四格（jiance.v1.*）+ JSON 序列化 + 禁用检测，
            全部读写集中在 Store 一个对象里（TECH_DESIGN 第十节铁律：抽屉读写集中在一处）
   第 3 步：记一笔 —— 保存进第 1 格 → 流水列表渲染 → 月份切换 → 合计 → 自动跳到该条所在月份
   第 4 步：记一笔 —— 编辑（改已有那条，按钮变「保存修改」）/ 删除（弹确认框，点确认才真删）
            依据：PRD v1.4 功能 1 用户动作 4/5、可观察结果、8.3 验收
+  第 5 步：底牌页 —— 个人参数真存进第 3 格（jiance.v1.profile）；「还能撑 ≈ X 个月」= 存款 ÷ 月均支出；
+           本月收入 / 支出 / 结余三数（当前自然月）；月均支出优先用近 3 个自然月记账自动算，
+           不满 3 个月标注「样本不足 3 个月」；数据不够时只给引导文案，绝不显示 0 / NaN / Infinity
+           「怎么算的」是数字下方一个可点开收起的小入口，默认收起（PRD 功能 3 用户动作 3）
+           依据：PRD v1.4 功能 3、第五节计算口径、5.3、8.2 验收
   口径调整（Day 7，用户拍板）：记一笔页的两个合计数字「跟随列表看的月份」（看 8 月就是 8 月的合计）。
            底牌页的「本月收入 / 支出 / 结余」仍是当前自然月，不受影响（底牌页无月份切换）。
            依据：PRD v1.4 功能 1 / 8.3。
-  仍不做：底牌页数字（第 5 步）、记一条（第 6 步）、简历预览（第 7 步）、导出导入（第 8 步）
-  PRD：PRD.md v1.4 ｜ 字段口径：TECH_DESIGN.md v1.3 第五节
+  体检补漏（Day 7，用户说「一起检测、一起修了」）：一次全量体检后的修补，不改任何口径与功能
+           · 底牌页「本月三数」在 <380px 视口下由三列改竖排（原来会把页面撑出横向滚动）
+           · 弹层：关闭后把焦点还给触发它的按钮、打开时锁背景滚动、Tab 在弹层内循环不出圈
+           · 无障碍：键盘可见焦点环、错误提示 aria-invalid / aria-describedby、导航 aria-current、
+             提示条与警告条加 live region、必填字段加 required、「怎么算的」入口加高到可点
+           · 系统开「减少动效」时不做过渡与平滑滚动
+  编辑态 × 切月（Day 7，用户拍板选 A）：正在改某一条时切换月份，自动退出编辑态、清空表单并提示
+           「已退出编辑：切到别的月份，改动没保存」，避免「保存修改」误改到一条看不见的记录
+  第 6 步：记一条 —— 保存进第 2 格（jiance.v1.entries）→ 经历列表按 PRD 5.2 排序规则渲染：
+           endDate 从晚到早 → endDate 空的（还在做）排最前 → 同 endDate 按 startDate 从晚到早；
+           留空结束时间显示「至今」；列表每条显示 起止时间 + 一句话成果 +（若有）公司/职位 +（若有）量化结果
+           依据：PRD v1.4 功能 2、5.2 字段表、8.4 验收
+  第 7 步：经历的编辑 / 删除 —— 做法照搬记一笔页：编辑态 entryEditingId、点「编辑」把那条填回表单、
+           主按钮变「保存修改」、保存时更新而非新增（不动 id / createdAt，刷新 updatedAt）、
+           「取消编辑」放弃改动、删除走同一个确认弹层、删掉正在编辑的那条会顺手清空表单。
+           依据：PRD v1.4 功能 2 用户动作 5 / 6 + 可观察结果 + 8.4 验收
+  第 8 步：简历预览页 —— 把攒下的经历排成一份能打印的简历。与记一条页列表共用同一套
+           排序（sortEntries）和时间段写法（entryPeriod），两页不会排出不同顺序；
+           新增 / 修改 / 删除经历后两页一起刷新（syncEntryViews）；打印走浏览器自带打印，
+           @media print 只留简历纸；一条经历都没有时给引导文案，不留空白页
+           依据：PRD v1.5 四、页面结构第 4 页、8.5 验收
+  第 9 步（Day 7 拍板补）：简历抬头 + 「成果：」前缀 ——
+           · 个人参数新增 name / contact 两个选填文本字段，只给简历用；简历纸顶上出
+             「姓名 + 联系方式」抬头，两个都没填就整块藏掉；没抬头时品牌色主线改由
+             「经历」小节顶上出（.resume-head[hidden] + .resume-subhead），纸面不会少一条线
+           · 量化结果统一显示成「成果：xxx」，前缀只写在 resultLabel() 一处，两页共用
+           依据：PRD v1.5 功能 3 用户动作 2、5.3 字段表、8.5 验收
+  第 10 步：导出 / 导入备份 —— 把四格数据打包成一个 .json 文件下载到本机，需要时再读回来。
+           · 导出：四格 + format / version / exportedAt 打包 → Blob → 触发下载，
+             文件名 jiance-backup-YYYY-MM-DD.json；明文不加密（TECH_DESIGN 5.5）
+           · 导入：先校验再动数据 —— format 不对 / 版本更新 / 内容损坏，一律只提示、不写一个字节；
+             校验通过才弹「会覆盖当前所有数据」二次确认，确认后四格整体替换，
+             中途写失败会把已写的几格一起还原（不允许出现「导入一半」的状态）
+           导入后的落点（PRD v1.6 / TECH_DESIGN 10.4）：流水列表跳到备份里最新一条记录
+             所在的月份，不跳回当前月 —— 否则记录都在 8 月、而现在是 9 月时会看到空列表，
+             像是没导成功；空备份（四格都为空）是合法输入，照收不报错
+           依据：PRD v1.6 功能 4、8.7 验收、TECH_DESIGN v1.6 5.5 / 10.4
+  仍不做：云备份、自动定时导出、多份备份管理、备份文件加密（TECH_DESIGN 10.4 明确定为不做）
+  PRD：PRD.md v1.6 ｜ 字段口径：TECH_DESIGN.md v1.6 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
 <style>
@@ -37,6 +81,19 @@
   }
 
   * { box-sizing: border-box; }
+
+  /* hidden 属性必须真的隐藏。注意：作者样式里的 display 会盖掉浏览器给 [hidden] 的
+     默认 display:none —— .power-warn 设了 inline-block，第 5 步就踩了这个坑：
+     元素属性 hidden=true，眼睛还是看得见。这里显式兜一道。 */
+  [hidden] { display: none !important; }
+
+  /* 键盘可见焦点（本轮体检补）。原先只有输入框有焦点样式，按钮全靠鼠标 :hover，
+     用 Tab 走一遍页面完全看不出焦点在哪。:focus-visible 只在「键盘操作」时亮，
+     鼠标点击不亮，不影响原来的观感。 */
+  button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
 
   body {
     margin: 0;
@@ -70,10 +127,47 @@
   .nav-btn {
     border: 0; background: none; font: inherit; cursor: pointer;
     color: var(--text-2); padding: 6px 12px; border-radius: 8px;
+    white-space: nowrap;   /* 按钮文字不许断行，否则窄屏会变成一个字一行 */
     transition: background .15s, color .15s;
   }
   .nav-btn:hover { background: var(--line-2); color: var(--text); }
   .nav-btn.is-active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+
+  /* 窄屏（约 640px 以下）：导航条折成两行 —— 第一行品牌，第二行四个入口。
+     原因：品牌 + 两组入口挤在一行时宽度不够，按钮被压扁成一列一个字（第 5 步后修的）。
+     两个模块名「账簿面 / 简历面」继续显示，不隐藏（AGENTS.md 附三第 2 条要求界面上能看出模块划分）。 */
+  @media (max-width: 640px) {
+    .navbar-inner {
+      height: auto; flex-wrap: wrap;
+      padding: 8px 14px 6px; gap: 0 10px;
+    }
+    .brand { font-size: 15px; }
+    .nav-links { margin-left: 0; width: 100%; flex-wrap: wrap; gap: 4px 10px; }
+    .nav-group { flex-wrap: wrap; }
+    .nav-group + .nav-group { padding-left: 10px; }
+    .nav-btn { padding: 5px 9px; }
+  }
+
+  /* 更窄（约 380px 以下，比 iPhone SE 还窄）：底牌页「本月三数」由三列改竖排。
+     原因：三列并排时每个格子至少要 124px，320px 视口下会把页面撑出 53px 横向滚动。
+     改成一行一个「标签 …… 数字」，既不溢出也不用把字号压小。
+     只作用于三列那把（.stats:not(.is-two)），记一笔页的两列合计不受影响。 */
+  @media (max-width: 380px) {
+    .stats:not(.is-two) { grid-template-columns: 1fr; gap: 8px; }
+    .stats:not(.is-two) .stat {
+      display: flex; align-items: baseline; justify-content: space-between;
+      text-align: left; padding: 8px 12px;
+    }
+    .stats:not(.is-two) .stat-value { margin-top: 0; }
+  }
+
+  /* 系统里开了「减少动效」就一律不要过渡（本轮体检补） */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  /* 确认弹层打开时锁住背景滚动（本轮体检补） */
+  body.is-modal-open { overflow: hidden; }
 
   /* ---------- 容器与卡片 ---------- */
   .wrap { max-width: 720px; margin: 0 auto; padding: 20px; }
@@ -105,6 +199,21 @@
   .power-unit { font-size: 16px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 4px; }
   .power-value.is-empty .power-unit { font-size: 14px; }
   .power-hint { font-size: 13px; color: var(--text-2); margin: 8px 0 0; }
+  /* 样本不足 3 个月的小标注（第 5 步） */
+  .power-warn {
+    display: inline-block; font-size: 11px; color: #92600a;
+    background: #fff6e0; border: 1px solid #f0e2b8;
+    border-radius: 999px; padding: 1px 9px; margin-top: 9px;
+  }
+  /* 「这个数是怎么算的」：一个可点开收起的小入口 + 展开后的说明（第 5 步） */
+  .power-toggle {
+    display: inline-block; border: 0; background: none; font: inherit; cursor: pointer;
+    /* padding 由 2px 提到 5px：这个入口原先只有 22px 高，手指点不准（触控目标下限 24px） */
+    font-size: 12px; color: var(--brand); padding: 5px 8px; border-radius: 6px;
+    margin-top: 6px; transition: background .15s;
+  }
+  .power-toggle:hover { background: var(--brand-soft); }
+  .power-detail { font-size: 12px; color: var(--text-3); margin: 6px 0 0; }
 
   /* ---------- 三个数字 ---------- */
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -223,21 +332,139 @@
   .exp-amount.is-income { color: var(--income); }
   .exp-amount.is-expense { color: var(--expense); }
 
-  /* ---------- 流水列表每行右侧的「编辑 / 删除」（第 4 步） ---------- */
-  .exp-acts { flex: none; display: flex; gap: 4px; }
-  .exp-act {
+  /* ---------- 列表每行右侧的「编辑 / 删除」（第 4 步；第 7 步经历列表复用同一套样式） ---------- */
+  /* 两个列表的按钮长得一模一样，所以选择器并排写，改一处两边一起变，不会越改越不像 */
+  .exp-acts, .entry-acts { flex: none; display: flex; gap: 4px; }
+  .exp-act, .entry-act {
     font: inherit; font-size: 12px; line-height: 1.5;
     padding: 2px 9px; border-radius: 6px;
     border: 1px solid var(--line); background: transparent;
     color: var(--text-2); cursor: pointer;
     transition: background .15s, border-color .15s, color .15s;
   }
-  .exp-act:hover { background: var(--line-2); color: var(--text); }
-  .exp-act-del:hover { background: #fdecea; border-color: #f5c6c0; color: #b3261e; }
+  .exp-act:hover, .entry-act:hover { background: var(--line-2); color: var(--text); }
+  .exp-act-del:hover, .entry-act-del:hover { background: #fdecea; border-color: #f5c6c0; color: #b3261e; }
 
-  /* 正在编辑的那一行，左侧加一条竖线做标记 */
-  .exp-row.is-editing { background: #f5f8ff; border-radius: 8px; padding-left: 8px; padding-right: 8px; }
-  .exp-row.is-editing .exp-act-edit { border-color: var(--brand); color: var(--brand); }
+  /* 正在编辑的那一行，加一层浅底 + 「编辑」按钮变主题色，一眼看出在改哪条 */
+  .exp-row.is-editing, .entry-row.is-editing {
+    background: #f5f8ff; border-radius: 8px; padding-left: 8px; padding-right: 8px;
+  }
+  .exp-row.is-editing .exp-act-edit, .entry-row.is-editing .entry-act-edit {
+    border-color: var(--brand); color: var(--brand);
+  }
+
+  /* ---------- 经历列表的一行（第 6 步） ---------- */
+  .entry-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 2px; border-bottom: 1px solid var(--line-2);
+  }
+  .entry-row:last-child { border-bottom: 0; }
+  /* 时间段：等宽数字，宽度不随内容抖动 */
+  .entry-when {
+    flex: none; font-size: 12px; color: var(--text-3);
+    font-variant-numeric: tabular-nums; padding-top: 3px;
+  }
+  /* 右侧纵向排列：一句话成果一行，公司/职位一行，量化结果一个小标签 */
+  .entry-main {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-direction: column; gap: 5px; align-items: flex-start;
+  }
+  /* 这三个块装的是用户自己输入的内容，可能是超长英文串。
+     overflow-wrap: anywhere 会让 min-content 宽度按「可以任意断行」算 —— 不加的话，
+     这一行的最小宽度就是那串字符的实际宽度，会把整张卡片顶宽、页面横向滚动
+     （320px 视口下实测溢出 100px）。三个块都要加：只给 content 加不够，org / result 同样是用户输入。 */
+  .entry-content, .entry-org, .entry-result { overflow-wrap: anywhere; }
+  .entry-org { font-size: 12px; color: var(--text-2); }
+  .entry-result {
+    font-size: 12px; color: var(--brand); background: var(--brand-soft);
+    padding: 2px 8px; border-radius: 6px;
+  }
+  /* 窄屏：一段时间段有一二十个字符，横着放不下，改成上下两段 */
+  @media (max-width: 640px) {
+    .entry-row { flex-direction: column; gap: 5px; }
+    .entry-when { padding-top: 0; }
+  }
+
+  /* ---------- 简历预览页（第 8 步） ---------- */
+  /* 「简历纸」：这页的产出是一份要打印 / 导出成 PDF 的文档，所以留白比普通卡片大 */
+  .resume-sheet { padding: 28px 26px; }
+  /* 抬头（姓名 / 联系方式）：底牌页填过才出现，没填时整块藏掉、不留空行 */
+  .resume-head { border-bottom: 2px solid var(--brand); padding-bottom: 10px; }
+  /* 姓名可能是超长的一串英文（上限 20 字），不加断行会把整张纸顶宽 —— 和联系方式一个道理 */
+  .resume-name {
+    font-size: 22px; font-weight: 700; letter-spacing: 1px; margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .resume-contact {
+    font-size: 12px; color: var(--text-2); margin: 5px 0 0;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;   /* 联系方式也可能是超长串，别把纸顶宽 */
+  }
+  /* 有抬头时，姓名是主角，「经历」退成小节标题（所以更小、更深灰） */
+  .resume-subhead {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: 12px 0 4px;
+  }
+  /* 没填姓名时抬头是空的，纸面就少了那条品牌色主线 —— 把它交给「经历」小节顶上，
+     纸还是「一条粗线 + 标题」的样子。选择器只认「紧跟在隐藏抬头后面的小节标题」 */
+  .resume-head[hidden] + .resume-subhead { border-top: 2px solid var(--brand); padding-top: 12px; }
+  /* 用真实标题标签而不是加样式的 div：读屏用户能按标题跳过来 */
+  .resume-h1 { font-size: 14px; font-weight: 700; letter-spacing: 2px; margin: 0; color: var(--text-2); }
+  .resume-count { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .resume-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 12px 0; border-bottom: 1px dashed var(--line-2);
+  }
+  .resume-item:last-child { border-bottom: 0; }
+  /* 时间段固定在左边一列，等宽数字，几条经历的时间左边缘能对齐 */
+  .resume-when {
+    flex: none; width: 150px; font-size: 12px; color: var(--text-2);
+    font-variant-numeric: tabular-nums; padding-top: 2px;
+  }
+  .resume-main {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-direction: column; gap: 5px; align-items: flex-start;
+  }
+  /* 和经历列表同一个道理：这三块装的是用户输入，可能是超长英文串，
+     不加 overflow-wrap 会把整张纸顶宽、页面横向滚动 */
+  .resume-content, .resume-org, .resume-result { overflow-wrap: anywhere; }
+  .resume-content { font-size: 14px; line-height: 1.6; }
+  .resume-org { font-size: 12px; color: var(--text-2); }
+  .resume-result {
+    font-size: 12px; color: var(--brand); background: var(--brand-soft);
+    padding: 2px 8px; border-radius: 6px;
+  }
+  /* 窄屏：时间段横着放不下，改成上下两段 */
+  @media (max-width: 640px) {
+    .resume-item { flex-direction: column; gap: 5px; }
+    .resume-when { width: auto; padding-top: 0; }
+  }
+
+  /* ---------- 打印 / 另存为 PDF（第 8 步） ---------- */
+  /* 只用浏览器自带打印（PRD 8.5：本期不自写 PDF 功能）。
+     屏幕上那些「操作界面」的东西一律藏掉，只留简历纸本身。 */
+  @media print {
+    .navbar, .storage-warning, .toast, .modal-mask,
+    .resume-toolbar, .todo-note { display: none !important; }
+    /* 四个页面平时靠显示/隐藏切换，打印时只让简历页出来 */
+    .page { display: none !important; }
+    #page-resume { display: block !important; }
+    #page-resume .page-module { display: none; }
+    body { background: #fff; overflow: visible !important; }   /* 弹层开着时 body 被锁了滚动，打印要解开 */
+    /* 左边距：@page 的 12mm 是纸本身的边距，这里再留 4mm 安全边 ——
+       万一有人在打印窗口把边距选成「无边距」，内容也不会贴着纸边、被裁掉半个字 */
+    .wrap { max-width: none; padding: 4mm; }
+    .resume-sheet {
+      border: 0; border-radius: 0; box-shadow: none;
+      padding: 0; margin: 0; background: #fff;
+    }
+    /* 一条经历别被分页劈成上下两半 */
+    .resume-item { break-inside: avoid; page-break-inside: avoid; }
+    /* 打印默认不印背景色，量化结果那种浅底标签会变成一片白底黑字、跟正文分不出来，
+       改成「描边」才看得见（描边是印得出来的） */
+    .resume-result { background: none; color: #000; border: 1px solid #999; padding: 1px 6px; }
+  }
+  @page { margin: 12mm; }
 
   /* ---------- 危险按钮（确认删除用） ---------- */
   .btn-danger { background: #c62828; border-color: #c62828; color: #fff; font-weight: 500; }
@@ -281,7 +508,7 @@
 </header>
 
 <!-- 浏览器不让用 localStorage 时才显示（TECH_DESIGN 第八节第 3 条：不假装能存） -->
-<div class="storage-warning" id="storage-warning" hidden>
+<div class="storage-warning" id="storage-warning" role="alert" hidden>
   当前浏览器设置不允许保存数据（可能是隐私模式或禁用了本地存储）。你记下的内容关掉页面后不会保留，请先调整浏览器设置。
 </div>
 
@@ -294,25 +521,30 @@
 
     <div class="card power">
       <div class="power-label">还能撑</div>
-      <div class="power-value is-empty">—<span class="power-unit">个月</span></div>
-      <p class="power-hint" id="power-hint">先填一下你能动用的存款</p>
+      <div class="power-value is-empty" id="power-value"><span id="power-num">—</span><span class="power-unit" id="power-unit" hidden>个月</span></div>
+      <div class="power-warn" id="power-warn" hidden>样本不足 3 个月</div>
+      <!-- 数字旁边的小入口：点一下才展开算法（PRD 功能 3 用户动作 3），默认收起 -->
+      <button type="button" class="power-toggle" id="power-detail-toggle" hidden
+              aria-expanded="false" aria-controls="power-detail">怎么算的 ▾</button>
+      <p class="power-detail" id="power-detail" hidden></p>
+      <p class="power-hint" id="power-hint" hidden></p>
     </div>
 
     <div class="card">
       <h2 class="card-title">本月</h2>
-      <p class="card-sub">本月 = 电脑系统时间所在的自然月</p>
+      <p class="card-sub">本月 = 电脑系统时间所在的自然月（记一笔页上方的合计跟的是列表看的月份，两者口径不同）</p>
       <div class="stats">
         <div class="stat">
           <div class="stat-label">本月收入</div>
-          <div class="stat-value is-empty">—</div>
+          <div class="stat-value is-empty" id="home-income">—</div>
         </div>
         <div class="stat">
           <div class="stat-label">本月支出</div>
-          <div class="stat-value is-empty">—</div>
+          <div class="stat-value is-empty" id="home-expense">—</div>
         </div>
         <div class="stat">
           <div class="stat-label">本月结余</div>
-          <div class="stat-value is-empty">—</div>
+          <div class="stat-value is-empty" id="home-balance">—</div>
         </div>
       </div>
     </div>
@@ -328,14 +560,14 @@
 
     <div class="card">
       <h2 class="card-title">设置个人参数</h2>
-      <p class="card-sub">只填一次。填了才能算出「还能撑几个月」。</p>
+      <p class="card-sub">只填一次。上面的存款和月均支出用来算「还能撑几个月」；姓名 / 联系方式只给简历用。</p>
       <form id="form-profile" novalidate>
         <div class="field">
           <label for="pf-savings">
             可动用存款<span class="req">*</span>
             <span class="opt">能立刻拿出来花的，不含定期、不含借出去的钱</span>
           </label>
-          <input type="number" id="pf-savings" step="0.01" placeholder="例如 30000">
+          <input type="number" id="pf-savings" step="0.01" placeholder="例如 30000" required>
           <p class="field-err" id="err-pf-savings"></p>
         </div>
         <div class="field">
@@ -345,6 +577,20 @@
           <input type="number" id="pf-monthly" step="0.01" placeholder="例如 5800">
           <p class="field-err" id="err-pf-monthly"></p>
         </div>
+        <div class="field">
+          <label for="pf-name">
+            姓名<span class="opt">选填；填了打印出来的简历上就有名字</span>
+          </label>
+          <input type="text" id="pf-name" maxlength="20" placeholder="例如 王某某">
+          <p class="field-err" id="err-pf-name"></p>
+        </div>
+        <div class="field">
+          <label for="pf-contact">
+            联系方式<span class="opt">选填；手机号或邮箱，只给简历用</span>
+          </label>
+          <input type="text" id="pf-contact" maxlength="40" placeholder="例如 138 0000 0000 / wang@example.com">
+          <p class="field-err" id="err-pf-contact"></p>
+        </div>
         <div class="btn-row">
           <button type="submit" class="btn btn-primary">保存参数</button>
           <button type="button" class="btn" id="btn-export">导出备份</button>
@@ -352,8 +598,11 @@
         </div>
       </form>
       <div class="todo-note">
-        本步只做字段与校验，参数没往任何地方存。<br>
-        「保存参数」→ 第 5 步；「导出 / 导入备份」→ 第 8 步。
+        保存参数会真的记进浏览器，刷新页面后还在；改完回上面看，数字立刻重算。<br>
+        月均支出留空 = 用近 3 个月记账自动算。<br>
+        姓名和联系方式只存在你自己这台电脑的浏览器里，不会上传；导出备份时会一起装进那个 .json 文件（明文，别填不想让它出现在文件里的内容）。<br>
+        <b>导出备份</b>：把全部收支、经历和个人参数打包成一个 <code>jiance-backup-日期.json</code> 文件下载到本机（明文，记事本就能看）。<br>
+        <b>导入备份</b>：选中以前导出的那个文件，确认后会用文件里的内容<b>覆盖</b>当前全部数据——所以导入前建议先导出一次现在的数据。
       </div>
     </div>
 
@@ -370,27 +619,27 @@
       <form id="form-expense" novalidate>
         <div class="field">
           <label for="ex-date">日期<span class="req">*</span></label>
-          <input type="date" id="ex-date">
+          <input type="date" id="ex-date" required>
           <p class="field-err" id="err-ex-date"></p>
         </div>
 
         <div class="field">
           <label for="ex-amount">金额<span class="req">*</span><span class="opt">正数，最多两位小数</span></label>
-          <input type="number" id="ex-amount" step="0.01" placeholder="例如 38.50">
+          <input type="number" id="ex-amount" step="0.01" placeholder="例如 38.50" required>
           <p class="field-err" id="err-ex-amount"></p>
         </div>
 
         <div class="field">
           <label>收 / 支<span class="req">*</span></label>
           <div class="seg">
-            <label><input type="radio" name="ex-type" value="支出" checked><span>支出</span></label>
+            <label><input type="radio" name="ex-type" value="支出" checked required><span>支出</span></label>
             <label><input type="radio" name="ex-type" value="收入"><span>收入</span></label>
           </div>
         </div>
 
         <div class="field">
           <label for="ex-category">分类<span class="req">*</span><span class="opt">选项随收 / 支切换</span></label>
-          <select id="ex-category"></select>
+          <select id="ex-category" required></select>
           <p class="field-err" id="err-ex-category"></p>
         </div>
 
@@ -430,7 +679,9 @@
         </div>
       </div>
 
-      <div id="expense-list"></div>
+      <!-- tabindex="-1"：列表本身不进 Tab 顺序，但删完最后一行时可以把焦点落在这儿，
+           免得焦点掉回 <body>（本轮体检补） -->
+      <div id="expense-list" tabindex="-1"></div>
       <div class="empty" id="expense-empty">这个月还没有流水记录</div>
       <div class="todo-note">上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。</div>
     </div>
@@ -448,7 +699,7 @@
       <form id="form-entry" novalidate>
         <div class="field">
           <label for="en-start">开始时间<span class="req">*</span></label>
-          <input type="date" id="en-start">
+          <input type="date" id="en-start" required>
           <p class="field-err" id="err-en-start"></p>
         </div>
 
@@ -460,7 +711,7 @@
 
         <div class="field">
           <label for="en-content">做成了什么<span class="req">*</span><span class="opt">一句话</span></label>
-          <input type="text" id="en-content" maxlength="100" placeholder="例如 把首页加载从 5 秒压到 2 秒">
+          <input type="text" id="en-content" maxlength="100" placeholder="例如 把首页加载从 5 秒压到 2 秒" required>
           <p class="field-err" id="err-en-content"></p>
         </div>
 
@@ -483,18 +734,23 @@
         </div>
 
         <div class="btn-row">
-          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-entry">保存</button>
+          <button type="button" class="btn" id="btn-cancel-entry-edit" hidden>取消编辑</button>
           <button type="reset" class="btn">清空重填</button>
         </div>
       </form>
-      <div class="todo-note">本步「保存」只走到校验通过，不写数据。真正存进去在第 6 步。</div>
+      <div class="todo-note" id="entry-form-note">保存会真的记进浏览器，刷新页面后还在。点列表里某条右侧的「编辑」可以改它，点「删除」会先问你一次。开始时间默认今天，结束时间留空 = 到现在还在做。</div>
     </div>
 
     <div class="card">
       <h2 class="card-title">经历列表</h2>
       <p class="card-sub">按结束时间从新到旧排，还在做的排最前面</p>
-      <div class="empty">还没有经历记录</div>
-      <div class="todo-note">列表渲染在第 6 步接入。</div>
+      <div id="entry-list" tabindex="-1"></div>
+      <div class="empty" id="entry-empty">还没有经历记录</div>
+      <div class="todo-note">
+        上面填完点「保存」就会记进来，刷新页面后还在。<br>
+        列表里每条右侧的「编辑 / 删除」：点「编辑」会把那条填回上面的表单，改完点「保存修改」。
+      </div>
     </div>
 
   </section>
@@ -504,25 +760,52 @@
 
     <div class="page-module">简历面</div>
 
-    <div class="card">
+    <div class="card resume-toolbar">
       <h2 class="card-title">简历预览</h2>
-      <p class="card-sub">攒下的经历会在这里按时间排成一份简历</p>
-      <div class="empty">先去「记一条」记下你的成果，这里会自动排成一份简历</div>
-      <div class="btn-row" style="margin-top: 14px;">
+      <p class="card-sub">攒下的经历按结束时间从新到旧排；没填结束时间的（还在做的）排在最前面</p>
+      <div class="btn-row">
         <button type="button" class="btn" id="btn-print">打印 / 另存为 PDF</button>
       </div>
-      <div class="todo-note">简历渲染与打印样式在第 7 步接入。</div>
+      <div class="todo-note">
+        点上面这个按钮调起浏览器自带的打印窗口，在「目标」里选「另存为 PDF」就能存成文件。<br>
+        这页是只读的：经历去「记一条」改；纸顶上的<b>姓名 / 联系方式</b>去底牌页「设置个人参数」填，不填就不显示。<br>
+        蓝色标签是这条经历的<b>量化结果</b>，统一带「成果：」前缀。
+      </div>
+    </div>
+
+    <!-- 简历纸：屏幕上看到的样子就是打印出来的样子 -->
+    <div class="card resume-sheet" id="resume-sheet">
+      <!-- 抬头：底牌页填过姓名 / 联系方式才出现，没填时由 renderResume 把整块藏掉。
+           姓名故意用 <p> 不用标题标签：「经历」才是这份简历的章节标题（h3），
+           姓名只是抬头顶上的一行大字 —— 用 h3 的话，没填姓名时纸里就只剩 h4，
+           标题层级会从 h2 直接跳到 h4，读屏的标题大纲会缺一级。 -->
+      <div class="resume-head" id="resume-head" hidden>
+        <p class="resume-name" id="resume-name"></p>
+        <p class="resume-contact" id="resume-contact"></p>
+      </div>
+      <div class="resume-subhead">
+        <h3 class="resume-h1">经历</h3>
+        <div class="resume-count" id="resume-count"></div>
+      </div>
+      <div id="resume-list"></div>
+      <div class="empty" id="resume-empty">先去「记一条」记下你的成果，这里会自动排成一份简历</div>
     </div>
 
   </section>
 
 </main>
 
-<div class="toast" id="toast"></div>
+<!-- 浮动提示：role=status + aria-live=polite，屏幕阅读器会念出「已记下 / 已删除」 -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- 导入备份用的选文件框（第 10 步）：藏起来，靠「导入备份」按钮代为点它。
+     为什么不用浏览器原生样式：原生那个长得跟页面格格不入，而且没办法在自动化测试里选文件。
+     accept 限定 .json 只是给系统的提示，真正的把关在 checkBackup()（文件后缀可以骗人） -->
+<input type="file" id="import-file" accept=".json,application/json" hidden>
 
 <!-- 确认弹层（第 4 步新增）：删除前必须问一次，点「取消」什么都不变 -->
 <div class="modal-mask" id="modal-mask" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-text">
     <h3 class="modal-title" id="modal-title">确认删除？</h3>
     <p class="modal-text" id="modal-text">此操作不可恢复。</p>
     <div class="modal-btns">
@@ -675,7 +958,16 @@
 
   function showPage(name) {
     $$('.page').forEach((p) => p.classList.toggle('is-active', p.id === 'page-' + name));
-    $$('.nav-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.page === name));
+    $$('.nav-btn').forEach((b) => {
+      const on = b.dataset.page === name;
+      b.classList.toggle('is-active', on);
+      // 当前页不只靠颜色标，还给屏幕阅读器报一声「这里是当前页」（本轮体检补）
+      if (on) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    }    );
+    // 每次进简历页都重排一次：这页是「看的产物」，保证一进来看到的就是最新数据
+    // （函数声明会整体提升，这里写在 renderResume 定义之前也能调到）
+    if (name === 'resume') renderResume();
     window.scrollTo(0, 0);
   }
 
@@ -684,6 +976,8 @@
      ============================================================ */
 
   // 给某个字段显示 / 清除错误提示。controlId 是输入控件的 id。
+  // 出错时同时给输入框标 aria-invalid + aria-describedby（指向错误文案），
+  // 屏幕上看到的红字，屏幕阅读器也能听到（本轮体检补）。
   function setErr(controlId, msg) {
     const control = document.getElementById(controlId);
     const field = control ? control.closest('.field') : null;
@@ -692,10 +986,18 @@
     if (msg) {
       field.classList.add('has-error');
       if (err) err.textContent = msg;
+      if (control) {
+        control.setAttribute('aria-invalid', 'true');
+        if (err && err.id) control.setAttribute('aria-describedby', err.id);
+      }
       return false;
     }
     field.classList.remove('has-error');
     if (err) err.textContent = '';
+    if (control) {
+      control.removeAttribute('aria-invalid');
+      control.removeAttribute('aria-describedby');
+    }
     return true;
   }
 
@@ -704,6 +1006,10 @@
       f.classList.remove('has-error');
       const err = f.querySelector('.field-err');
       if (err) err.textContent = '';
+      f.querySelectorAll('input, select').forEach((c) => {
+        c.removeAttribute('aria-invalid');
+        c.removeAttribute('aria-describedby');
+      });
     });
   }
 
@@ -756,6 +1062,9 @@
 
   // 正在编辑哪一条（第 4 步）。null = 新增模式；有值 = 正在改那条记录的 id
   let editingId = null;
+
+  // 「怎么算的」展开没展开（PRD 功能 3 用户动作 3）。默认收起，点一下才展开
+  let powerDetailOpen = false;
 
   // 取某个月的记录：date 长这样 2026-09-22，取前 7 位就是 2026-09
   function expensesOfMonth(m) {
@@ -855,6 +1164,14 @@
 
   // 切换列表看的月份（合计数字跟着一起变）
   function setViewMonth(m) {
+    // 正在改某一条时切月：被改的那条已经不在眼前的列表里了，再点「保存修改」等于在改一条
+    // 看不见的记录，很容易误操作。所以这里自动退出编辑态并清空表单，同时提示一句。
+    // reset() 那段会退出编辑态、清空输入、把日期补回今天（见 11.8）。
+    // 2026-09-22 用户拍板选 A（B 是保留编辑态、在表单上标明在改哪个月）。
+    if (m !== viewMonth && editingId !== null) {
+      $('#form-expense').reset();
+      toast('已退出编辑：切到别的月份，改动没保存');
+    }
     viewMonth = m;
     $('#month-label').textContent = m;
     renderExpenseList();
@@ -869,7 +1186,173 @@
   }
 
   /* ============================================================
-     8. 记一笔：编辑 / 删除 / 确认弹层（第 4 步新增）
+     8. 底牌页：还能撑几个月 + 本月三数（第 5 步新增）
+     口径出处：PRD 功能 3、第五节「计算口径」、5.3、8.2 验收
+     铁律（TECH_DESIGN 第八节第 6 条）：分母为 0 或没数据时走引导文案，
+     绝不显示 0 / Infinity / NaN 冒充「算出来了」
+     ============================================================ */
+
+  // 能用的金额：'' / null / NaN / 负数 一律不算（返回 null）
+  function usableMoney(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    const n = Number(v);
+    if (!isFinite(n) || n < 0) return null;
+    return n;
+  }
+
+  // 从 anchor（格式 2026-09）往前数 n 个自然月，从早到晚排（PRD：「近 3 个自然月」= 当前月 + 前 2 个月）
+  // 例：anchor=2026-09、n=3 → ['2026-07','2026-08','2026-09']；跨年也对：2026-01 + 2 → ['2025-12','2026-01']
+  function recentMonths(anchor, n) {
+    const parts = anchor.split('-');
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);             // 1~12
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(y, m - 1 - i, 1);  // Date 自己会处理跨年
+      out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+    return out;
+  }
+
+  // 某个月的收入 / 支出合计，外加这月有几条记录（0 条 = 空月）
+  // 注意：记录的 type 存的就是中文「收入」/「支出」（PRD 5.1），不是 income / expense
+  function sumOfMonth(m) {
+    let income = 0;
+    let expense = 0;
+    const rows = expensesOfMonth(m);
+    rows.forEach((r) => {
+      if (r.type === '收入') income += Number(r.amount) || 0;
+      else expense += Number(r.amount) || 0;
+    });
+    return { income: income, expense: expense, count: rows.length };
+  }
+
+  // 月均支出怎么取：按 PRD 第五节的顺序判断，取到哪条就停
+  // 返回 { value, from: 'auto' | 'manual' | 'none', monthCount, zero }
+  function monthlyExpenseInfo() {
+    // 规则 1 / 2：近 3 个自然月里有支出记录 → 按记账自动算
+    const months = recentMonths(currentMonthStr(), 3);
+    let total = 0;
+    let monthCount = 0;
+    months.forEach((m) => {
+      const s = sumOfMonth(m).expense;
+      if (s > 0) { total += s; monthCount++; }
+    });
+    if (monthCount > 0) {
+      // 满 3 个月就 ÷3；不满就 ÷ 有支出的月份数（并标注「样本不足 3 个月」）
+      return { value: total / (monthCount >= 3 ? 3 : monthCount), from: 'auto', monthCount: monthCount, zero: false };
+    }
+
+    // 规则 3 / 4：一条支出记录都没有 → 用手填的
+    const manual = usableMoney(Store.data.profile && Store.data.profile.monthlyExpense);
+    if (manual === null) return { value: null, from: 'none', monthCount: 0, zero: false };
+    return { value: manual, from: 'manual', monthCount: 0, zero: manual === 0 };
+  }
+
+  // 算出「还能撑几个月」，并把这一页该显示的文案一起定下来
+  // state：no-savings（没填存款）/ no-expense（取不到月均支出）/ zero（月均支出是 0）/ ok
+  function calcRunway() {
+    const savings = usableMoney(Store.data.profile && Store.data.profile.savings);
+    if (savings === null) {
+      // PRD 8.2：没填存款时给引导，不显示 0、不显示 NaN、不报错
+      return { state: 'no-savings', hint: '先填一下你能动用的存款' };
+    }
+
+    const me = monthlyExpenseInfo();
+    if (me.value === null) {
+      return { state: 'no-expense', hint: '先记一笔支出，或手填月均支出' };
+    }
+    if (me.zero) {
+      // 正常走不到这里：月均支出字段本身就不让填 0（表单层已拦）。
+      // 留着是防抽屉里的数据被手工改坏 / 以后导入一份 monthlyExpense=0 的备份
+      // （TECH_DESIGN 第八节第 6 条：分母为 0 绝不显示 0 / Infinity / NaN）
+      return { state: 'zero', hint: '月均支出填的是 0，算不出能撑几个月，请填一个大于 0 的数' };
+    }
+
+    const months = savings / me.value;                 // 唯一的公式：存款 ÷ 月均支出
+    const from = me.from === 'auto'
+      ? '近 ' + me.monthCount + ' 个月平均支出 ' + money(me.value)
+      : '手填月均支出 ' + money(me.value);
+    return {
+      state: 'ok',
+      value: months,
+      sampleShort: me.from === 'auto' && me.monthCount < 3,   // 不满 3 个月 → 标注样本不足
+      hint: '',
+      detail: '怎么算的：可动用存款 ' + money(savings) + ' ÷ ' + from
+    };
+  }
+
+  // 结余显示：负数写成 -¥500.00，不写成 ¥-500.00
+  function balanceText(n) {
+    return (n < 0 ? '-' : '') + money(Math.abs(n));
+  }
+
+  // 把存着的个人参数填回表单（打开页面时、以及导入备份替换完数据后，都走这一个口）
+  // 金额字段只认「能用的数字」，文本字段照原样填回不套金额那套校验
+  function fillProfileForm() {
+    // 「照实覆盖」而不是「有才填」：导入的备份里可能没有月均支出 / 姓名，那时必须把框清空 ——
+    // 否则框里留着上一个人的数字，你一点「保存参数」就把它存回去了
+    const p = Store.data.profile || {};
+    $('#pf-savings').value = usableMoney(p.savings) !== null ? p.savings : '';
+    $('#pf-monthly').value = usableMoney(p.monthlyExpense) !== null ? p.monthlyExpense : '';
+    $('#pf-name').value = String(p.name || '');
+    $('#pf-contact').value = String(p.contact || '');
+  }
+
+  // 画底牌页。凡是改动了数据的操作（记一笔 / 编辑 / 删除 / 改参数）做完都要调它，
+  // 保证「改完这页数字立即重算，不用刷新」（PRD 功能 3 最后一条、8.2 验收）
+  function renderHome() {
+    // ---- 本月三数（本月 = 电脑系统时间所在的自然月，PRD 5.3） ----
+    const s = sumOfMonth(currentMonthStr());
+    const setStat = (sel, text, isEmpty) => {
+      const el = $(sel);
+      el.textContent = text;
+      el.classList.toggle('is-empty', !!isEmpty);
+    };
+    if (s.count === 0) {
+      // 这月一条记录都没有：显示 —，不拿 ¥0.00 冒充「有数据」
+      setStat('#home-income', '—', true);
+      setStat('#home-expense', '—', true);
+      setStat('#home-balance', '—', true);
+    } else {
+      setStat('#home-income', money(s.income), false);
+      setStat('#home-expense', money(s.expense), false);
+      setStat('#home-balance', balanceText(s.income - s.expense), false);
+    }
+
+    // ---- 还能撑几个月 ----
+    const r = calcRunway();
+    const valueEl = $('#power-value');
+    const numEl = $('#power-num');
+    const unitEl = $('#power-unit');
+    const hintEl = $('#power-hint');
+    const detailEl = $('#power-detail');
+    const toggleEl = $('#power-detail-toggle');
+    const warnEl = $('#power-warn');
+
+    hintEl.textContent = r.hint || '';
+    hintEl.hidden = !r.hint;
+    detailEl.textContent = r.detail || '';
+    // 「怎么算的」入口：算得出数字才有得可解释，空态 / 引导态不给这个入口
+    toggleEl.hidden = !r.detail;
+    toggleEl.textContent = powerDetailOpen ? '收起算法 ▴' : '怎么算的 ▾';
+    toggleEl.setAttribute('aria-expanded', powerDetailOpen ? 'true' : 'false');
+    detailEl.hidden = !(r.detail && powerDetailOpen);   // 默认收起，点开了才显示
+    warnEl.hidden = !r.sampleShort;                    // 样本不足 3 个月时亮出标注
+
+    if (r.state === 'ok') {
+      valueEl.classList.remove('is-empty');
+      numEl.textContent = '≈ ' + r.value.toFixed(1);   // 保留一位小数（PRD 第五节）
+      unitEl.hidden = false;
+    } else {
+      valueEl.classList.add('is-empty');
+      numEl.textContent = '—';
+      unitEl.hidden = true;                            // 空态只显示一个破折号，不留「个月」
+    }
+  }
+
+  /* ============================================================
+     9. 记一笔：编辑 / 删除 / 确认弹层（第 4 步新增）
      口径来源：PRD v1.4 功能 1 用户动作 4 / 5 + 可观察结果 + 8.3 验收
      ============================================================ */
 
@@ -908,7 +1391,10 @@
     syncExpenseFormMode();
 
     // 内容被填到了上面的表单里，把表单滚进视野，别让人以为点错了
-    $('#form-expense').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // （系统开了「减少动效」就直接跳过去，不做平滑滚动）
+    const reduceMotion = window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    $('#form-expense').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
     toast('已载入这条记录，改完点「保存修改」');
   }
 
@@ -935,6 +1421,7 @@
       if (editingId === id) $('#form-expense').reset();   // reset 那段会退出编辑态、把日期补回今天
       renderExpenseList();
       renderExpenseStats();
+      renderHome();                              // 底牌页数字跟着重算（第 5 步）
       toast('已删除');
     });
   }
@@ -943,13 +1430,20 @@
   // 原因：自带 confirm 会阻塞页面、样式不可控，也没法在自动化测试里点它的「确认」。
   // 自己画的弹层后面第 8 步「导入会覆盖现有数据」那处确认可以直接复用。
   let confirmResolve = null;
+  let confirmReturnFocus = null;      // 弹层打开前焦点在哪，关掉后要还回去
+  // 触发弹层的那个按钮如果连同记录一起被删掉了，焦点改落到哪个列表。
+  // 记一笔页和记一条页各有一个列表，所以由调用方指定，不能写死
+  let confirmFallbackSel = null;
 
-  function askConfirm(title, text) {
+  function askConfirm(title, text, fallbackSelector) {
     return new Promise((resolve) => {
       confirmResolve = resolve;
+      confirmReturnFocus = document.activeElement;   // 一般是刚点的那个「删除」
+      confirmFallbackSel = fallbackSelector || '#expense-list';
       $('#modal-title').textContent = title;
       $('#modal-text').textContent = text;
       $('#modal-mask').hidden = false;
+      document.body.classList.add('is-modal-open');  // 弹层开着时锁住背景滚动
       $('#modal-ok').focus();
     });
   }
@@ -958,19 +1452,496 @@
   function answerConfirm(result) {
     if (!confirmResolve) return;
     $('#modal-mask').hidden = true;
+    document.body.classList.remove('is-modal-open');
     const done = confirmResolve;
     confirmResolve = null;      // 先清再调，避免回调里又触发一次
-    done(result);
+    const back = confirmReturnFocus;
+    confirmReturnFocus = null;
+    const fallbackSel = confirmFallbackSel;
+    confirmFallbackSel = null;
+
+    done(result);               // 先让业务跑（可能删掉那一条、列表重建）
+
+    // 再把焦点还回去。不还的话焦点会留在已经藏起来的「确认」按钮上，
+    // 用键盘的人下一步 Tab 会从页面最开头重新走（本轮体检补）。
+    // 业务是在 Promise 回调里跑的，所以这里要排到它后面一拍再归还：
+    // 触发弹层的那个「删除」按钮如果已经随记录一起被删掉，就把焦点落在该页的列表上。
+    setTimeout(() => {
+      // body 不算「能接住焦点的目标」：触摸屏上点按钮常常不会让它拿到焦点，
+      // 这时 activeElement 就是 body，focus(body) 等于什么都没做 —— 直接退回列表更稳
+      const usable = (el) => !!el && el !== document.body
+        && document.contains(el) && !el.hidden;
+      const list = $((fallbackSel || '#expense-list'));
+      const target = usable(back) ? back : (usable(list) ? list : null);
+      if (target) target.focus();
+    }, 0);
   }
 
   /* ============================================================
-     9. 初始化
+     10. 记一条：保存 + 经历列表（第 6 步新增）
+     口径来源：PRD v1.4 功能 2、5.2 字段表、8.4 验收；TECH_DESIGN v1.4 5.2
+     排序规则（PRD 5.2、TECH_DESIGN 5.2）：endDate 从晚到早 → endDate 空的（还在做）排最前 →
+     同 endDate 的按 startDate 从晚到早。记一条页的经历列表与简历预览页共用这一套规则。
+     ============================================================ */
+
+  // 正在编辑哪一条经历（第 7 步）。null = 新增模式；有值 = 正在改那条经历的 id。
+  // 和记一笔的 editingId 分开存：两个表单各自独立，互不干扰
+  let entryEditingId = null;
+
+  // 表单当前该显示哪种模式（新增 / 改某一条）：主按钮文案、「取消编辑」的显隐都在这里统一切
+  function syncEntryFormMode() {
+    const editing = entryEditingId !== null;
+    $('#btn-save-entry').textContent = editing ? '保存修改' : '保存';
+    $('#btn-cancel-entry-edit').hidden = !editing;
+    $('#entry-form-note').textContent = editing
+      ? '正在修改这条经历，改完点「保存修改」；点「取消编辑」放弃这次修改。'
+      : '保存会真的记进浏览器，刷新页面后还在。点列表里某条右侧的「编辑」可以改它，点「删除」会先问你一次。开始时间默认今天，结束时间留空 = 到现在还在做。';
+    renderEntryList();   // 让列表里「正在编辑」那条的高亮跟着变
+  }
+
+  // 离开编辑态。reset 事件（点「清空重填」「取消编辑」或保存后清空）里统一调用
+  function leaveEntryEditMode() {
+    entryEditingId = null;
+    syncEntryFormMode();
+  }
+
+  // 点某条经历右侧的「编辑」：把那条的内容填回上面的表单，进入编辑态
+  function enterEntryEdit(id) {
+    const r = Store.data.entries.filter((x) => x.id === id)[0];
+    if (!r) return;
+
+    entryEditingId = id;
+    $('#en-start').value = r.startDate || '';
+    $('#en-end').value = r.endDate || '';    // 空 = 还在做，正好是表单的默认状态
+    $('#en-content').value = r.content || '';
+    $('#en-org').value = r.org || '';
+    $('#en-role').value = r.role || '';
+    $('#en-result').value = r.result || '';
+    clearErrs($('#form-entry'));
+    syncEntryFormMode();
+
+    // 内容被填到了上面的表单里，把表单滚进视野，别让人以为点错了
+    const reduceMotion = window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    $('#form-entry').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    toast('已载入这条经历，改完点「保存修改」');
+  }
+
+  // 点某条经历右侧的「删除」：先弹确认框，点「确认」才真从抽屉里移除
+  function askDeleteEntry(id) {
+    const r = Store.data.entries.filter((x) => x.id === id)[0];
+    if (!r) return;
+
+    // 经历是「一段时间 + 一句话」，整句贴进弹层会太长，超过 20 字就截断
+    const brief = r.content.length > 20 ? r.content.slice(0, 20) + '…' : r.content;
+    const what = entryPeriod(r) + ' · ' + brief;
+
+    askConfirm('确认删除？', '要删掉的是：' + what + '。此操作不可恢复。', '#entry-list').then((yes) => {
+      if (!yes) return;                         // 点「取消」：这条经历不动
+
+      const list = Store.data.entries;
+      const idx = list.findIndex((x) => x.id === id);
+      if (idx < 0) return;
+      const removed = list.splice(idx, 1)[0];
+      if (!Store.save('entries')) {
+        list.splice(idx, 0, removed);           // 存不进去就放回原位，屏幕和抽屉保持一致
+        return;
+      }
+
+      // 删掉的正好是正在编辑的那条：表单也一起清掉。
+      // 只退出编辑态、留着表单内容的话，下次点「保存」会莫名新增一条（内容还是刚删掉那条的）
+      if (entryEditingId === id) $('#form-entry').reset();
+
+      // 记一条页列表和简历预览页都要跟着少一条（PRD 8.4：删除后简历页同步变化）
+      syncEntryViews();
+      toast('已删除');
+    });
+  }
+
+  // 经历记录的排序。返回新数组，不动 Store 里的原顺序
+  function sortEntries(list) {
+    return (list || []).slice().sort((a, b) => {
+      const ae = a.endDate || '';
+      const be = b.endDate || '';
+      // 「还在做」（endDate 空）排最前面，所以空值要当作比任何具体日期都晚
+      if (ae === '' && be !== '') return -1;
+      if (ae !== '' && be === '') return 1;
+      if (ae !== be) return ae > be ? -1 : 1;
+      const as = a.startDate || '';
+      const bs = b.startDate || '';
+      if (as !== bs) return as > bs ? -1 : 1;
+      // 文档没规定的一种情况：起止时间一模一样（例如同一天连着记两条）。
+      // 这里兜一道「后记的在前」，让顺序稳定、不随排序实现抖动
+      const ac = a.createdAt || '';
+      const bc = b.createdAt || '';
+      if (ac !== bc) return ac > bc ? -1 : 1;
+      return 0;
+    });
+  }
+
+  // 时间段怎么写：结束时间留空 = 还在做，写「至今」（与 PRD 8.5 的用词一致）
+  function entryPeriod(r) {
+    return (r.startDate || '') + ' ~ ' + (r.endDate || '至今');
+  }
+
+  // 量化结果统一写成「成果：xxx」（Day 7 拍板补前缀）。
+  // 前缀只写在这一处：记一条列表和简历预览页都用它，以后改文案不会只改一边。
+  // 用真实文字而不是 CSS ::before —— 复制简历文字时会带上，读屏也一定会念。
+  function resultLabel(result) {
+    return '成果：' + result;
+  }
+
+  // 渲染经历列表。与流水列表同一个写法：createElement + textContent，
+  // 不拼 HTML 字符串（内容是用户自己输入的一句话，拼字符串会有注入风险）
+  function renderEntryList() {
+    const box = $('#entry-list');
+    const emptyBox = $('#entry-empty');
+    box.textContent = '';
+
+    const rows = sortEntries(Store.data.entries);
+    emptyBox.hidden = rows.length > 0;
+    if (!rows.length) return;
+
+    rows.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'entry-row' + (entryEditingId === r.id ? ' is-editing' : '');
+
+      const when = document.createElement('span');
+      when.className = 'entry-when';
+      when.textContent = entryPeriod(r);
+
+      const main = document.createElement('span');
+      main.className = 'entry-main';
+
+      const what = document.createElement('span');
+      what.className = 'entry-content';
+      what.textContent = r.content;
+      main.appendChild(what);
+
+      // 公司 / 职位：填了哪个显示哪个，中间用 · 连着（两个都没填就不占位置）
+      const org = [r.org, r.role].filter(Boolean).join(' · ');
+      if (org) {
+        const orgEl = document.createElement('span');
+        orgEl.className = 'entry-org';
+        orgEl.textContent = org;
+        main.appendChild(orgEl);
+      }
+
+      if (r.result) {
+        const res = document.createElement('span');
+        res.className = 'entry-result';
+        res.textContent = resultLabel(r.result);
+        main.appendChild(res);
+      }
+
+      // 每行右侧的「编辑 / 删除」（第 7 步）。写法照搬流水列表：
+      // 按钮带 data-act / data-id，点击由列表容器上的一个监听统一处理（事件委托）
+      const acts = document.createElement('span');
+      acts.className = 'entry-acts';
+      [['edit', '编辑', 'entry-act-edit'], ['del', '删除', 'entry-act-del']].forEach(([act, label, extra]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'entry-act ' + extra;
+        btn.setAttribute('data-act', act);
+        btn.setAttribute('data-id', r.id);
+        btn.textContent = label;
+        acts.appendChild(btn);
+      });
+
+      row.appendChild(when);
+      row.appendChild(main);
+      row.appendChild(acts);
+      box.appendChild(row);
+    });
+  }
+
+  /* ============================================================
+     10b. 简历预览页（第 8 步）
+     口径来源：PRD v1.4 功能 3「顺手把经历拼成一份简历」、四、页面结构第 4 页、8.5 验收
+     排序规则与记一条页共用同一套（sortEntries），不另写一份 —— 两处排法不一致的话，
+     同一批经历在两个页面上顺序不同，看着就像出了 bug。
+     这页是只读的：不改任何数据，只把抽屉第 2 格里的经历排出来。
+     ============================================================ */
+
+  // 渲染简历。写法与两个列表一致：createElement + textContent，
+  // 不拼 HTML 字符串（内容全是用户自己输入的，拼字符串会有注入风险）
+  function renderResume() {
+    const list = $('#resume-list');
+    const emptyBox = $('#resume-empty');
+    const countEl = $('#resume-count');
+    list.textContent = '';
+
+    // 抬头（第 9 步补）：姓名 / 联系方式来自底牌页「设置个人参数」，都是选填。
+    // 填了才出现，两个都没填就整块藏掉 —— 纸面不会多一块空白。
+    // 字段可能被手改过数据，所以统一走 String(...) 兜一道，不假设它一定是文本。
+    const profile = Store.data.profile || {};
+    const ownerName = String(profile.name || '').trim();
+    const contact = String(profile.contact || '').trim();
+    $('#resume-head').hidden = !(ownerName || contact);
+    const nameEl = $('#resume-name');
+    nameEl.textContent = ownerName;
+    nameEl.hidden = !ownerName;
+    const contactEl = $('#resume-contact');
+    contactEl.textContent = contact;
+    contactEl.hidden = !contact;
+
+    const rows = sortEntries(Store.data.entries);
+    emptyBox.hidden = rows.length > 0;
+    // 一条都没有时不写「共 0 条」—— 空态那句引导已经说清楚了，两个提示叠着显得吵
+    countEl.textContent = rows.length ? '共 ' + rows.length + ' 条' : '';
+
+    rows.forEach((r) => {
+      const item = document.createElement('div');
+      item.className = 'resume-item';
+
+      const when = document.createElement('span');
+      when.className = 'resume-when';
+      when.textContent = entryPeriod(r);
+
+      const main = document.createElement('span');
+      main.className = 'resume-main';
+
+      const what = document.createElement('span');
+      what.className = 'resume-content';
+      what.textContent = r.content;
+      main.appendChild(what);
+
+      // 公司 / 职位：填了哪个显示哪个，中间用 · 连着（PRD 8.5「有公司 / 职位 / 量化结果的也一并显示」）
+      const org = [r.org, r.role].filter(Boolean).join(' · ');
+      if (org) {
+        const orgEl = document.createElement('span');
+        orgEl.className = 'resume-org';
+        orgEl.textContent = org;
+        main.appendChild(orgEl);
+      }
+
+      if (r.result) {
+        const res = document.createElement('span');
+        res.className = 'resume-result';
+        res.textContent = resultLabel(r.result);
+        main.appendChild(res);
+      }
+
+      item.appendChild(when);
+      item.appendChild(main);
+      list.appendChild(item);
+    });
+  }
+
+  // 经历一变（新增 / 修改 / 删除），简历面两个页面都要跟着变：
+  // 记一条页的列表 + 简历预览页（PRD 8.4：编辑或删除后，列表和简历预览页同步变化）。
+  // 统一走这一个函数，免得将来加了新的改动路径却忘了刷新简历页
+  function syncEntryViews() {
+    renderEntryList();
+    renderResume();
+  }
+
+  /* ============================================================
+     10c. 导出 / 导入备份（第 10 步）
+     依据：PRD v1.6 功能 4 / 8.7 验收、TECH_DESIGN v1.6 5.5（文件格式）+ 10.4（拍板范围）
+     两条铁律：
+       1) 导入是「先校验 → 再确认 → 最后整体替换」，任何一步没过就一个字节都不写
+       2) 中途写失败必须还原，不允许留下「导了一半」的数据
+     导入后的落点（PRD v1.6 / TECH_DESIGN 10.4）：流水列表跳到备份里最新一条记录所在的
+     月份（不跳回当前月）；空备份是合法输入，照收不报错
+     明确不做：云备份、自动定时导出、多份备份管理、加密（TECH_DESIGN 10.4）
+     ============================================================ */
+
+  const BACKUP_FORMAT = 'jiance-backup';   // 导入时靠它认出「这确实是简册的备份」
+  const BACKUP_VERSION = 1;                // 数据结构版本号，首次上线就是 1
+  const BACKUP_CELLS = ['expenses', 'entries', 'profile', 'meta'];   // 备份里装的东西 = 抽屉四格
+
+  // 把内存里四格打包成备份对象（字段名照 TECH_DESIGN 5.5 的表，一个不多一个不少）
+  function buildBackup() {
+    return {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: nowStamp(),          // 导出时间，你自己打开文件时能看出来是什么时候存的
+      expenses: Store.data.expenses,
+      entries: Store.data.entries,
+      profile: Store.data.profile,
+      meta: Store.data.meta
+    };
+  }
+
+  // 导出：打包 → 在内存里造一个文件 → 借浏览器的手下载下来
+  function exportBackup() {
+    const fileName = 'jiance-backup-' + todayStr() + '.json';   // TECH_DESIGN 5.5 的文件名规则
+
+    let text;
+    try {
+      text = JSON.stringify(buildBackup(), null, 2);   // 缩进 2 空格：明文文件，你打开要看得懂
+    } catch (err) {
+      toast('打包失败，这次没导出成功');   // 理论上到不了这（数据都是纯文本/数字），兜底喊一声
+      return;
+    }
+
+    let url = '';
+    try {
+      url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    } catch (err) {
+      toast('浏览器不允许生成下载文件，这次没导出成功');
+      return;
+    }
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.hidden = true;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // 下载是异步的，立刻撤销地址可能把下载掐断，所以等一拍再撤销
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    // PRD/TECH_DESIGN 第 14 条：万一被浏览器拦了下载，得告诉你去哪儿找原因
+    toast('已导出 ' + fileName + '；若没看到文件，请检查浏览器的下载拦截设置');
+  }
+
+  // 校验备份内容。返回 { ok: true, data: {...} } 或 { ok: false, why: '给用户看的一句话' }
+  // 这里只做「能不能读懂」的把关，不改任何数据（PRD：选错文件时现有数据一条都不能动）
+  function checkBackup(raw) {
+    let obj;
+    try {
+      obj = JSON.parse(raw);
+    } catch (err) {
+      return { ok: false, why: '这个文件读不出来，可能已损坏' };
+    }
+
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      return { ok: false, why: '这个文件不是简册的备份' };
+    }
+    if (obj.format !== BACKUP_FORMAT) {
+      return { ok: false, why: '这个文件不是简册的备份' };
+    }
+
+    const ver = Number(obj.version);
+    if (!isFinite(ver)) {
+      return { ok: false, why: '这个文件不是简册的备份' };
+    }
+    if (ver > BACKUP_VERSION) {
+      // 不强行导入：新版本的数据结构我们读不懂，硬导进去只会丢字段
+      return { ok: false, why: '这份备份来自更新的版本（v' + ver + '），当前页面读不了' };
+    }
+
+    // 数据本体必须是它该有的形状，否则同「损坏」处理
+    const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+    const allObjects = (arr) => arr.every(isPlainObj);
+    if (!Array.isArray(obj.expenses) || !allObjects(obj.expenses)) {
+      return { ok: false, why: '这个文件读不出来，可能已损坏' };
+    }
+    if (!Array.isArray(obj.entries) || !allObjects(obj.entries)) {
+      return { ok: false, why: '这个文件读不出来，可能已损坏' };
+    }
+    if (!(obj.profile == null || isPlainObj(obj.profile))) {
+      return { ok: false, why: '这个文件读不出来，可能已损坏' };
+    }
+    if (!(obj.meta == null || isPlainObj(obj.meta))) {
+      return { ok: false, why: '这个文件读不出来，可能已损坏' };
+    }
+
+    return {
+      ok: true,
+      data: {
+        expenses: obj.expenses,
+        entries: obj.entries,
+        profile: obj.profile == null ? null : obj.profile,
+        // 备份里没带 meta 就补一个：meta 是「首次使用时间」，缺了不影响用，但别留个空洞
+        meta: obj.meta == null ? { version: DATA_VERSION, firstUsedAt: todayStr() } : obj.meta
+      }
+    };
+  }
+
+  // 把校验通过的备份整体写回抽屉。中途失败会把已写的几格一起还原。
+  // 返回 true（成功）/ false（失败，已还原）
+  function applyImport(next) {
+    const snapshot = {};                        // 导入前四格的原样，出事了靠它还原
+    BACKUP_CELLS.forEach((n) => { snapshot[n] = Store.data[n]; });
+
+    const done = [];
+    for (const n of BACKUP_CELLS) {
+      Store.data[n] = next[n];
+      if (!Store.save(n)) break;                // 失败原因 Store 已经提示过了
+      done.push(n);
+    }
+
+    if (done.length < BACKUP_CELLS.length) {
+      BACKUP_CELLS.forEach((n) => { Store.data[n] = snapshot[n]; });   // 内存还原
+      done.forEach((n) => Store.save(n));                              // 抽屉里已写的那几格也还原
+      toast('导入失败，原有数据已还原');
+      return false;
+    }
+    return true;
+  }
+
+  // 导入成功后把整页重新刷成「备份里的内容」（PRD 8.7：底牌页数字和两个列表都变）
+  function refreshAfterImport() {
+    $('#form-expense').reset();      // reset 那段会退出编辑态、把日期补回今天
+    $('#form-entry').reset();
+    clearErrs($('#form-profile'));   // 之前校验留下的红字要清掉，不然会安在别人的数据上
+    fillProfileForm();               // 个人参数填回表单（存款 / 月均支出 / 姓名 / 联系方式）
+    setViewMonth(newestExpenseMonth() || currentMonthStr());
+    syncEntryViews();
+    renderHome();
+  }
+
+  // 备份里最新一条收支所在的月份。导入后列表直接跳到那个月，
+  // 否则若你的记录都在 8 月而现在是 9 月，列表会空着 —— 看起来像「导入没成功」
+  function newestExpenseMonth() {
+    let newest = '';
+    Store.data.expenses.forEach((r) => {
+      const m = String(r.date || '').slice(0, 7);
+      if (m > newest) newest = m;
+    });
+    return newest;
+  }
+
+  // 点「导入备份」：清空选文件框再点它 —— 不清的话，连续选同一个文件浏览器不会再触发 change
+  function askImport() {
+    const input = $('#import-file');
+    input.value = '';
+    input.click();
+  }
+
+  // 选完文件 → 读文字 → 校验 → 二次确认 → 整体替换
+  function onImportFilePicked(file) {
+    if (!file) return;
+    const reader = new FileReader();
+
+    reader.onerror = () => toast('这个文件读不出来，可能已损坏；原有数据未做任何改动');
+
+    reader.onload = () => {
+      const check = checkBackup(String(reader.result));
+      if (!check.ok) {
+        toast(check.why + '；原有数据未做任何改动');
+        return;
+      }
+
+      // 覆盖是危险动作，必须先问一次；文案里顺便提醒「先导出当前数据」（TECH_DESIGN 第 13 条）
+      askConfirm(
+        '导入会覆盖当前所有数据',
+        '这会覆盖当前所有数据，确定吗？当前的全部收支、经历和个人参数都会被文件里的内容整体替换，'
+        + '而且无法撤销。建议先点「导出备份」把现在的数据存一份。',
+        '#btn-import'
+      ).then((yes) => {
+        if (!yes) { toast('已取消导入，数据一个字没动'); return; }
+        if (!applyImport(check.data)) return;
+        refreshAfterImport();
+        toast('导入完成：底牌页与两个列表已变成备份里的内容');
+      });
+    };
+
+    reader.readAsText(file);
+  }
+
+  /* ============================================================
+     11. 初始化
      ============================================================ */
 
   function init() {
     const today = todayStr();
 
-    // 9.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
+    // 11.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
     if (!Store.checkUsable()) {
       const banner = document.getElementById('storage-warning');
       if (banner) banner.hidden = false;
@@ -981,30 +1952,49 @@
       Store.save('meta');
     }
 
-    // 9.1 日期字段默认今天
+    // 11.1 日期字段默认今天
     $('#ex-date').value = today;
     $('#en-start').value = today;
 
-    // 9.2 分类下拉初始化
+    // 11.2 分类下拉初始化
     rebuildCategories();
 
-    // 9.3 流水列表：默认显示当前月（PRD 8.3）；setViewMonth 里会一并算出该月的收入 / 支出合计
+    // 11.3 流水列表：默认显示当前月（PRD 8.3）；setViewMonth 里会一并算出该月的收入 / 支出合计
     setViewMonth(currentMonthStr());
 
-    // 9.3b 记一笔表单先落在「新增」模式：主按钮写「保存」、「取消编辑」藏起来（第 4 步）
+    // 11.3b 记一笔表单先落在「新增」模式：主按钮写「保存」、「取消编辑」藏起来（第 4 步）
     syncExpenseFormMode();
 
-    // 9.4 导航条切换页面
+    // 11.3b2 经历列表 + 简历预览页：把抽屉第 2 格里的经历按排序规则渲染出来
+    //        （第 6 步做的列表，第 8 步接上简历页；两个页面共用一套渲染口径）
+    syncEntryViews();
+
+    // 11.3b3 记一条表单也先落在「新增」模式（第 7 步）
+    syncEntryFormMode();
+
+    // 11.3c 底牌页：把上次存过的个人参数填回表单，再算一次数字（第 5 步）
+    //       PRD 功能 3 用户动作 2：存款和月均支出只填一次，下次打开还在
+    fillProfileForm();
+    renderHome();
+
+    // 11.3d 「怎么算的」：点一下展开算法说明，再点收起（第 5 步；PRD 功能 3 用户动作 3）
+    //       状态存在 powerDetailOpen 里，改它之后统一走 renderHome，不另写一套显隐逻辑
+    $('#power-detail-toggle').addEventListener('click', () => {
+      powerDetailOpen = !powerDetailOpen;
+      renderHome();
+    });
+
+    // 11.4 导航条切换页面
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.page));
     });
 
-    // 9.5 底牌页两个大按钮
+    // 11.5 底牌页两个大按钮
     $$('[data-goto]').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.goto));
     });
 
-    // 9.6 收 / 支切换 → 重建分类选项
+    // 11.6 收 / 支切换 → 重建分类选项
     $$('input[name="ex-type"]').forEach((r) => {
       r.addEventListener('change', () => {
         rebuildCategories();
@@ -1012,7 +2002,7 @@
       });
     });
 
-    // 9.7 记一笔：校验 → 存进第 1 格 → 刷新合计 → 自动跳到这条记录所在的月份
+    // 11.7 记一笔：校验 → 存进第 1 格 → 刷新合计 → 自动跳到这条记录所在的月份
     $('#form-expense').addEventListener('submit', (e) => {
       e.preventDefault();
       const form = e.currentTarget;
@@ -1051,6 +2041,7 @@
         toast('已修改');
         form.reset();                              // 顺带退出编辑态、日期补回今天（见下面 reset 那段）
         setViewMonth(date.slice(0, 7));            // 改到别的月份，列表就跳过去
+        renderHome();                              // 底牌页的本月三数与「还能撑」跟着重算（第 5 步）
         return;
       }
 
@@ -1076,9 +2067,10 @@
       form.reset();                                  // 输入框清空，仍留在记一笔页（方便连着记）
       renderExpenseStats();
       setViewMonth(record.date.slice(0, 7));         // 记的是别的月份，列表自动跳过去
+      renderHome();                                  // 底牌页的本月三数与「还能撑」跟着重算（第 5 步）
     });
 
-    // 9.8 记一笔：清空重填后，日期补回今天，分类下拉也跟着收 / 支回到「支出」；
+    // 11.8 记一笔：清空重填后，日期补回今天，分类下拉也跟着收 / 支回到「支出」；
     //      顺便退出编辑态（不然表单清空了、下次保存却还在改那一条，很危险）
     $('#form-expense').addEventListener('reset', (e) => {
       const form = e.currentTarget;
@@ -1090,63 +2082,153 @@
       }, 0);
     });
 
-    // 9.9 记一条：保存（本步只校验）
+    // 11.9 记一条：校验 → 存进第 2 格 → 刷新经历列表（第 6 步）
     $('#form-entry').addEventListener('submit', (e) => {
       e.preventDefault();
-      clearErrs(e.currentTarget);
+      const form = e.currentTarget;
+      clearErrs(form);
 
       const start = $('#en-start').value;
       const end = $('#en-end').value;
+      const content = $('#en-content').value.trim();
+      const org = $('#en-org').value.trim();
+      const role = $('#en-role').value.trim();
+      const result = $('#en-result').value.trim();
 
       let ok = true;
       ok = setErr('en-start', start === '' ? '请选择开始时间' : '') && ok;
-      ok = setErr('en-content', $('#en-content').value.trim() === '' ? '请填写做成了什么' : '') && ok;
+      ok = setErr('en-content', content === '' ? '请填写做成了什么' : '') && ok;
       // 结束时间选填；填了就不能早于开始时间（2026-09-22 这种字符串可以直接比大小）
       ok = setErr('en-end', (end !== '' && start !== '' && end < start) ? '结束时间不能早于开始时间' : '') && ok;
+      if (!ok) return;
 
-      if (ok) toast('校验通过 ✓ 数据存储将在第 6 步接入');
+      const stamp = nowStamp();
+
+      // 编辑态：改的是已有那条，不新增（PRD 功能 2 用户动作 5）
+      if (entryEditingId !== null) {
+        const target = Store.data.entries.filter((x) => x.id === entryEditingId)[0];
+        if (!target) {        // 那条已经不在了（例如另一个标签页把它删了），别硬写
+          leaveEntryEditMode();
+          toast('这条经历已经不在了，请重新选一条');
+          return;
+        }
+
+        const backup = Object.assign({}, target);   // 存不进去要原样还原
+        target.startDate = start;
+        target.endDate = end;
+        target.content = content;
+        target.org = org;
+        target.role = role;
+        target.result = result;
+        target.updatedAt = stamp;                   // 每次编辑都刷新（PRD 5.2）
+        // 不动 id（记录的身份证）和 createdAt（用来让顺序稳定）
+
+        if (!Store.save('entries')) {
+          Object.keys(backup).forEach((k) => { target[k] = backup[k]; });
+          return;                                   // 失败原因已由 Store 提示，这里不再覆盖
+        }
+
+        toast('已保存修改');
+        form.reset();      // reset 那段会退出编辑态、把开始时间补回今天
+        syncEntryViews();  // 列表 + 简历预览页同步更新（PRD 8.4）
+        return;
+      }
+
+      const record = {
+        id: makeId('en'),                 // 系统生成的唯一编号（PRD 5.2）
+        startDate: start,
+        endDate: end,                     // 留空 = 到现在还在做
+        content: content,
+        org: org,
+        role: role,
+        result: result,
+        createdAt: stamp,
+        updatedAt: stamp
+      };
+
+      Store.data.entries.push(record);
+      if (!Store.save('entries')) {
+        Store.data.entries.pop();   // 存不进去就把内存里这条撤回，屏幕和抽屉保持一致
+        return;                     // 失败原因已由 Store 提示，这里不再覆盖
+      }
+
+      toast('已记下');
+      form.reset();                 // 输入框清空，仍留在记一条页（方便连着记）；开始时间由 reset 那段补回今天
+      syncEntryViews();             // 列表 + 简历预览页同步更新（PRD 8.4）
     });
 
-    // 9.10 记一条：清空重填后，开始时间补回今天
+    // 11.10 记一条：清空重填后，开始时间补回今天；
+    //      顺便退出编辑态（不然表单清空了、下次保存却还在改那一条，很危险）
     $('#form-entry').addEventListener('reset', (e) => {
       const form = e.currentTarget;
+      leaveEntryEditMode();
       setTimeout(() => {
         $('#en-start').value = todayStr();
         clearErrs(form);
       }, 0);
     });
 
-    // 9.11 个人参数：保存（本步只校验）
+    // 11.11 个人参数：校验 → 存进第 3 格 → 底牌页立刻重算（第 5 步起真保存）
     $('#form-profile').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
 
-      const savings = $('#pf-savings').value.trim();
-      const monthly = $('#pf-monthly').value.trim();
+      const savingsRaw = $('#pf-savings').value.trim();
+      const monthlyRaw = $('#pf-monthly').value.trim();
+      const nameRaw = $('#pf-name').value.trim();
+      const contactRaw = $('#pf-contact').value.trim();
 
       let ok = true;
-      if (savings === '') {
+      if (savingsRaw === '') {
         ok = setErr('pf-savings', '请填写你能动用的存款') && ok;
-      } else if (!isFinite(Number(savings)) || Number(savings) < 0) {
+      } else if (!isFinite(Number(savingsRaw)) || Number(savingsRaw) < 0) {
         ok = setErr('pf-savings', '存款只能是 0 或正数') && ok;
       } else {
         ok = setErr('pf-savings', '') && ok;
       }
-      ok = setErr('pf-monthly', checkOptionalAmount(monthly, '月均支出')) && ok;
+      ok = setErr('pf-monthly', checkOptionalAmount(monthlyRaw, '月均支出')) && ok;
+      // 姓名 / 联系方式：选填，只限长度。输入框的 maxlength 已经挡了一道，
+      // 这里再拦一道 —— 粘贴能挡住，程序化赋值挡不住，多这一行成本很低
+      ok = setErr('pf-name', nameRaw.length > 20 ? '姓名不超过 20 字' : '') && ok;
+      ok = setErr('pf-contact', contactRaw.length > 40 ? '联系方式不超过 40 字' : '') && ok;
+      if (!ok) return;
 
-      if (ok) toast('校验通过 ✓ 参数保存将在第 5 步接入');
+      const backup = Store.data.profile;              // 存不进去要原样还原
+      Store.data.profile = {
+        savings: Number(savingsRaw),
+        monthlyExpense: monthlyRaw === '' ? '' : Number(monthlyRaw),  // 留空 = 用近 3 个月记账自动算
+        name: nameRaw,                                // 选填，只给简历当抬头（第 9 步补）
+        contact: contactRaw,                          // 选填，同上
+        updatedAt: nowStamp()
+      };
+      if (!Store.save('profile')) {
+        Store.data.profile = backup;
+        return;                                       // 失败原因已由 Store 提示，这里不再覆盖
+      }
+
+      toast('参数已保存');
+      renderHome();                                   // 底牌页数字立即重算，不用刷新（PRD 8.2）
+      renderResume();                                 // 简历抬头用的就是这份参数，一并刷新
     });
 
-    // 9.12 流水列表：月份左右切换（第 3 步接上）
+    // 11.12 流水列表：月份左右切换（第 3 步接上）
     $('#btn-prev-month').addEventListener('click', () => shiftMonth(-1));
     $('#btn-next-month').addEventListener('click', () => shiftMonth(1));
 
-    // 9.13 还没接的功能：点了给明确提示，不假装能用
-    $('#btn-export').addEventListener('click', () => toast('导出备份将在第 8 步接入'));
-    $('#btn-import').addEventListener('click', () => toast('导入备份将在第 8 步接入'));
-    $('#btn-print').addEventListener('click', () => toast('打印将在第 7 步接入'));
+    // 11.13 导出 / 导入备份（第 10 步，PRD 功能 4）
+    //        两个按钮都是「手动才走」：不会自动备份、不会自动上传（PRD 8.7 最后一条）
+    $('#btn-export').addEventListener('click', exportBackup);
+    $('#btn-import').addEventListener('click', askImport);
+    $('#import-file').addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      onImportFilePicked(file);
+    });
 
-    // 9.14 流水列表里每行的「编辑 / 删除」（第 4 步）：在容器上挂一个监听统一处理
+    // 11.13b 简历页「打印 / 另存为 PDF」（第 8 步）：直接用浏览器自带打印，
+    //        具体打印成什么样子由 CSS 的 @media print 决定（PRD 8.5：本期不自写 PDF 功能）
+    $('#btn-print').addEventListener('click', () => window.print());
+
+    // 11.14 流水列表里每行的「编辑 / 删除」（第 4 步）：在容器上挂一个监听统一处理
     $('#expense-list').addEventListener('click', (e) => {
       const btn = e.target.closest('.exp-act');
       if (!btn) return;
@@ -1155,20 +2237,55 @@
       else askDelete(id);
     });
 
-    // 9.15 「取消编辑」：走 reset 即可（reset 那段会退出编辑态并把日期补回今天）
+    // 11.14b 经历列表里每行的「编辑 / 删除」（第 7 步）：同样用事件委托
+    $('#entry-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('.entry-act');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      if (btn.getAttribute('data-act') === 'edit') enterEntryEdit(id);
+      else askDeleteEntry(id);
+    });
+
+    // 11.15 「取消编辑」：走 reset 即可（reset 那段会退出编辑态并把日期补回今天）
     $('#btn-cancel-edit').addEventListener('click', () => {
       $('#form-expense').reset();
       toast('已取消修改');
     });
 
-    // 9.16 确认弹层的三个出口：确认 / 取消 / 点弹层外面的灰底（Esc 也可以）
+    // 11.15b 记一条页的「取消编辑」：同上（第 7 步）
+    $('#btn-cancel-entry-edit').addEventListener('click', () => {
+      $('#form-entry').reset();
+      toast('已取消修改');
+    });
+
+    // 11.16 确认弹层的出口：确认 / 取消 / 点弹层外面的灰底
     $('#modal-ok').addEventListener('click', () => answerConfirm(true));
     $('#modal-cancel').addEventListener('click', () => answerConfirm(false));
     $('#modal-mask').addEventListener('click', (e) => {
       if (e.target === $('#modal-mask')) answerConfirm(false);
     });
+
+    // 弹层开着时的键盘规矩（本轮体检补）：
+    //   Esc = 取消；Tab / Shift+Tab = 焦点在弹层两个按钮之间转圈，不许跑到背景页去。
+    // 自己接管 Tab（preventDefault 后手动挪焦点），不靠浏览器默认行为 —— 这样可控、也能被自动化断言。
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !$('#modal-mask').hidden) answerConfirm(false);
+      const mask = $('#modal-mask');
+      if (mask.hidden) return;
+
+      if (e.key === 'Escape') { e.preventDefault(); answerConfirm(false); return; }
+      if (e.key !== 'Tab') return;
+
+      const items = $$('.modal button:not([disabled])');
+      if (!items.length) return;
+      e.preventDefault();
+      const first = items[0];
+      const last = items[items.length - 1];
+      const cur = document.activeElement;
+      const at = items.indexOf(cur);
+      let next;
+      if (e.shiftKey) next = (at <= 0) ? last : items[at - 1];
+      else next = (at === -1 || at === items.length - 1) ? first : items[at + 1];
+      next.focus();
     });
   }
 
