@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>简册 · Ledger and Career</title>
 <!--
-  简册 MVP · 第 1 步：页面 + 字段 + 行为
-  本步只做：四个页面的结构、全部字段的输入与展示位、页面切换 / 分类联动 / 表单校验
-  本步不做：数据存储、列表渲染、数字计算、导出导入（第 2 步及以后接入）
-  PRD：PRD.md v1.2 ｜ 字段口径：TECH_DESIGN.md 第五节
+  简册 MVP · 进度：第 1 步（页面 + 字段 + 行为）✓ ｜ 第 2 步（数据底座）✓
+  第 1 步：四个页面的结构、全部字段的输入与展示位、页面切换 / 分类联动 / 表单校验
+  第 2 步：数据底座 —— localStorage 四格（jiance.v1.*）+ JSON 序列化 + 禁用检测，
+           全部读写集中在 Store 一个对象里（TECH_DESIGN 第十节铁律：抽屉读写集中在一处）
+  仍不做：把表单数据真正存进去（第 3 步起）、列表渲染、数字计算、导出导入
+  PRD：PRD.md v1.3 ｜ 字段口径：TECH_DESIGN.md v1.3 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
 <style>
@@ -186,6 +188,13 @@
     transition: opacity .2s, transform .2s;
   }
   .toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- 浏览器禁用存储时的警告条（第 2 步） ---------- */
+  .storage-warning {
+    max-width: 720px; margin: 12px auto 0; padding: 10px 14px;
+    background: #fdecea; border: 1px solid #f5c6c0; border-radius: 8px;
+    color: #b3261e; font-size: 13px; line-height: 1.6;
+  }
 </style>
 </head>
 <body>
@@ -207,6 +216,11 @@
     </nav>
   </div>
 </header>
+
+<!-- 浏览器不让用 localStorage 时才显示（TECH_DESIGN 第八节第 3 条：不假装能存） -->
+<div class="storage-warning" id="storage-warning" hidden>
+  当前浏览器设置不允许保存数据（可能是隐私模式或禁用了本地存储）。你记下的内容关掉页面后不会保留，请先调整浏览器设置。
+</div>
 
 <main class="wrap">
 
@@ -484,7 +498,87 @@
   }
 
   /* ============================================================
-     3. 页面切换
+     3. 数据底座：localStorage 四格（第 2 步新增）
+     抽屉 = localStorage；四格 = jiance.v1.* 四个 key（TECH_DESIGN 5.4）
+     铁律（TECH_DESIGN 第十节）：抽屉读写集中在这一个 Store 里，
+     页面其它代码不许直接碰 localStorage
+     ============================================================ */
+
+  const STORE_KEYS = {
+    expenses: 'jiance.v1.expenses',   // 第 1 格：全部收支记录（数组）
+    entries: 'jiance.v1.entries',     // 第 2 格：全部经历记录（数组）
+    profile: 'jiance.v1.profile',     // 第 3 格：个人参数（一个对象）
+    meta: 'jiance.v1.meta'            // 第 4 格：数据结构版本号 + 首次使用时间
+  };
+
+  const DATA_VERSION = 1;
+
+  const Store = {
+    usable: false,   // 启动检测结果：浏览器让不让用抽屉（TECH_DESIGN 第八节第 3 条）
+    data: { expenses: [], entries: [], profile: null, meta: null },
+
+    // 启动时先试写一次：不让用就直接亮警告条，不假装能存
+    checkUsable() {
+      const probe = STORE_KEYS.meta + '.probe';
+      try {
+        localStorage.setItem(probe, '1');
+        localStorage.removeItem(probe);
+        this.usable = true;
+      } catch (err) {
+        this.usable = false;
+      }
+      return this.usable;
+    },
+
+    // 读一格：文字 → 数据。这格还空着是正常情况（返回 value: null）
+    readCell(key) {
+      let raw = null;
+      try { raw = localStorage.getItem(key); }
+      catch (err) { return { ok: false, why: 'read' }; }
+      if (raw === null) return { ok: true, value: null };
+      try { return { ok: true, value: JSON.parse(raw) }; }
+      catch (err) { return { ok: false, why: 'parse' }; }   // 这格数据被改坏了
+    },
+
+    // 写一格：数据 → 文字 → 塞进抽屉。失败必须喊出来，不许静默（第八节第 1 条）
+    writeCell(key, value) {
+      let raw;
+      try { raw = JSON.stringify(value); }
+      catch (err) { toast('这次内容存不成文字，保存失败'); return false; }
+      try {
+        localStorage.setItem(key, raw);
+        return true;
+      } catch (err) {
+        if (err && err.name === 'QuotaExceededError') toast('存储空间不足，这次没保存成功');
+        else toast('保存失败：浏览器设置不允许保存数据');
+        return false;
+      }
+    },
+
+    // 启动时把四格全读进内存。读坏的那格跳过：内存里用默认值，
+    // 绝不拿默认值去覆盖抽屉里那份（第八节第 2 条：绝不覆盖原有数据）
+    loadAll() {
+      const broken = [];
+      for (const name of Object.keys(STORE_KEYS)) {
+        const r = this.readCell(STORE_KEYS[name]);
+        if (!r.ok) { broken.push(name); continue; }
+        if (r.value !== null) this.data[name] = r.value;
+      }
+      if (broken.length) {
+        toast('数据读取失败：' + broken.join('、') + ' 读不出来，原有数据未做任何改动');
+      }
+      return this.data;
+    },
+
+    // 存某一格（expenses / entries / profile / meta）。保存前先拦一道
+    save(name) {
+      if (!this.usable) { toast('当前浏览器设置不允许保存数据'); return false; }
+      return this.writeCell(STORE_KEYS[name], this.data[name]);
+    }
+  };
+
+  /* ============================================================
+     4. 页面切换
      ============================================================ */
 
   function showPage(name) {
@@ -494,7 +588,7 @@
   }
 
   /* ============================================================
-     4. 表单校验
+     5. 表单校验
      ============================================================ */
 
   // 给某个字段显示 / 清除错误提示。controlId 是输入控件的 id。
@@ -541,7 +635,7 @@
   }
 
   /* ============================================================
-     5. 分类下拉：随收 / 支联动
+     6. 分类下拉：随收 / 支联动
      ============================================================ */
 
   function selectedType() {
@@ -561,33 +655,44 @@
   }
 
   /* ============================================================
-     6. 初始化
+     7. 初始化
      ============================================================ */
 
   function init() {
     const today = todayStr();
 
-    // 6.1 日期字段默认今天
+    // 7.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
+    if (!Store.checkUsable()) {
+      const banner = document.getElementById('storage-warning');
+      if (banner) banner.hidden = false;
+    }
+    Store.loadAll();
+    if (Store.usable && Store.data.meta === null) {
+      Store.data.meta = { version: DATA_VERSION, firstUsedAt: today };
+      Store.save('meta');
+    }
+
+    // 7.1 日期字段默认今天
     $('#ex-date').value = today;
     $('#en-start').value = today;
 
-    // 6.2 列表上方的月份标签显示当前月
+    // 7.2 列表上方的月份标签显示当前月
     $('#month-label').textContent = currentMonthStr();
 
-    // 6.3 分类下拉初始化
+    // 7.3 分类下拉初始化
     rebuildCategories();
 
-    // 6.4 导航条切换页面
+    // 7.4 导航条切换页面
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.page));
     });
 
-    // 6.5 底牌页两个大按钮
+    // 7.5 底牌页两个大按钮
     $$('[data-goto]').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.goto));
     });
 
-    // 6.6 收 / 支切换 → 重建分类选项
+    // 7.6 收 / 支切换 → 重建分类选项
     $$('input[name="ex-type"]').forEach((r) => {
       r.addEventListener('change', () => {
         rebuildCategories();
@@ -595,7 +700,7 @@
       });
     });
 
-    // 6.7 记一笔：保存（本步只校验）
+    // 7.7 记一笔：保存（本步只校验）
     $('#form-expense').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -608,7 +713,7 @@
       if (ok) toast('校验通过 ✓ 数据存储将在第 3 步接入');
     });
 
-    // 6.8 记一笔：清空重填后，日期补回今天
+    // 7.8 记一笔：清空重填后，日期补回今天
     $('#form-expense').addEventListener('reset', (e) => {
       const form = e.currentTarget;
       setTimeout(() => {
@@ -617,7 +722,7 @@
       }, 0);
     });
 
-    // 6.9 记一条：保存（本步只校验）
+    // 7.9 记一条：保存（本步只校验）
     $('#form-entry').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -634,7 +739,7 @@
       if (ok) toast('校验通过 ✓ 数据存储将在第 6 步接入');
     });
 
-    // 6.10 记一条：清空重填后，开始时间补回今天
+    // 7.10 记一条：清空重填后，开始时间补回今天
     $('#form-entry').addEventListener('reset', (e) => {
       const form = e.currentTarget;
       setTimeout(() => {
@@ -643,7 +748,7 @@
       }, 0);
     });
 
-    // 6.11 个人参数：保存（本步只校验）
+    // 7.11 个人参数：保存（本步只校验）
     $('#form-profile').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -664,13 +769,16 @@
       if (ok) toast('校验通过 ✓ 参数保存将在第 5 步接入');
     });
 
-    // 6.12 还没接的功能：点了给明确提示，不假装能用
+    // 7.12 还没接的功能：点了给明确提示，不假装能用
     $('#btn-export').addEventListener('click', () => toast('导出备份将在第 8 步接入'));
     $('#btn-import').addEventListener('click', () => toast('导入备份将在第 8 步接入'));
     $('#btn-print').addEventListener('click', () => toast('打印将在第 7 步接入'));
     $('#btn-prev-month').addEventListener('click', () => toast('月份切换将在第 3 步接入'));
     $('#btn-next-month').addEventListener('click', () => toast('月份切换将在第 3 步接入'));
   }
+
+  // 暴露给控制台做验证（F12 → Console → 输入 Jiance 回车，能看到版本、四格名、Store）
+  window.Jiance = { version: DATA_VERSION, keys: STORE_KEYS, store: Store };
 
   document.addEventListener('DOMContentLoaded', init);
 
