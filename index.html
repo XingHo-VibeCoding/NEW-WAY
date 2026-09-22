@@ -6,14 +6,17 @@
 <title>简册 · Ledger and Career</title>
 <!--
   简册 MVP · 进度：第 1 步（页面 + 字段 + 行为）✓ ｜ 第 2 步（数据底座）✓ ｜ 第 3 步（记一笔能用了）✓
+                     ｜ 第 4 步（编辑 / 删除）✓
   第 1 步：四个页面的结构、全部字段的输入与展示位、页面切换 / 分类联动 / 表单校验
   第 2 步：数据底座 —— localStorage 四格（jiance.v1.*）+ JSON 序列化 + 禁用检测，
            全部读写集中在 Store 一个对象里（TECH_DESIGN 第十节铁律：抽屉读写集中在一处）
   第 3 步：记一笔 —— 保存进第 1 格 → 流水列表渲染 → 月份切换 → 合计 → 自动跳到该条所在月份
+  第 4 步：记一笔 —— 编辑（改已有那条，按钮变「保存修改」）/ 删除（弹确认框，点确认才真删）
+           依据：PRD v1.4 功能 1 用户动作 4/5、可观察结果、8.3 验收
   口径调整（Day 7，用户拍板）：记一笔页的两个合计数字「跟随列表看的月份」（看 8 月就是 8 月的合计）。
            底牌页的「本月收入 / 支出 / 结余」仍是当前自然月，不受影响（底牌页无月份切换）。
            依据：PRD v1.4 功能 1 / 8.3。
-  仍不做：编辑 / 删除（第 4 步）、底牌页数字（第 5 步）、记一条（第 6 步）、导出导入（第 8 步）
+  仍不做：底牌页数字（第 5 步）、记一条（第 6 步）、简历预览（第 7 步）、导出导入（第 8 步）
   PRD：PRD.md v1.4 ｜ 字段口径：TECH_DESIGN.md v1.3 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
@@ -219,6 +222,42 @@
   }
   .exp-amount.is-income { color: var(--income); }
   .exp-amount.is-expense { color: var(--expense); }
+
+  /* ---------- 流水列表每行右侧的「编辑 / 删除」（第 4 步） ---------- */
+  .exp-acts { flex: none; display: flex; gap: 4px; }
+  .exp-act {
+    font: inherit; font-size: 12px; line-height: 1.5;
+    padding: 2px 9px; border-radius: 6px;
+    border: 1px solid var(--line); background: transparent;
+    color: var(--text-2); cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .exp-act:hover { background: var(--line-2); color: var(--text); }
+  .exp-act-del:hover { background: #fdecea; border-color: #f5c6c0; color: #b3261e; }
+
+  /* 正在编辑的那一行，左侧加一条竖线做标记 */
+  .exp-row.is-editing { background: #f5f8ff; border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+  .exp-row.is-editing .exp-act-edit { border-color: var(--brand); color: var(--brand); }
+
+  /* ---------- 危险按钮（确认删除用） ---------- */
+  .btn-danger { background: #c62828; border-color: #c62828; color: #fff; font-weight: 500; }
+  .btn-danger:hover { background: #a91f1f; border-color: #a91f1f; }
+
+  /* ---------- 确认弹层（第 4 步新增，第 8 步导入覆盖确认会复用） ---------- */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15, 20, 30, .38); padding: 20px;
+  }
+  .modal-mask[hidden] { display: none; }
+  .modal {
+    background: var(--card); border-radius: 12px; padding: 22px 22px 18px;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 16px 40px rgba(15, 20, 30, .22);
+  }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .modal-text { font-size: 13px; color: var(--text-2); line-height: 1.7; }
+  .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 </style>
 </head>
 <body>
@@ -362,11 +401,12 @@
         </div>
 
         <div class="btn-row">
-          <button type="submit" class="btn btn-primary">保存</button>
-          <button type="reset" class="btn">清空重填</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-expense">保存</button>
+          <button type="button" class="btn" id="btn-cancel-edit" hidden>取消编辑</button>
+          <button type="reset" class="btn" id="btn-reset-expense">清空重填</button>
         </div>
       </form>
-      <div class="todo-note">保存会真的记进浏览器，刷新页面后还在。编辑 / 删除在第 4 步接入。</div>
+      <div class="todo-note" id="expense-form-note">保存会真的记进浏览器，刷新页面后还在。点列表里某条右侧的「编辑」可以改它，点「删除」会先问你一次。</div>
     </div>
 
     <div class="card">
@@ -392,7 +432,7 @@
 
       <div id="expense-list"></div>
       <div class="empty" id="expense-empty">这个月还没有流水记录</div>
-      <div class="todo-note">编辑 / 删除在第 4 步接入；上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。</div>
+      <div class="todo-note">上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。</div>
     </div>
 
   </section>
@@ -479,6 +519,18 @@
 </main>
 
 <div class="toast" id="toast"></div>
+
+<!-- 确认弹层（第 4 步新增）：删除前必须问一次，点「取消」什么都不变 -->
+<div class="modal-mask" id="modal-mask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 class="modal-title" id="modal-title">确认删除？</h3>
+    <p class="modal-text" id="modal-text">此操作不可恢复。</p>
+    <div class="modal-btns">
+      <button type="button" class="btn" id="modal-cancel">取消</button>
+      <button type="button" class="btn btn-danger" id="modal-ok">确认</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function () {
@@ -702,6 +754,9 @@
   // 列表正在看的月份，格式 2026-09。默认当前自然月（PRD 8.3）
   let viewMonth = currentMonthStr();
 
+  // 正在编辑哪一条（第 4 步）。null = 新增模式；有值 = 正在改那条记录的 id
+  let editingId = null;
+
   // 取某个月的记录：date 长这样 2026-09-22，取前 7 位就是 2026-09
   function expensesOfMonth(m) {
     return Store.data.expenses.filter((r) => (r.date || '').slice(0, 7) === m);
@@ -732,7 +787,7 @@
 
     rows.forEach((r) => {
       const row = document.createElement('div');
-      row.className = 'exp-row';
+      row.className = 'exp-row' + (editingId === r.id ? ' is-editing' : '');
 
       const day = document.createElement('span');
       day.className = 'exp-day';
@@ -755,14 +810,29 @@
       amt.className = 'exp-amount ' + (r.type === '收入' ? 'is-income' : 'is-expense');
       amt.textContent = (r.type === '收入' ? '+' : '−') + money(r.amount);
 
+      // 每行右侧的「编辑 / 删除」（第 4 步）。按钮带 data-act / data-id，
+      // 点击由列表容器上的一个监听统一处理（事件委托），不用给每行各挂一个
+      const acts = document.createElement('span');
+      acts.className = 'exp-acts';
+      [['edit', '编辑', 'exp-act-edit'], ['del', '删除', 'exp-act-del']].forEach(([act, label, extra]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'exp-act ' + extra;
+        btn.setAttribute('data-act', act);
+        btn.setAttribute('data-id', r.id);
+        btn.textContent = label;
+        acts.appendChild(btn);
+      });
+
       row.appendChild(day);
       row.appendChild(main);
       row.appendChild(amt);
+      row.appendChild(acts);
       box.appendChild(row);
     });
   }
 
-  // 列表上方那两个数字：**统计的是列表正在看的那个月**（viewMonth，PRD v1.4 功能 1 / 8.3）
+  // 列表上方那两个数字：统计的是列表正在看的那个月（viewMonth，PRD v1.4 功能 1 / 8.3）
   // 标签也跟着月份显示，例如看 2026-08 时写「8月收入 / 8月支出」，避免和底牌页的「本月」混淆
   // 这个月一条记录都没有时不显示 ¥0.00，而是显示 —（不拿 0 冒充「有数据」）
   function renderExpenseStats() {
@@ -799,13 +869,108 @@
   }
 
   /* ============================================================
-     8. 初始化
+     8. 记一笔：编辑 / 删除 / 确认弹层（第 4 步新增）
+     口径来源：PRD v1.4 功能 1 用户动作 4 / 5 + 可观察结果 + 8.3 验收
+     ============================================================ */
+
+  // 表单当前该显示哪种模式（新增 / 改某一条）：主按钮文案、「取消编辑」的显隐都在这里统一切
+  function syncExpenseFormMode() {
+    const editing = editingId !== null;
+    $('#btn-save-expense').textContent = editing ? '保存修改' : '保存';
+    $('#btn-cancel-edit').hidden = !editing;
+    $('#expense-form-note').textContent = editing
+      ? '正在修改这一条，改完点「保存修改」；点「取消编辑」放弃这次修改。'
+      : '保存会真的记进浏览器，刷新页面后还在。点列表里某条右侧的「编辑」可以改它，点「删除」会先问你一次。';
+    renderExpenseList();   // 让列表里「正在编辑」那条的高亮跟着变
+  }
+
+  // 离开编辑态。reset 事件（点「清空重填」或保存后清空）里统一调用
+  function leaveEditMode() {
+    editingId = null;
+    syncExpenseFormMode();
+  }
+
+  // 点某条右侧的「编辑」：把那条的内容填回上面的表单，进入编辑态
+  function enterEdit(id) {
+    const r = Store.data.expenses.filter((x) => x.id === id)[0];
+    if (!r) return;
+
+    editingId = id;
+    $('#ex-date').value = r.date;
+    $('#ex-amount').value = r.amount;
+
+    const radio = $$('input[name="ex-type"]').filter((el) => el.value === r.type)[0];
+    if (radio) radio.checked = true;
+    rebuildCategories();               // 收 / 支可能变了，分类选项要按新的那组重建
+    $('#ex-category').value = r.category;
+    $('#ex-note').value = r.note || '';
+    clearErrs($('#form-expense'));
+    syncExpenseFormMode();
+
+    // 内容被填到了上面的表单里，把表单滚进视野，别让人以为点错了
+    $('#form-expense').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast('已载入这条记录，改完点「保存修改」');
+  }
+
+  // 点「删除」：先弹确认框，点「确认」才真从抽屉里移除（PRD 功能 1 用户动作 5）
+  function askDelete(id) {
+    const r = Store.data.expenses.filter((x) => x.id === id)[0];
+    if (!r) return;
+
+    const what = (r.date || '') + ' · ' + r.category + ' · ' + money(r.amount);
+    askConfirm('确认删除？', '要删掉的是：' + what + '。此操作不可恢复。').then((yes) => {
+      if (!yes) return;                         // 点「取消」：记录一条不动
+
+      const list = Store.data.expenses;
+      const idx = list.findIndex((x) => x.id === id);
+      if (idx < 0) return;
+      const removed = list.splice(idx, 1)[0];
+      if (!Store.save('expenses')) {
+        list.splice(idx, 0, removed);           // 存不进去就放回原位，屏幕和抽屉保持一致
+        return;
+      }
+
+      // 删掉的正好是正在编辑的那条：表单也一起清掉。
+      // 只退出编辑态、留着表单内容的话，下次点「保存」会莫名新增一条（内容还是刚删掉那条的）
+      if (editingId === id) $('#form-expense').reset();   // reset 那段会退出编辑态、把日期补回今天
+      renderExpenseList();
+      renderExpenseStats();
+      toast('已删除');
+    });
+  }
+
+  // ---------- 确认弹层（用页面内的弹层，不用浏览器自带的 confirm） ----------
+  // 原因：自带 confirm 会阻塞页面、样式不可控，也没法在自动化测试里点它的「确认」。
+  // 自己画的弹层后面第 8 步「导入会覆盖现有数据」那处确认可以直接复用。
+  let confirmResolve = null;
+
+  function askConfirm(title, text) {
+    return new Promise((resolve) => {
+      confirmResolve = resolve;
+      $('#modal-title').textContent = title;
+      $('#modal-text').textContent = text;
+      $('#modal-mask').hidden = false;
+      $('#modal-ok').focus();
+    });
+  }
+
+  // 弹层的唯一出口：结果 true（确认）/ false（取消）
+  function answerConfirm(result) {
+    if (!confirmResolve) return;
+    $('#modal-mask').hidden = true;
+    const done = confirmResolve;
+    confirmResolve = null;      // 先清再调，避免回调里又触发一次
+    done(result);
+  }
+
+  /* ============================================================
+     9. 初始化
      ============================================================ */
 
   function init() {
     const today = todayStr();
 
-    // 8.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
+    // 9.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
     if (!Store.checkUsable()) {
       const banner = document.getElementById('storage-warning');
       if (banner) banner.hidden = false;
@@ -816,27 +981,30 @@
       Store.save('meta');
     }
 
-    // 8.1 日期字段默认今天
+    // 9.1 日期字段默认今天
     $('#ex-date').value = today;
     $('#en-start').value = today;
 
-    // 8.2 分类下拉初始化
+    // 9.2 分类下拉初始化
     rebuildCategories();
 
-    // 8.3 流水列表：默认显示当前月（PRD 8.3）；setViewMonth 里会一并算出该月的收入 / 支出合计
+    // 9.3 流水列表：默认显示当前月（PRD 8.3）；setViewMonth 里会一并算出该月的收入 / 支出合计
     setViewMonth(currentMonthStr());
 
-    // 8.4 导航条切换页面
+    // 9.3b 记一笔表单先落在「新增」模式：主按钮写「保存」、「取消编辑」藏起来（第 4 步）
+    syncExpenseFormMode();
+
+    // 9.4 导航条切换页面
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.page));
     });
 
-    // 8.5 底牌页两个大按钮
+    // 9.5 底牌页两个大按钮
     $$('[data-goto]').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.goto));
     });
 
-    // 8.6 收 / 支切换 → 重建分类选项
+    // 9.6 收 / 支切换 → 重建分类选项
     $$('input[name="ex-type"]').forEach((r) => {
       r.addEventListener('change', () => {
         rebuildCategories();
@@ -844,7 +1012,7 @@
       });
     });
 
-    // 8.7 记一笔：校验 → 存进第 1 格 → 刷新合计 → 自动跳到这条记录所在的月份
+    // 9.7 记一笔：校验 → 存进第 1 格 → 刷新合计 → 自动跳到这条记录所在的月份
     $('#form-expense').addEventListener('submit', (e) => {
       e.preventDefault();
       const form = e.currentTarget;
@@ -862,6 +1030,29 @@
       ok = setErr('ex-category', category ? '' : '请选择分类') && ok;
       ok = setErr('ex-note', note.length > 50 ? '备注不超过 50 字' : '') && ok;
       if (!ok) return;
+
+      // 第 4 步起分两路：正在编辑 → 改那一条；否则 → 新增一条
+      if (editingId !== null) {
+        const target = Store.data.expenses.filter((x) => x.id === editingId)[0];
+        if (!target) { leaveEditMode(); return; }
+
+        const backup = Object.assign({}, target);  // 存不进去要原样还原
+        target.date = date;
+        target.amount = Number(amountRaw);
+        target.type = type;
+        target.category = category;
+        target.note = note;
+        target.updatedAt = nowStamp();             // id 与 createdAt 不动，只刷新修改时间（PRD 5.1）
+        if (!Store.save('expenses')) {
+          Object.assign(target, backup);
+          return;                                  // 失败原因已由 Store 提示，这里不再覆盖
+        }
+
+        toast('已修改');
+        form.reset();                              // 顺带退出编辑态、日期补回今天（见下面 reset 那段）
+        setViewMonth(date.slice(0, 7));            // 改到别的月份，列表就跳过去
+        return;
+      }
 
       const stamp = nowStamp();
       const record = {
@@ -887,9 +1078,11 @@
       setViewMonth(record.date.slice(0, 7));         // 记的是别的月份，列表自动跳过去
     });
 
-    // 8.8 记一笔：清空重填后，日期补回今天，分类下拉也跟着收 / 支回到「支出」
+    // 9.8 记一笔：清空重填后，日期补回今天，分类下拉也跟着收 / 支回到「支出」；
+    //      顺便退出编辑态（不然表单清空了、下次保存却还在改那一条，很危险）
     $('#form-expense').addEventListener('reset', (e) => {
       const form = e.currentTarget;
+      leaveEditMode();
       setTimeout(() => {
         $('#ex-date').value = todayStr();
         rebuildCategories();
@@ -897,7 +1090,7 @@
       }, 0);
     });
 
-    // 8.9 记一条：保存（本步只校验）
+    // 9.9 记一条：保存（本步只校验）
     $('#form-entry').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -914,7 +1107,7 @@
       if (ok) toast('校验通过 ✓ 数据存储将在第 6 步接入');
     });
 
-    // 8.10 记一条：清空重填后，开始时间补回今天
+    // 9.10 记一条：清空重填后，开始时间补回今天
     $('#form-entry').addEventListener('reset', (e) => {
       const form = e.currentTarget;
       setTimeout(() => {
@@ -923,7 +1116,7 @@
       }, 0);
     });
 
-    // 8.11 个人参数：保存（本步只校验）
+    // 9.11 个人参数：保存（本步只校验）
     $('#form-profile').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -944,14 +1137,39 @@
       if (ok) toast('校验通过 ✓ 参数保存将在第 5 步接入');
     });
 
-    // 8.12 流水列表：月份左右切换（第 3 步接上）
+    // 9.12 流水列表：月份左右切换（第 3 步接上）
     $('#btn-prev-month').addEventListener('click', () => shiftMonth(-1));
     $('#btn-next-month').addEventListener('click', () => shiftMonth(1));
 
-    // 8.13 还没接的功能：点了给明确提示，不假装能用
+    // 9.13 还没接的功能：点了给明确提示，不假装能用
     $('#btn-export').addEventListener('click', () => toast('导出备份将在第 8 步接入'));
     $('#btn-import').addEventListener('click', () => toast('导入备份将在第 8 步接入'));
     $('#btn-print').addEventListener('click', () => toast('打印将在第 7 步接入'));
+
+    // 9.14 流水列表里每行的「编辑 / 删除」（第 4 步）：在容器上挂一个监听统一处理
+    $('#expense-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('.exp-act');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      if (btn.getAttribute('data-act') === 'edit') enterEdit(id);
+      else askDelete(id);
+    });
+
+    // 9.15 「取消编辑」：走 reset 即可（reset 那段会退出编辑态并把日期补回今天）
+    $('#btn-cancel-edit').addEventListener('click', () => {
+      $('#form-expense').reset();
+      toast('已取消修改');
+    });
+
+    // 9.16 确认弹层的三个出口：确认 / 取消 / 点弹层外面的灰底（Esc 也可以）
+    $('#modal-ok').addEventListener('click', () => answerConfirm(true));
+    $('#modal-cancel').addEventListener('click', () => answerConfirm(false));
+    $('#modal-mask').addEventListener('click', (e) => {
+      if (e.target === $('#modal-mask')) answerConfirm(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('#modal-mask').hidden) answerConfirm(false);
+    });
   }
 
   // 暴露给控制台做验证（F12 → Console → 输入 Jiance 回车，能看到版本、四格名、Store）
