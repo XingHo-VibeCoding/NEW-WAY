@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>简册 · Ledger and Career</title>
 <!--
-  简册 MVP · 进度：第 1 步（页面 + 字段 + 行为）✓ ｜ 第 2 步（数据底座）✓
+  简册 MVP · 进度：第 1 步（页面 + 字段 + 行为）✓ ｜ 第 2 步（数据底座）✓ ｜ 第 3 步（记一笔能用了）✓
   第 1 步：四个页面的结构、全部字段的输入与展示位、页面切换 / 分类联动 / 表单校验
   第 2 步：数据底座 —— localStorage 四格（jiance.v1.*）+ JSON 序列化 + 禁用检测，
            全部读写集中在 Store 一个对象里（TECH_DESIGN 第十节铁律：抽屉读写集中在一处）
-  仍不做：把表单数据真正存进去（第 3 步起）、列表渲染、数字计算、导出导入
+  第 3 步：记一笔 —— 保存进第 1 格 → 流水列表渲染 → 月份切换 → 合计 → 自动跳到该条所在月份
+  仍不做：编辑 / 删除（第 4 步）、底牌页数字（第 5 步）、记一条（第 6 步）、导出导入（第 8 步）
   PRD：PRD.md v1.3 ｜ 字段口径：TECH_DESIGN.md v1.3 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
@@ -195,6 +196,26 @@
     background: #fdecea; border: 1px solid #f5c6c0; border-radius: 8px;
     color: #b3261e; font-size: 13px; line-height: 1.6;
   }
+
+  /* ---------- 流水列表的一行（第 3 步） ---------- */
+  .exp-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-top: 1px solid var(--line-2);
+  }
+  .exp-row:first-child { border-top: 0; padding-top: 2px; }
+  .exp-day {
+    flex: none; font-size: 12px; color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .exp-main { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exp-cat { font-size: 14px; font-weight: 500; }
+  .exp-note { font-size: 12px; color: var(--text-3); margin-left: 8px; }
+  .exp-amount {
+    flex: none; font-size: 15px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .exp-amount.is-income { color: var(--income); }
+  .exp-amount.is-expense { color: var(--expense); }
 </style>
 </head>
 <body>
@@ -342,7 +363,7 @@
           <button type="reset" class="btn">清空重填</button>
         </div>
       </form>
-      <div class="todo-note">本步「保存」只走到校验通过，不写数据。真正存进去在第 3 步。</div>
+      <div class="todo-note">保存会真的记进浏览器，刷新页面后还在。编辑 / 删除在第 4 步接入。</div>
     </div>
 
     <div class="card">
@@ -358,16 +379,17 @@
       <div class="stats is-two">
         <div class="stat">
           <div class="stat-label">本月收入</div>
-          <div class="stat-value is-empty">—</div>
+          <div class="stat-value is-empty" id="ex-stat-income">—</div>
         </div>
         <div class="stat">
           <div class="stat-label">本月支出</div>
-          <div class="stat-value is-empty">—</div>
+          <div class="stat-value is-empty" id="ex-stat-expense">—</div>
         </div>
       </div>
 
-      <div class="empty">还没有流水记录</div>
-      <div class="todo-note">列表渲染、月份切换、合计计算在第 3 步接入。</div>
+      <div id="expense-list"></div>
+      <div class="empty" id="expense-empty">这个月还没有流水记录</div>
+      <div class="todo-note">编辑 / 删除在第 4 步接入；「本月」= 电脑系统时间所在的自然月，与列表在看哪个月无关。</div>
     </div>
 
   </section>
@@ -495,6 +517,21 @@
     toastEl.classList.add('is-show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toastEl.classList.remove('is-show'), 2600);
+  }
+
+  // 金额显示：一律两位小数 + 千分位，前面带 ¥（例如 ¥1,234.50）
+  function money(n) {
+    return '¥' + Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  // 给一条新记录造唯一编号（时间戳 + 随机串，够本机用）
+  function makeId(prefix) {
+    return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+  }
+
+  // 系统当前时间的完整时间戳，存 createdAt / updatedAt 用
+  function nowStamp() {
+    return new Date().toISOString();
   }
 
   /* ============================================================
@@ -655,13 +692,110 @@
   }
 
   /* ============================================================
-     7. 初始化
+     7. 记一笔：流水列表 · 月份切换 · 合计（第 3 步新增）
+     口径来源：PRD 功能 1「可观察结果」+ 8.3 验收标准 + 5.1 字段表
+     ============================================================ */
+
+  // 列表正在看的月份，格式 2026-09。默认当前自然月（PRD 8.3）
+  let viewMonth = currentMonthStr();
+
+  // 取某个月的记录：date 长这样 2026-09-22，取前 7 位就是 2026-09
+  function expensesOfMonth(m) {
+    return Store.data.expenses.filter((r) => (r.date || '').slice(0, 7) === m);
+  }
+
+  // 排序：日期从新到旧；同一天的，后记的排前面（PRD 功能 1、8.3）
+  // 说明：现代浏览器的 sort 是稳定排序，两边都相同时保持原本的先后顺序
+  function sortExpenses(list) {
+    return list.slice().sort((a, b) => {
+      if (a.date !== b.date) return a.date > b.date ? -1 : 1;
+      const ac = a.createdAt || '';
+      const bc = b.createdAt || '';
+      if (ac !== bc) return ac > bc ? -1 : 1;
+      return 0;
+    });
+  }
+
+  // 渲染流水列表。全部用 createElement + textContent 建节点，
+  // 不拼 HTML 字符串：备注是用户自己输入的内容，拼字符串会有注入风险
+  function renderExpenseList() {
+    const box = $('#expense-list');
+    const emptyBox = $('#expense-empty');
+    box.textContent = '';
+
+    const rows = sortExpenses(expensesOfMonth(viewMonth));
+    emptyBox.hidden = rows.length > 0;
+    if (!rows.length) return;
+
+    rows.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'exp-row';
+
+      const day = document.createElement('span');
+      day.className = 'exp-day';
+      day.textContent = (r.date || '').slice(5);              // 2026-09-22 → 09-22
+
+      const main = document.createElement('span');
+      main.className = 'exp-main';
+      const cat = document.createElement('span');
+      cat.className = 'exp-cat';
+      cat.textContent = r.category;
+      main.appendChild(cat);
+      if (r.note) {
+        const note = document.createElement('span');
+        note.className = 'exp-note';
+        note.textContent = r.note;
+        main.appendChild(note);
+      }
+
+      const amt = document.createElement('span');
+      amt.className = 'exp-amount ' + (r.type === '收入' ? 'is-income' : 'is-expense');
+      amt.textContent = (r.type === '收入' ? '+' : '−') + money(r.amount);
+
+      row.appendChild(day);
+      row.appendChild(main);
+      row.appendChild(amt);
+      box.appendChild(row);
+    });
+  }
+
+  // 列表上方那两个数字：**本月 = 当前自然月**，与列表在看哪个月无关（PRD 功能 1）
+  // 这个月一条记录都没有时不显示 ¥0.00，而是显示 —（不拿 0 冒充「有数据」）
+  function renderExpenseStats() {
+    const rows = expensesOfMonth(currentMonthStr());
+    const sum = (type) => rows
+      .filter((r) => r.type === type)
+      .reduce((acc, r) => acc + Number(r.amount || 0), 0);
+
+    [['#ex-stat-income', sum('收入')], ['#ex-stat-expense', sum('支出')]].forEach(([sel, val]) => {
+      const el = $(sel);
+      el.textContent = rows.length ? money(val) : '—';
+      el.classList.toggle('is-empty', !rows.length);
+    });
+  }
+
+  // 切换列表看的月份
+  function setViewMonth(m) {
+    viewMonth = m;
+    $('#month-label').textContent = m;
+    renderExpenseList();
+  }
+
+  // 月份左右箭头：跨年也算得对（2026-01 往前 → 2025-12）
+  function shiftMonth(delta) {
+    const parts = viewMonth.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1 + delta, 1);
+    setViewMonth(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+
+  /* ============================================================
+     8. 初始化
      ============================================================ */
 
   function init() {
     const today = todayStr();
 
-    // 7.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
+    // 8.0 数据底座：先试抽屉能不能用 → 四格读进内存 → 首次使用落一个 meta
     if (!Store.checkUsable()) {
       const banner = document.getElementById('storage-warning');
       if (banner) banner.hidden = false;
@@ -672,27 +806,28 @@
       Store.save('meta');
     }
 
-    // 7.1 日期字段默认今天
+    // 8.1 日期字段默认今天
     $('#ex-date').value = today;
     $('#en-start').value = today;
 
-    // 7.2 列表上方的月份标签显示当前月
-    $('#month-label').textContent = currentMonthStr();
-
-    // 7.3 分类下拉初始化
+    // 8.2 分类下拉初始化
     rebuildCategories();
 
-    // 7.4 导航条切换页面
+    // 8.3 流水列表：默认显示当前月（PRD 8.3），并把「本月」两个数字算出来
+    setViewMonth(currentMonthStr());
+    renderExpenseStats();
+
+    // 8.4 导航条切换页面
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.page));
     });
 
-    // 7.5 底牌页两个大按钮
+    // 8.5 底牌页两个大按钮
     $$('[data-goto]').forEach((b) => {
       b.addEventListener('click', () => showPage(b.dataset.goto));
     });
 
-    // 7.6 收 / 支切换 → 重建分类选项
+    // 8.6 收 / 支切换 → 重建分类选项
     $$('input[name="ex-type"]').forEach((r) => {
       r.addEventListener('change', () => {
         rebuildCategories();
@@ -700,29 +835,60 @@
       });
     });
 
-    // 7.7 记一笔：保存（本步只校验）
+    // 8.7 记一笔：校验 → 存进第 1 格 → 刷新合计 → 自动跳到这条记录所在的月份
     $('#form-expense').addEventListener('submit', (e) => {
       e.preventDefault();
-      clearErrs(e.currentTarget);
+      const form = e.currentTarget;
+      clearErrs(form);
+
+      const date = $('#ex-date').value;
+      const amountRaw = $('#ex-amount').value.trim();
+      const type = selectedType();
+      const category = $('#ex-category').value;
+      const note = $('#ex-note').value.trim();
 
       let ok = true;
-      ok = setErr('ex-date', $('#ex-date').value === '' ? '请选择日期' : '') && ok;
-      ok = setErr('ex-amount', checkAmount($('#ex-amount').value.trim())) && ok;
-      ok = setErr('ex-category', $('#ex-category').value ? '' : '请选择分类') && ok;
+      ok = setErr('ex-date', date === '' ? '请选择日期' : '') && ok;
+      ok = setErr('ex-amount', checkAmount(amountRaw)) && ok;
+      ok = setErr('ex-category', category ? '' : '请选择分类') && ok;
+      ok = setErr('ex-note', note.length > 50 ? '备注不超过 50 字' : '') && ok;
+      if (!ok) return;
 
-      if (ok) toast('校验通过 ✓ 数据存储将在第 3 步接入');
+      const stamp = nowStamp();
+      const record = {
+        id: makeId('ex'),                 // 系统生成的唯一编号
+        date: date,
+        amount: Number(amountRaw),
+        type: type,
+        category: category,
+        note: note,
+        createdAt: stamp,
+        updatedAt: stamp
+      };
+
+      Store.data.expenses.push(record);
+      if (!Store.save('expenses')) {
+        Store.data.expenses.pop();   // 存不进去就把内存里这条撤回，屏幕和抽屉保持一致
+        return;                      // 失败原因已由 Store 提示，这里不再覆盖
+      }
+
+      toast('已记下');
+      form.reset();                                  // 输入框清空，仍留在记一笔页（方便连着记）
+      renderExpenseStats();
+      setViewMonth(record.date.slice(0, 7));         // 记的是别的月份，列表自动跳过去
     });
 
-    // 7.8 记一笔：清空重填后，日期补回今天
+    // 8.8 记一笔：清空重填后，日期补回今天，分类下拉也跟着收 / 支回到「支出」
     $('#form-expense').addEventListener('reset', (e) => {
       const form = e.currentTarget;
       setTimeout(() => {
         $('#ex-date').value = todayStr();
+        rebuildCategories();
         clearErrs(form);
       }, 0);
     });
 
-    // 7.9 记一条：保存（本步只校验）
+    // 8.9 记一条：保存（本步只校验）
     $('#form-entry').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -739,7 +905,7 @@
       if (ok) toast('校验通过 ✓ 数据存储将在第 6 步接入');
     });
 
-    // 7.10 记一条：清空重填后，开始时间补回今天
+    // 8.10 记一条：清空重填后，开始时间补回今天
     $('#form-entry').addEventListener('reset', (e) => {
       const form = e.currentTarget;
       setTimeout(() => {
@@ -748,7 +914,7 @@
       }, 0);
     });
 
-    // 7.11 个人参数：保存（本步只校验）
+    // 8.11 个人参数：保存（本步只校验）
     $('#form-profile').addEventListener('submit', (e) => {
       e.preventDefault();
       clearErrs(e.currentTarget);
@@ -769,12 +935,14 @@
       if (ok) toast('校验通过 ✓ 参数保存将在第 5 步接入');
     });
 
-    // 7.12 还没接的功能：点了给明确提示，不假装能用
+    // 8.12 流水列表：月份左右切换（第 3 步接上）
+    $('#btn-prev-month').addEventListener('click', () => shiftMonth(-1));
+    $('#btn-next-month').addEventListener('click', () => shiftMonth(1));
+
+    // 8.13 还没接的功能：点了给明确提示，不假装能用
     $('#btn-export').addEventListener('click', () => toast('导出备份将在第 8 步接入'));
     $('#btn-import').addEventListener('click', () => toast('导入备份将在第 8 步接入'));
     $('#btn-print').addEventListener('click', () => toast('打印将在第 7 步接入'));
-    $('#btn-prev-month').addEventListener('click', () => toast('月份切换将在第 3 步接入'));
-    $('#btn-next-month').addEventListener('click', () => toast('月份切换将在第 3 步接入'));
   }
 
   // 暴露给控制台做验证（F12 → Console → 输入 Jiance 回车，能看到版本、四格名、Store）
