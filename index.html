@@ -10,8 +10,11 @@
   第 2 步：数据底座 —— localStorage 四格（jiance.v1.*）+ JSON 序列化 + 禁用检测，
            全部读写集中在 Store 一个对象里（TECH_DESIGN 第十节铁律：抽屉读写集中在一处）
   第 3 步：记一笔 —— 保存进第 1 格 → 流水列表渲染 → 月份切换 → 合计 → 自动跳到该条所在月份
+  口径调整（Day 7，用户拍板）：记一笔页的两个合计数字「跟随列表看的月份」（看 8 月就是 8 月的合计）。
+           底牌页的「本月收入 / 支出 / 结余」仍是当前自然月，不受影响（底牌页无月份切换）。
+           依据：PRD v1.4 功能 1 / 8.3。
   仍不做：编辑 / 删除（第 4 步）、底牌页数字（第 5 步）、记一条（第 6 步）、导出导入（第 8 步）
-  PRD：PRD.md v1.3 ｜ 字段口径：TECH_DESIGN.md v1.3 第五节
+  PRD：PRD.md v1.4 ｜ 字段口径：TECH_DESIGN.md v1.3 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
 <style>
@@ -368,7 +371,7 @@
 
     <div class="card">
       <h2 class="card-title">流水列表</h2>
-      <p class="card-sub">默认显示当前月，可左右切换月份</p>
+      <p class="card-sub">默认显示当前月，可左右切换月份；上方两个数字<strong>跟着看的月份走</strong></p>
 
       <div class="month-bar">
         <button type="button" class="btn btn-mini" id="btn-prev-month">&larr;</button>
@@ -378,18 +381,18 @@
 
       <div class="stats is-two">
         <div class="stat">
-          <div class="stat-label">本月收入</div>
+          <div class="stat-label" id="ex-label-income">本月收入</div>
           <div class="stat-value is-empty" id="ex-stat-income">—</div>
         </div>
         <div class="stat">
-          <div class="stat-label">本月支出</div>
+          <div class="stat-label" id="ex-label-expense">本月支出</div>
           <div class="stat-value is-empty" id="ex-stat-expense">—</div>
         </div>
       </div>
 
       <div id="expense-list"></div>
       <div class="empty" id="expense-empty">这个月还没有流水记录</div>
-      <div class="todo-note">编辑 / 删除在第 4 步接入；「本月」= 电脑系统时间所在的自然月，与列表在看哪个月无关。</div>
+      <div class="todo-note">编辑 / 删除在第 4 步接入；上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。</div>
     </div>
 
   </section>
@@ -759,13 +762,19 @@
     });
   }
 
-  // 列表上方那两个数字：**本月 = 当前自然月**，与列表在看哪个月无关（PRD 功能 1）
+  // 列表上方那两个数字：**统计的是列表正在看的那个月**（viewMonth，PRD v1.4 功能 1 / 8.3）
+  // 标签也跟着月份显示，例如看 2026-08 时写「8月收入 / 8月支出」，避免和底牌页的「本月」混淆
   // 这个月一条记录都没有时不显示 ¥0.00，而是显示 —（不拿 0 冒充「有数据」）
   function renderExpenseStats() {
-    const rows = expensesOfMonth(currentMonthStr());
+    const rows = expensesOfMonth(viewMonth);
     const sum = (type) => rows
       .filter((r) => r.type === type)
       .reduce((acc, r) => acc + Number(r.amount || 0), 0);
+
+    const monthNum = Number(viewMonth.split('-')[1]);
+    const label = monthNum + '月';
+    $('#ex-label-income').textContent = label + '收入';
+    $('#ex-label-expense').textContent = label + '支出';
 
     [['#ex-stat-income', sum('收入')], ['#ex-stat-expense', sum('支出')]].forEach(([sel, val]) => {
       const el = $(sel);
@@ -774,11 +783,12 @@
     });
   }
 
-  // 切换列表看的月份
+  // 切换列表看的月份（合计数字跟着一起变）
   function setViewMonth(m) {
     viewMonth = m;
     $('#month-label').textContent = m;
     renderExpenseList();
+    renderExpenseStats();
   }
 
   // 月份左右箭头：跨年也算得对（2026-01 往前 → 2025-12）
@@ -813,9 +823,8 @@
     // 8.2 分类下拉初始化
     rebuildCategories();
 
-    // 8.3 流水列表：默认显示当前月（PRD 8.3），并把「本月」两个数字算出来
+    // 8.3 流水列表：默认显示当前月（PRD 8.3）；setViewMonth 里会一并算出该月的收入 / 支出合计
     setViewMonth(currentMonthStr());
-    renderExpenseStats();
 
     // 8.4 导航条切换页面
     $$('.nav-btn').forEach((b) => {
