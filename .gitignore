@@ -69,3 +69,6 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 .workbuddy/
+# WorkBuddy 编辑器自动生成的临时文件（.wbapp_xxxx.genie），
+# 每次开编辑器都可能换一个随机名字，所以用通配符一把拦掉，不用逐个加
+.wbapp_*.genie

@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>简册 · 看页（底牌视图）</title>
+<!--
+  简册 ·「看」页（底牌视图）· Day 8（第 2 周）· mock 数据版
+  ------------------------------------------------------------------
+  依据：PRD.md v1.6
+    · 功能 3「看底牌」+ 第五节计算口径（还能撑 = 存款 ÷ 月均支出）
+    · 5.2 经历排序规则、5.3 个人参数
+    · 8.2 底牌页验收
+  本版特性：
+    · 假数据（mock）驱动，不接真实 API（第 3 周才做，见当天清单）
+    · 四种页面状态：加载中 / 有数据 / 空 / 出错
+    · 视觉：纸质账簿风 —— 米白底、墨黑字、朱砂红作强调色；低信息密度
+    · 桌面与手机宽度都能用
+  本版不做（按当天清单）：
+    注册登录、云同步、图表报表、账单导入、简历模板与导出、深色模式、动效美化
+  数据说明：
+    页面里所有数字、姓名、公司名都是编造的假数据（AGENTS.md 附三第 3 条）
+  ------------------------------------------------------------------
+-->
+<style>
+  /* ============ 设计变量：纸质账簿的三个基本色 ============ */
+  :root {
+    --paper:        #efe9dd;  /* 页面底色：米 */
+    --sheet:        #fbf8f1;  /* 纸面：比底色更亮一点，像一张纸 */
+    --ink:          #1f1c18;  /* 正文字：墨黑 */
+    --ink-2:        #6a6053;  /* 次级文字 */
+    --ink-3:        #9b9081;  /* 三级文字（标签、注释） */
+    --rule:         #e3dac9;  /* 账簿分隔线（浅） */
+    --rule-strong:  #d3c7b1;  /* 账簿分隔线（深一点） */
+    --cinnabar:     #b0392b;  /* 朱砂红：唯一的强调色 */
+    --cinnabar-soft:#f7e9e5;
+
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    /* 数字用衬线体，更像账簿上印出来的数字 */
+    --serif: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* [hidden] 必须真的隐藏：作者样式里的 display 会盖掉浏览器默认的 display:none */
+  [hidden] { display: none !important; }
+
+  html, body { margin: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font: inherit; }
+  /* 键盘可见焦点：用 Tab 走一遍页面，一定要能看出焦点在哪 */
+  button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+
+  /* 只给读屏软件看的文字：视觉上藏起来，但读屏能读到 */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    margin: -1px; padding: 0; border: 0;
+    overflow: hidden; white-space: nowrap;
+    clip: rect(0 0 0 0); clip-path: inset(50%);
+  }
+
+  /* ============ 一张纸 ============ */
+  .sheet {
+    max-width: 680px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--sheet);
+    border-left: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
+  }
+
+  /* ============ 页眉 ============ */
+  .masthead {
+    padding: 42px 40px 26px;
+    border-bottom: 2px solid var(--cinnabar);   /* 账簿的红线 */
+  }
+  .masthead-kicker {
+    margin: 0 0 10px;
+    font-size: 12px; letter-spacing: .18em; color: var(--ink-3);
+  }
+  .masthead-title {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 30px; font-weight: 600; letter-spacing: .08em;
+  }
+  .masthead-sub { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
+
+  /* ============ 区块 ============ */
+  .block { padding: 34px 40px; border-bottom: 1px solid var(--rule); }
+  .block:last-child { border-bottom: 0; }
+  .block-title {
+    margin: 0 0 18px;
+    font-size: 12px; font-weight: 600; letter-spacing: .16em; color: var(--ink-3);
+  }
+
+  /* ---------- ① 底牌大数字 ---------- */
+  .hero-label { margin: 0; font-size: 13px; letter-spacing: .14em; color: var(--ink-2); }
+  .hero-value {
+    margin: 8px 0 0;
+    font-family: var(--serif);
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: clamp(44px, 13vw, 70px);
+    font-weight: 500; line-height: 1.05; letter-spacing: -.01em;
+  }
+  .hero-unit { margin-left: .28em; font-size: .3em; color: var(--ink-2); letter-spacing: .04em; }
+
+  /* 算不出数字时，不显示 0、不显示 NaN，改给一句引导（PRD 8.2） */
+  .hero-guide {
+    max-width: 30em; margin: 14px 0 0;
+    font-size: 14px; line-height: 1.75; color: var(--ink-2);
+  }
+  /* 「样本不足 3 个月」：贴在数字下面，像账簿边上的一个批注。
+     用 block + fit-content 让它独占一行，不和下面的「怎么算的」挤在一起 */
+  .hero-samples {
+    display: block; width: fit-content;
+    margin: 12px 0 0; padding: 1px 10px;
+    font-size: 11.5px; letter-spacing: .08em; color: var(--cinnabar);
+    border: 1px dashed var(--cinnabar); border-radius: 999px;
+  }
+
+  /* 下面这些块里装的都是用户输入的字，长英文串必须能就地断行，
+     否则整张纸会被顶宽、冒出横向滚动条（Day 7 踩过一次的坑） */
+  .hero-value, .hero-guide,
+  .ledger-row dd,
+  .resume-period, .resume-what, .resume-meta, .resume-result,
+  .state-text { overflow-wrap: anywhere; }
+
+  .calc-toggle {
+    margin-top: 10px; padding: 6px 0;
+    border: 0; background: none; cursor: pointer;
+    font-size: 12.5px; color: var(--cinnabar);
+    border-bottom: 1px dotted var(--cinnabar);
+  }
+  .calc-detail {
+    margin: 14px 0 0; padding: 14px 16px;
+    background: var(--paper); border: 1px solid var(--rule);
+    font-size: 12.5px; line-height: 1.95; color: var(--ink-2);
+    white-space: pre-line;                      /* 让算式按行显示 */
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  /* 本月三数 */
+  .totals {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    margin-top: 32px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+  }
+  .total { padding: 0 16px; border-left: 1px solid var(--rule); }
+  .total:first-child { padding-left: 0; border-left: 0; }
+  .total-label { margin: 0; font-size: 12px; color: var(--ink-3); }
+  .total-value {
+    margin: 6px 0 0;
+    font-family: var(--serif);
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: clamp(17px, 4.4vw, 21px);
+    white-space: nowrap;
+  }
+  .total-value.is-debit { color: var(--cinnabar); }   /* 结余为负 → 朱砂红 */
+  .totals-note { margin: 16px 0 0; font-size: 12px; color: var(--ink-3); }
+
+  /* ---------- ② 个人参数：账簿式两列 ---------- */
+  .ledger { margin: 0; }
+  .ledger-row {
+    display: flex; align-items: baseline; gap: 16px;
+    padding: 13px 0;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .ledger-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .ledger-row dt { flex: 0 0 88px; margin: 0; font-size: 13px; color: var(--ink-3); }
+  .ledger-row dd { margin: 0; min-width: 0; }   /* min-width:0 才允许它在长单词前收缩 */
+  .is-num {
+    font-family: var(--serif);
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: 17px;
+  }
+  .ledger-note { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+
+  /* ---------- ③ 简历预览：左侧一条时间线 ---------- */
+  .resume { margin: 0; padding: 0; list-style: none; }
+  .resume-item {
+    position: relative; padding: 0 0 22px 18px;
+    border-left: 1px solid var(--rule);
+  }
+  .resume-item:last-child { padding-bottom: 0; }
+  .resume-item::before {                    /* 时间线上的朱砂点 */
+    content: ""; position: absolute; left: -3.5px; top: 9px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--cinnabar);
+  }
+  .resume-period {
+    margin: 0;
+    font-family: var(--serif); font-variant-numeric: lining-nums tabular-nums;
+    font-size: 12.5px; letter-spacing: .02em; color: var(--ink-3);
+  }
+  .resume-what { margin: 5px 0 0; line-height: 1.55; }
+  .resume-meta, .resume-result { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-2); }
+  .resume-empty { margin: 0; font-size: 13px; color: var(--ink-3); }
+
+  /* ============ 状态面板（加载中 / 空 / 出错） ============ */
+  .state-panel { padding: 66px 40px; text-align: center; }
+  .state-flag {
+    display: inline-block; margin: 0 0 16px; padding: 2px 11px;
+    font-size: 11px; letter-spacing: .14em; color: var(--cinnabar);
+    border: 1px solid var(--cinnabar); border-radius: 999px;
+  }
+  .state-title {
+    margin: 0 0 10px;
+    font-family: var(--serif); font-size: 22px; font-weight: 600;
+  }
+  .state-text { max-width: 32em; margin: 0 auto; font-size: 14px; color: var(--ink-2); }
+  .state-hint { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); }
+
+  .loading-note { margin: 0 0 26px; font-size: 13px; letter-spacing: .1em; color: var(--ink-3); }
+
+  /* 骨架屏：加载时先占好位置，页面不会「跳一下」 */
+  .skeleton { background: var(--rule); border-radius: 2px; animation: pulse 1.4s ease-in-out infinite; }
+  .skeleton-hero { height: 58px; width: 58%; margin: 0 auto; }
+  .skeleton-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 34px; }
+  .skeleton-trio .skeleton { height: 30px; }
+  .skeleton-line { height: 12px; margin-top: 16px; }
+  .skeleton-line.short { width: 62%; margin-left: auto; margin-right: auto; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .42; } }
+
+  /* 按钮：墨黑描边，克制 */
+  .btn {
+    margin-top: 22px; padding: 9px 22px;
+    border: 1px solid var(--ink); border-radius: 2px;
+    background: transparent; color: var(--ink); cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .btn:hover { background: var(--ink); color: var(--sheet); }
+
+  /* ============ 页面底部的「预览状态」切换条（演示用，不属于产品界面） ============ */
+  /* 固定在视口底部：内容撑满一屏时它会被推到屏幕外，得滚动才找得到 */
+  .demobar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    max-width: 680px; margin: 0 auto; padding: 9px 40px 10px;
+    background: rgba(239, 233, 221, .95);
+    border-top: 1px solid var(--rule);
+    font-size: 12px; color: var(--ink-3);
+  }
+  /* 它固定住了，得给页面留出不被遮住的余地。
+     这只是个保守初值：底部条会随宽度折行变高，脚本会按它的真实高度再调一次 */
+  body { padding-bottom: 96px; }
+  .demobar-label { letter-spacing: .1em; margin-right: 2px; }
+  .demobar-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--rule-strong); border-radius: 999px;
+    background: var(--sheet); color: var(--ink-2); cursor: pointer;
+  }
+  .demobar-btn:hover { border-color: var(--ink-2); color: var(--ink); }
+  .demobar-btn.is-on { background: var(--ink); border-color: var(--ink); color: var(--sheet); }
+
+  /* ============ 窄屏：手机宽度也要能用 ============ */
+  @media (max-width: 720px) {
+    .sheet { border-left: 0; border-right: 0; }
+  }
+  @media (max-width: 480px) {
+    body { font-size: 14px; }
+    .masthead { padding: 28px 22px 20px; }
+    .masthead-title { font-size: 25px; }
+    .block { padding: 26px 22px; }
+    .state-panel { padding: 52px 22px; }
+    .demobar { padding: 14px 22px 36px; }
+
+    /* 三个数字由三列改竖排，一行一个「标签 …… 数字」：
+       三列并排时每个格子只剩 70px 出头，金额会被挤到断行甚至撑出横向滚动 */
+    .totals { grid-template-columns: 1fr; gap: 12px; }
+    .total {
+      display: flex; align-items: baseline; justify-content: space-between;
+      padding: 0; border-left: 0;
+    }
+    .total-value { margin: 0; }
+  }
+
+  /* 系统里开了「减少动效」，就一律不要动画和过渡 */
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<main class="sheet">
+
+  <header class="masthead">
+    <p class="masthead-kicker">简册 · 账簿面</p>
+    <h1 class="masthead-title">底牌</h1>
+    <p class="masthead-sub">看清存款还能撑几个月</p>
+  </header>
+
+  <!-- 状态播报：只给读屏软件听，视觉上不可见。
+       四种状态之间切换时，由脚本往这里写一句话，读屏才知道页面变了 -->
+  <p class="sr-only" id="state-announcer" role="status" aria-live="polite"></p>
+
+  <!-- ① 加载中。四种状态统一由 #state-announcer 播报，面板自己不挂 role，免得读两遍 -->
+  <section class="state-panel" id="state-loading">
+    <p class="loading-note">正在读你的账本…</p>
+    <div class="skeleton skeleton-hero"></div>
+    <div class="skeleton-trio">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+    </div>
+    <div class="skeleton skeleton-line"></div>
+    <div class="skeleton skeleton-line short"></div>
+  </section>
+
+  <!-- ② 读取出错 -->
+  <section class="state-panel" id="state-error" hidden>
+    <p class="state-flag">读取出错</p>
+    <h2 class="state-title">读不到你的账本</h2>
+    <p class="state-text">浏览器没能把本机存的数据读出来。可能是存储空间满了，也可能是数据被改坏了。</p>
+    <button class="btn" id="btn-retry" type="button">再试一次</button>
+  </section>
+
+  <!-- ③ 空账本 -->
+  <section class="state-panel" id="state-empty" hidden>
+    <p class="state-flag">空账本</p>
+    <h2 class="state-title">这里还什么都没记</h2>
+    <p class="state-text">先填「当前存款」和「每月支出」这两个数，就能算出你还能撑几个月。</p>
+    <p class="state-hint">演示版说明：真实版本这一步会跳到「个人参数」设置。</p>
+  </section>
+
+  <!-- ④ 有数据 -->
+  <div id="state-ready" hidden>
+
+    <!-- 底牌大数字 -->
+    <section class="block">
+      <p class="hero-label">还能撑</p>
+      <!-- 算得出来时显示这一行；算不出来整行藏掉，改出下面的引导 -->
+      <p class="hero-value" id="hero-value"><span id="months-left">—</span><span class="hero-unit" id="hero-unit">个月</span></p>
+      <p class="hero-samples" id="hero-samples" hidden></p>
+      <p class="hero-guide" id="hero-guide" hidden></p>
+      <button class="calc-toggle" id="calc-toggle" type="button" aria-expanded="false" aria-controls="calc-detail">怎么算的</button>
+      <p class="calc-detail" id="calc-detail" hidden></p>
+
+      <div class="totals">
+        <div class="total">
+          <p class="total-label">本月收入</p>
+          <p class="total-value" id="total-income">—</p>
+        </div>
+        <div class="total">
+          <p class="total-label">本月支出</p>
+          <p class="total-value" id="total-expense">—</p>
+        </div>
+        <div class="total">
+          <p class="total-label">本月结余</p>
+          <p class="total-value" id="total-balance">—</p>
+        </div>
+      </div>
+      <p class="totals-note" id="totals-note"></p>
+    </section>
+
+    <!-- 个人参数 -->
+    <section class="block">
+      <h2 class="block-title">个人参数</h2>
+      <dl class="ledger">
+        <div class="ledger-row">
+          <dt>姓名</dt>
+          <dd id="p-name">—</dd>
+        </div>
+        <div class="ledger-row">
+          <dt>目标职位</dt>
+          <dd id="p-role">—</dd>
+        </div>
+        <div class="ledger-row">
+          <dt>当前存款</dt>
+          <dd><span class="is-num" id="p-savings">—</span></dd>
+        </div>
+        <div class="ledger-row">
+          <dt>每月支出</dt>
+          <dd>
+            <span class="is-num" id="p-expense">—</span>
+            <span class="ledger-note">手填值；有记账时按近 3 个月记账算，它只作兜底</span>
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- 简历预览 -->
+    <section class="block">
+      <h2 class="block-title">简历预览</h2>
+      <ol class="resume" id="resume-list"></ol>
+      <p class="resume-empty" id="resume-empty" hidden>还没有记下任何经历。</p>
+    </section>
+
+  </div>
+
+</main>
+
+<!-- 预览状态切换：只属于这个演示页面，正式版会删掉 -->
+<footer class="demobar" aria-label="演示用：切换页面状态">
+  <span class="demobar-label">预览状态</span>
+  <button class="demobar-btn" type="button" data-state="loading">加载中</button>
+  <button class="demobar-btn" type="button" data-state="ready">有数据</button>
+  <button class="demobar-btn" type="button" data-state="empty">空</button>
+  <button class="demobar-btn" type="button" data-state="error">出错</button>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ==========================================================
+     第一部分：假的档案数据（mock）
+     真实数据要等第 3 周接 API；今天这些全是编造的假数据。
+     注意收支记录的日期是按「当前自然月」现算的 —— 这样不管
+     哪天打开，本月都一定有数据，「本月收入 / 支出」不会是 0。
+     ========================================================== */
+
+  var NOW = new Date();
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  // 取「往前 offset 个月」那个月的编号，如 2026-09
+  function monthKey(offset) {
+    var d = new Date(NOW.getFullYear(), NOW.getMonth() - offset, 1);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+  }
+
+  // 生成「往前 offset 个月的第 day 天」的日期串，如 2026-09-01
+  function dateIn(offset, day) {
+    return monthKey(offset) + '-' + pad2(day);
+  }
+
+  function buildMockData() {
+    return {
+      profile: {
+        name: '王某某',
+        targetRole: '前端工程师',
+        savings: 30000,          // 可动用的存款
+        monthlyExpense: 5800     // 手填的月均支出（兜底用）
+      },
+      // 近 3 个自然月都有记账 → 走 PRD 口径的第 1 条：合计 ÷ 3
+      expenses: [
+        // 本月
+        { id: 'x1',  date: dateIn(0, 1),  amount: 3200,  type: '支出', category: '房租', note: '合租单间' },
+        { id: 'x2',  date: dateIn(0, 8),  amount: 320,   type: '支出', category: '餐饮', note: '' },
+        { id: 'x3',  date: dateIn(0, 12), amount: 1500,  type: '收入', category: '兼职', note: '帮人改的小程序' },
+        { id: 'x4',  date: dateIn(0, 15), amount: 128.5, type: '支出', category: '交通', note: '地铁充值' },
+        { id: 'x5',  date: dateIn(0, 20), amount: 45,    type: '支出', category: '餐饮', note: '楼下快餐' },
+        // 上个月
+        { id: 'x6',  date: dateIn(1, 1),  amount: 3200,  type: '支出', category: '房租', note: '' },
+        { id: 'x7',  date: dateIn(1, 6),  amount: 480,   type: '支出', category: '餐饮', note: '' },
+        { id: 'x8',  date: dateIn(1, 14), amount: 260,   type: '支出', category: '购物', note: '换季衣服' },
+        { id: 'x9',  date: dateIn(1, 22), amount: 210,   type: '支出', category: '餐饮', note: '' },
+        // 上上个月
+        { id: 'x10', date: dateIn(2, 1),  amount: 3200,  type: '支出', category: '房租', note: '' },
+        { id: 'x11', date: dateIn(2, 9),  amount: 390,   type: '支出', category: '餐饮', note: '' },
+        { id: 'x12', date: dateIn(2, 18), amount: 120,   type: '支出', category: '娱乐', note: '看了一场电影' }
+      ],
+      entries: [
+        { id: 'r1', startDate: '2026-07-01', endDate: '',           content: '把首页加载从 5 秒压到 2 秒',                 org: '某某科技', role: '前端工程师', result: '响应快 3 秒' },
+        { id: 'r2', startDate: '2025-09-01', endDate: '2026-06-30', content: '从零搭了一套内部组件库，被 4 条业务线复用',   org: '某某科技', role: '前端工程师', result: '复用 4 条业务线' },
+        { id: 'r3', startDate: '2024-11-01', endDate: '2025-08-31', content: '负责结算页重构上线，线上报错率降到千分之一',   org: '某某网络', role: '前端开发',   result: '报错率千分之一' }
+      ]
+    };
+  }
+
+  /* ==========================================================
+     第二部分：按 PRD 第五节算数字（都是纯函数，好核对）
+     ========================================================== */
+
+  // 从一条记录里安全地取「年月」（如 2026-09）。
+  // 数据被手改过、或字段缺失时 e.date 可能不是字符串，直接 .slice 会抛错、整页白屏。
+  function monthOf(e) {
+    return (e && typeof e.date === 'string') ? e.date.slice(0, 7) : '';
+  }
+
+  function sumByType(rows, type) {
+    return rows.filter(function (e) { return e && e.type === type; })
+               .reduce(function (s, e) { return s + (Number(e.amount) || 0); }, 0);
+  }
+
+  // 月均支出：近 3 个自然月（本月 + 前 2 个月）有支出记录 → 用记账算；
+  // 一条都没有 → 才用手填值。返回数字和它的来源，供「怎么算的」展示。
+  function calcMonthlyExpense(expenses, manualValue) {
+    var keys = [monthKey(0), monthKey(1), monthKey(2)];
+
+    var rows = expenses.filter(function (e) {
+      return e && e.type === '支出' && keys.indexOf(monthOf(e)) !== -1;
+    });
+
+    if (rows.length === 0) {
+      if (manualValue == null || manualValue <= 0) return null;   // 手填也没有 → 算不出
+      return { value: manualValue, source: 'manual', months: 0, total: 0, keys: keys };
+    }
+
+    // 有支出的月份有几个月，就除以几（正好 3 个月时也就是 ÷3，见 PRD 第五节）
+    var used = {};
+    rows.forEach(function (e) { used[monthOf(e)] = true; });
+    var monthCount = Object.keys(used).length;
+    var total = rows.reduce(function (s, e) { return s + (Number(e.amount) || 0); }, 0);
+
+    return {
+      value: total / monthCount,
+      source: monthCount === 3 ? 'record' : 'record-thin',
+      months: monthCount,
+      total: total,
+      keys: keys
+    };
+  }
+
+  // 还能撑几个月 = 存款 ÷ 月均支出；算不出来就返回 null。
+  // 存款为 0（或没填）时也返回 null：PRD 8.2 要求这种情况「不显示 0、给引导」，
+  // 因为「还能撑 0 个月」既没信息量、又容易让人以为算错了。
+  function calcMonthsLeft(savings, monthlyExpense) {
+    if (savings == null || savings <= 0) return null;
+    if (monthlyExpense == null || monthlyExpense <= 0) return null;
+    return savings / monthlyExpense;
+  }
+
+  // 某个月的收入 / 支出合计
+  function calcMonthTotals(expenses, key) {
+    var rows = expenses.filter(function (e) { return monthOf(e) === key; });
+    var income = sumByType(rows, '收入');
+    var expense = sumByType(rows, '支出');
+    return { income: income, expense: expense, balance: income - expense };
+  }
+
+  /* ==========================================================
+     第三部分：经历排序与写法（照 PRD 5.2 的三条规则）
+     1. 结束时间从晚到早  2. 没填结束时间的（还在做）排最前
+     3. 结束时间相同则开始时间从晚到早
+     ========================================================== */
+
+  function sortEntries(list) {
+    return (Array.isArray(list) ? list.slice() : []).sort(function (a, b) {
+      var ae = a.endDate || '9999-99-99';   // 空 = 至今，用一个很大的值让它排最前
+      var be = b.endDate || '9999-99-99';
+      if (ae !== be) return be.localeCompare(ae);
+      return String(b.startDate || '').localeCompare(String(a.startDate || ''));
+    });
+  }
+
+  function periodText(startDate, endDate) {
+    var s = String(startDate || '').slice(0, 7).replace('-', '.');
+    if (!s) return '';
+    var e = endDate ? endDate.slice(0, 7).replace('-', '.') : '至今';
+    return s + ' — ' + e;
+  }
+
+  /* ==========================================================
+     第四部分：小工具
+     ========================================================== */
+
+  var $ = function (sel) { return document.querySelector(sel); };
+  var $$ = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };
+
+  // 把可能来自旧备份、或被人手改过的值转成数字；转不成 = 当作「没填」。
+  // 有它兜底，页面才不会出现 ¥NaN、也不会因为字符串参与加法而变成拼字符串。
+  function toNumber(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  // 金额写法：¥3,200 / -¥2,193.5（负数前面加减号，不带括号）。
+  // 拿到的不是有效数字就显示「—」，绝不显示 ¥NaN（PRD 8.2 明文要求）
+  function money(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return '—';
+    var sign = n < 0 ? '-' : '';
+    var abs = Math.abs(n);
+    var text = abs.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return sign + '¥' + text;
+  }
+
+  function oneDecimal(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return '—';
+    return n.toFixed(1);
+  }
+
+  /* ==========================================================
+     第五部分：渲染
+     全部用 textContent 写文本，不用 innerHTML —— 用户输入的内容
+     永远当文字看，不当代码执行（防 XSS）
+     ========================================================== */
+
+  function render(data) {
+    // 数据可能来自旧备份或被手改过，形状不一定标准 —— 一律先兜成安全形状，
+    // 后面所有取值都走 toNumber / String(...)，保证不会算出 NaN、也不会抛错
+    var profile = (data && data.profile) || {};
+    var expenses = (data && Array.isArray(data.expenses)) ? data.expenses : [];
+    var entries = (data && Array.isArray(data.entries)) ? data.entries : [];
+
+    var savings = toNumber(profile.savings);
+    var manualExpense = toNumber(profile.monthlyExpense);
+
+    var expenseInfo = calcMonthlyExpense(expenses, manualExpense);
+    var monthlyExpense = expenseInfo ? expenseInfo.value : null;
+    var monthsLeft = calcMonthsLeft(savings, monthlyExpense);
+
+    var thisMonthKey = monthKey(0);
+    var totals = calcMonthTotals(expenses, thisMonthKey);
+
+    var heroValue = $('#hero-value');
+    var heroGuide = $('#hero-guide');
+    var heroSamples = $('#hero-samples');
+    var calcToggle = $('#calc-toggle');
+    var calcDetail = $('#calc-detail');
+
+    // —— 大数字：算得出来就出数字，算不出来就出引导（PRD 8.2 第 5、6 条）——
+    if (monthsLeft == null) {
+      heroValue.hidden = true;                 // 不留「— 个月」这种半截话
+      heroGuide.hidden = false;
+      // 算不出来的两种原因，各说各的。
+      // 注意存款为 0 也算「没有可用存款」—— 判断必须和 calcMonthsLeft 里保持一致，
+      // 否则填了 0 的人会被指去记支出，白绕一圈。
+      heroGuide.textContent = (savings == null || savings <= 0)
+        ? '先填一下你能动用的存款，就能算出还能撑几个月。'
+        : '先记一笔支出，或手填月均支出，就能算出还能撑几个月。';
+      // 数字都没有，「怎么算的」也就没东西可展开
+      calcToggle.hidden = true;
+      calcDetail.hidden = true;
+      calcToggle.setAttribute('aria-expanded', 'false');
+      calcToggle.textContent = '怎么算的';
+      heroSamples.hidden = true;
+    } else {
+      heroValue.hidden = false;
+      heroGuide.hidden = true;
+      $('#months-left').textContent = '≈ ' + oneDecimal(monthsLeft);
+      calcToggle.hidden = false;
+
+      // 只有 1~2 个自然月有支出记录时，数字旁必须看得见这个标注（PRD 8.2 第 7 条）
+      var thinSample = expenseInfo.source === 'record-thin';
+      heroSamples.hidden = !thinSample;
+      if (thinSample) heroSamples.textContent = '样本不足 3 个月';
+    }
+
+    // —— 本月三数 ——
+    $('#total-income').textContent = money(totals.income);
+    $('#total-expense').textContent = money(totals.expense);
+    var balanceEl = $('#total-balance');
+    balanceEl.textContent = money(totals.balance);
+    balanceEl.classList.toggle('is-debit', totals.balance < 0);
+
+    var monthText = thisMonthKey.slice(0, 4) + ' 年 ' + Number(thisMonthKey.slice(5, 7)) + ' 月';
+    $('#totals-note').textContent = '「本月」是电脑系统时间所在的自然月（现在是 ' + monthText + '）。';
+
+    // —— 「怎么算的」展开内容 ——
+    var detail = '还能撑几个月 ＝ 可动用存款 ÷ 月均支出\n';
+    if (monthsLeft != null) {
+      detail += '＝ ' + money(savings) + ' ÷ ' + money(Math.round(monthlyExpense * 10) / 10) +
+                ' ≈ ' + oneDecimal(monthsLeft) + ' 个月\n\n';
+    }
+    if (!expenseInfo) {
+      detail += '月均支出：还没有任何记账，也没有手填值，所以算不出这个数字。';
+    } else if (expenseInfo.source === 'manual') {
+      detail += '月均支出：近 3 个自然月（' + expenseInfo.keys.join(' / ') + '）没有任何支出记录，' +
+                '所以用了手填的 ' + money(expenseInfo.value) + '。';
+    } else {
+      var monthNames = expenseInfo.keys.map(function (k) { return Number(k.slice(5, 7)) + ' 月'; });
+      detail += '月均支出：按近 3 个自然月（' + monthNames.join(' / ') + '）的记账算 ——\n' +
+                '支出合计 ' + money(expenseInfo.total) + ' ÷ ' + expenseInfo.months + ' 个月 ＝ ' +
+                money(Math.round(expenseInfo.value * 10) / 10) + '\n' +
+                (manualExpense == null
+                  ? '（手填值没填；有记账时它本来也不参与计算，只作兜底）'
+                  : '（手填的 ' + money(manualExpense) + ' 在有记账时不参与计算，只作兜底）');
+      if (expenseInfo.source === 'record-thin') {
+        detail += '\n注意：只有 ' + expenseInfo.months + ' 个自然月有支出记录，样本不足 3 个月。';
+      }
+    }
+    $('#calc-detail').textContent = detail;
+
+    // —— 个人参数 ——
+    $('#p-name').textContent = String(profile.name == null ? '' : profile.name).trim() || '未填';
+    $('#p-role').textContent = String(profile.targetRole == null ? '' : profile.targetRole).trim() || '未填';
+    $('#p-savings').textContent = (savings == null) ? '未填' : money(savings);
+    $('#p-expense').textContent = (manualExpense == null) ? '未填' : money(manualExpense);
+
+    // —— 简历预览 ——
+    var listEl = $('#resume-list');
+    listEl.textContent = '';                       // 清空旧内容
+    var sorted = sortEntries(entries);
+    var rendered = 0;
+
+    sorted.forEach(function (item) {
+      if (!item) return;
+
+      var periodTxt = periodText(item.startDate, item.endDate);
+      var contentTxt = String(item.content == null ? '' : item.content).trim();
+
+      // 起止时间和「做成了什么」都是空的，是坏数据：整条不渲染。
+      // 否则时间线上会多出一个只有朱砂点、一个字都没有的空条目。
+      if (!periodTxt && !contentTxt) return;
+
+      var li = document.createElement('li');
+      li.className = 'resume-item';
+
+      if (periodTxt) {
+        var period = document.createElement('p');
+        period.className = 'resume-period';
+        period.textContent = periodTxt;
+        li.appendChild(period);
+      }
+
+      if (contentTxt) {
+        var what = document.createElement('p');
+        what.className = 'resume-what';
+        what.textContent = contentTxt;
+        li.appendChild(what);
+      }
+
+      var metaParts = [item.org, item.role]
+        .map(function (v) { return String(v == null ? '' : v).trim(); })
+        .filter(Boolean);
+      if (metaParts.length) {
+        var meta = document.createElement('p');
+        meta.className = 'resume-meta';
+        meta.textContent = metaParts.join(' · ');
+        li.appendChild(meta);
+      }
+
+      var resultTxt = String(item.result == null ? '' : item.result).trim();
+      if (resultTxt) {
+        var result = document.createElement('p');
+        result.className = 'resume-result';
+        result.textContent = '成果：' + resultTxt;   // PRD v1.5 定下的写法
+        li.appendChild(result);
+      }
+
+      listEl.appendChild(li);
+      rendered++;
+    });
+
+    // 空态看的是「真渲染出来几条」，不是「原始数据几条」——
+    // 数据里全是坏条目时，列表其实是空的，也该给引导
+    $('#resume-empty').hidden = rendered > 0;
+  }
+
+  /* ==========================================================
+     第六部分：四种状态之间的切换
+     ========================================================== */
+
+  var ALL_STATES = ['loading', 'ready', 'empty', 'error'];
+  var held = false;    // 手动点过状态之后，就不再自动往下走
+
+  // 每个状态配一句给读屏听的话（视觉上看不见，见 .sr-only）
+  var STATE_TEXT = {
+    loading: '正在读你的账本。',
+    ready: '账本已读出，显示底牌数字。',
+    empty: '这是空账本，还没记过任何东西。',
+    error: '读取出错，读不到本机存的账本。'
+  };
+
+  function setState(name) {
+    ALL_STATES.forEach(function (s) {
+      document.getElementById('state-' + s).hidden = (s !== name);
+    });
+    $$('.demobar-btn').forEach(function (btn) {
+      var on = btn.dataset.state === name;
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    // 状态是「整块换掉」而不是原地改几个字，读屏不会自己发现 —— 主动播报一句
+    var announcer = $('#state-announcer');
+    if (announcer) announcer.textContent = '页面状态：' + (STATE_TEXT[name] || name);
+  }
+
+  // 演示一遍真实流程：先「加载中」，读完了变「有数据」
+  function runLoading() {
+    setState('loading');
+    window.setTimeout(function () {
+      if (!held) setState('ready');
+    }, 700);
+  }
+
+  function boot() {
+    var fromUrl = new URLSearchParams(location.search).get('state');
+    if (fromUrl && ALL_STATES.indexOf(fromUrl) !== -1) {
+      held = true;                     // 网址上指定了状态 → 就停在那儿
+      setState(fromUrl);
+      return;
+    }
+    runLoading();
+  }
+
+  // 底部切换条
+  $$('.demobar-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      held = true;
+      setState(btn.dataset.state);
+    });
+  });
+
+  // 出错时的「再试一次」：重新走一遍加载 → 有数据
+  $('#btn-retry').addEventListener('click', function () {
+    held = false;
+    runLoading();
+  });
+
+  // 「怎么算的」点开 / 收起
+  (function () {
+    var toggle = $('#calc-toggle');
+    var detail = $('#calc-detail');
+    toggle.addEventListener('click', function () {
+      var willOpen = detail.hidden;
+      detail.hidden = !willOpen;
+      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      toggle.textContent = willOpen ? '收起' : '怎么算的';
+    });
+  }());
+
+  /* ==========================================================
+     第七部分：底部工具条与正文之间的间距
+     底部那条「预览状态」固定在视口底部，宽度一窄就折行变高
+     （320px 时能到三行）。如果只写死一个留白，窄屏下它就会压住正文末尾，
+     所以这里量一次它的真实高度，反着给 body 留出让位的空间。
+     ========================================================== */
+
+  function syncDemobarGap() {
+    var bar = document.querySelector('.demobar');
+    if (!bar) return;
+    var gap = Math.ceil(bar.getBoundingClientRect().height) + 16;
+    document.body.style.paddingBottom = gap + 'px';
+  }
+
+  /* ==========================================================
+     启动
+     ========================================================== */
+
+  render(buildMockData());
+  boot();
+  syncDemobarGap();
+
+  window.addEventListener('resize', syncDemobarGap);
+  if (window.ResizeObserver) {
+    // 折行变高、字体变化都会改它的高度，用观察器盯着比每次自己算稳
+    new ResizeObserver(syncDemobarGap).observe(document.querySelector('.demobar'));
+  }
+}());
+</script>
+
+</body>
+</html>
