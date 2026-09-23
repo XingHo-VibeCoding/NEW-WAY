@@ -7,7 +7,7 @@
 <!--
   简册 ·「看」页（底牌视图）· Day 8（第 2 周）· mock 数据版
   ------------------------------------------------------------------
-  依据：PRD.md v1.6
+  依据：PRD.md v1.7（v1.7 新增 5.3 的 targetRole「目标职位」：选填、≤20 字、不参与计算）
     · 功能 3「看底牌」+ 第五节计算口径（还能撑 = 存款 ÷ 月均支出）
     · 5.2 经历排序规则、5.3 个人参数
     · 8.2 底牌页验收
@@ -535,7 +535,12 @@
      ========================================================== */
 
   function sortEntries(list) {
-    return (Array.isArray(list) ? list.slice() : []).sort(function (a, b) {
+    return (Array.isArray(list) ? list.slice() : [])
+      // 先剔掉 null / 数字 / 字符串这类根本不是经历的东西：
+      // 排序时要读 a.endDate，元素是 null 的话会在这一行直接抛错，
+      // 而「跳过坏条目」的判断在排序之后才轮到，拦不住 —— 整页会白屏。
+      .filter(function (x) { return x && typeof x === 'object'; })
+      .sort(function (a, b) {
       var ae = a.endDate || '9999-99-99';   // 空 = 至今，用一个很大的值让它排最前
       var be = b.endDate || '9999-99-99';
       if (ae !== be) return be.localeCompare(ae);
@@ -581,7 +586,88 @@
   }
 
   /* ==========================================================
-     第五部分：渲染
+     第五部分：可复用组件（Day 8 余力加练）
+     这里放的是「模具」——喂进去数据，吐出来 DOM 卡片。
+     好处：卡片长什么样只由 createEntryCard 一处决定，
+     以后改样式不必满页找重复代码；列表的顺序规则也收在列表组件里，
+     谁用谁不用自己再排一遍。
+     这些组件互相独立、不认固定的页面 id，喂什么容器就装进什么容器，
+     所以第 3 周接上真 API 后可以直接搬去别的页面用。
+     ========================================================== */
+
+  // 组件：一张经历卡片。
+  // 喂进去一条经历，吐出一个 <li>；若这条数据是坏的（起止时间和内容都空）
+  // 就返回 null，由调用方跳过 —— 不能让时间线上多出一个只有朱砂点、
+  // 一个字都没有的空条目。
+  function createEntryCard(item) {
+    if (!item) return null;
+
+    var periodTxt = periodText(item.startDate, item.endDate);
+    var contentTxt = String(item.content == null ? '' : item.content).trim();
+
+    if (!periodTxt && !contentTxt) return null;
+
+    var li = document.createElement('li');
+    li.className = 'resume-item';
+
+    if (periodTxt) {
+      var period = document.createElement('p');
+      period.className = 'resume-period';
+      period.textContent = periodTxt;
+      li.appendChild(period);
+    }
+
+    if (contentTxt) {
+      var what = document.createElement('p');
+      what.className = 'resume-what';
+      what.textContent = contentTxt;
+      li.appendChild(what);
+    }
+
+    // 公司和职位可能只填了一个、也可能都没填 —— 有谁写谁，都没有就整行不出现
+    var metaParts = [item.org, item.role]
+      .map(function (v) { return String(v == null ? '' : v).trim(); })
+      .filter(Boolean);
+    if (metaParts.length) {
+      var meta = document.createElement('p');
+      meta.className = 'resume-meta';
+      meta.textContent = metaParts.join(' · ');
+      li.appendChild(meta);
+    }
+
+    var resultTxt = String(item.result == null ? '' : item.result).trim();
+    if (resultTxt) {
+      var result = document.createElement('p');
+      result.className = 'resume-result';
+      result.textContent = '成果：' + resultTxt;   // PRD v1.5 定下的写法
+      li.appendChild(result);
+    }
+
+    return li;
+  }
+
+  // 组件：经历列表。
+  // 喂进去一串经历 + 一个容器，它负责排好序、逐个做成卡片装进去，
+  // 返回「真渲染出来几条」（坏数据不算数，调用方靠这个决定要不要出空态引导）。
+  // 排序规则照 PRD 5.2，收在这里是为了让「列表」自带正确顺序。
+  function createEntryList(items, mountEl) {
+    if (!mountEl) return 0;
+
+    mountEl.textContent = '';                    // 清空旧内容
+
+    var rendered = 0;
+    sortEntries(items).forEach(function (item) {
+      var card = createEntryCard(item);
+      if (!card) return;                         // 坏数据整条跳过
+      mountEl.appendChild(card);
+      rendered++;
+    });
+
+    return rendered;
+  }
+
+  /* ==========================================================
+     第六部分：渲染
      全部用 textContent 写文本，不用 innerHTML —— 用户输入的内容
      永远当文字看，不当代码执行（防 XSS）
      ========================================================== */
@@ -678,60 +764,10 @@
     $('#p-savings').textContent = (savings == null) ? '未填' : money(savings);
     $('#p-expense').textContent = (manualExpense == null) ? '未填' : money(manualExpense);
 
-    // —— 简历预览 ——
-    var listEl = $('#resume-list');
-    listEl.textContent = '';                       // 清空旧内容
-    var sorted = sortEntries(entries);
-    var rendered = 0;
-
-    sorted.forEach(function (item) {
-      if (!item) return;
-
-      var periodTxt = periodText(item.startDate, item.endDate);
-      var contentTxt = String(item.content == null ? '' : item.content).trim();
-
-      // 起止时间和「做成了什么」都是空的，是坏数据：整条不渲染。
-      // 否则时间线上会多出一个只有朱砂点、一个字都没有的空条目。
-      if (!periodTxt && !contentTxt) return;
-
-      var li = document.createElement('li');
-      li.className = 'resume-item';
-
-      if (periodTxt) {
-        var period = document.createElement('p');
-        period.className = 'resume-period';
-        period.textContent = periodTxt;
-        li.appendChild(period);
-      }
-
-      if (contentTxt) {
-        var what = document.createElement('p');
-        what.className = 'resume-what';
-        what.textContent = contentTxt;
-        li.appendChild(what);
-      }
-
-      var metaParts = [item.org, item.role]
-        .map(function (v) { return String(v == null ? '' : v).trim(); })
-        .filter(Boolean);
-      if (metaParts.length) {
-        var meta = document.createElement('p');
-        meta.className = 'resume-meta';
-        meta.textContent = metaParts.join(' · ');
-        li.appendChild(meta);
-      }
-
-      var resultTxt = String(item.result == null ? '' : item.result).trim();
-      if (resultTxt) {
-        var result = document.createElement('p');
-        result.className = 'resume-result';
-        result.textContent = '成果：' + resultTxt;   // PRD v1.5 定下的写法
-        li.appendChild(result);
-      }
-
-      listEl.appendChild(li);
-      rendered++;
-    });
+    // —— 简历预览：整段交给可复用的经历列表组件 ——
+    // 排序、逐条做卡片、坏数据跳过都在组件内部完成，
+    // 这里只要拿到「真渲染出来几条」来决定要不要出空态引导
+    var rendered = createEntryList(entries, $('#resume-list'));
 
     // 空态看的是「真渲染出来几条」，不是「原始数据几条」——
     // 数据里全是坏条目时，列表其实是空的，也该给引导
@@ -739,7 +775,7 @@
   }
 
   /* ==========================================================
-     第六部分：四种状态之间的切换
+     第七部分：四种状态之间的切换
      ========================================================== */
 
   var ALL_STATES = ['loading', 'ready', 'empty', 'error'];
@@ -812,7 +848,7 @@
   }());
 
   /* ==========================================================
-     第七部分：底部工具条与正文之间的间距
+     第八部分：底部工具条与正文之间的间距
      底部那条「预览状态」固定在视口底部，宽度一窄就折行变高
      （320px 时能到三行）。如果只写死一个留白，窄屏下它就会压住正文末尾，
      所以这里量一次它的真实高度，反着给 body 留出让位的空间。
