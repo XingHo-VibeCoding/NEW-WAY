@@ -66,17 +66,19 @@
 -->
 <style>
   :root {
-    --bg: #f4f5f7;
-    --card: #ffffff;
-    --line: #e3e6ea;
-    --line-2: #eef0f3;
-    --text: #1f2328;
-    --text-2: #6b7280;
-    --text-3: #9aa1ab;
-    --brand: #2f5fe0;
-    --brand-soft: #eef3ff;
-    --income: #16a34a;
-    --expense: #dc2626;
+    /* Day 9 换色：纸质账簿风格 —— 米白底 + 墨黑字 + 朱砂红强调（对比度全部实测 ≥4.5:1）。
+       改前的冷灰底 + 蓝强调被换掉；灰字三档整体加深（原 text-3 只有 2.6:1，远低于小字下限 4.5）。 */
+    --bg: #f6f1e7;          /* 页面底：米白（暖纸色） */
+    --card: #fffdf8;        /* 卡片底：比米白更亮的纸白 */
+    --line: #e6dfd1;        /* 边线：暖灰 */
+    --line-2: #efe9dc;      /* 次级边线 */
+    --text: #1f2328;        /* 正文：墨黑 */
+    --text-2: #565d69;      /* 次级文字：米白底 5.89 / 纸白卡 6.53 */
+    --text-3: #656c77;      /* 辅助小字：米白底 4.71 / 纸白卡 5.21（原 #9aa1ab 只有 2.4~2.6） */
+    --brand: #b03a2e;       /* 强调色：朱砂红（纸白卡 5.92 / 浅朱底 5.01） */
+    --brand-soft: #f7e7e1;  /* 强调色的浅底（标签 / 选中态） */
+    --income: #137a36;      /* 收入绿：米白底 4.83 / 纸白卡 5.35（原 #16a34a 在米白底只剩 3.2） */
+    --expense: #dc2626;     /* 支出红：纸白卡 4.75，与朱砂红可辨（支出更亮） */
     --radius: 10px;
   }
 
@@ -278,7 +280,7 @@
   }
   .btn:hover { background: var(--line-2); }
   .btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 500; }
-  .btn-primary:hover { background: #2750c4; border-color: #2750c4; }
+  .btn-primary:hover { background: #96301f; border-color: #96301f; }
   .btn-mini { padding: 3px 10px; font-size: 13px; line-height: 1.4; }
   .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 2px; }
 
@@ -347,7 +349,7 @@
 
   /* 正在编辑的那一行，加一层浅底 + 「编辑」按钮变主题色，一眼看出在改哪条 */
   .exp-row.is-editing, .entry-row.is-editing {
-    background: #f5f8ff; border-radius: 8px; padding-left: 8px; padding-right: 8px;
+    background: #faf0ec; border-radius: 8px; padding-left: 8px; padding-right: 8px;
   }
   .exp-row.is-editing .exp-act-edit, .entry-row.is-editing .entry-act-edit {
     border-color: var(--brand); color: var(--brand);
@@ -769,7 +771,7 @@
       <div class="todo-note">
         点上面这个按钮调起浏览器自带的打印窗口，在「目标」里选「另存为 PDF」就能存成文件。<br>
         这页是只读的：经历去「记一条」改；纸顶上的<b>姓名 / 联系方式</b>去底牌页「设置个人参数」填，不填就不显示。<br>
-        蓝色标签是这条经历的<b>量化结果</b>，统一带「成果：」前缀。
+        红色标签是这条经历的<b>量化结果</b>，统一带「成果：」前缀。
       </div>
     </div>
 
