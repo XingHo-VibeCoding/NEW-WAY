@@ -61,7 +61,7 @@
              像是没导成功；空备份（四格都为空）是合法输入，照收不报错
            依据：PRD v1.6 功能 4、8.7 验收、TECH_DESIGN v1.6 5.5 / 10.4
   仍不做：云备份、自动定时导出、多份备份管理、备份文件加密（TECH_DESIGN 10.4 明确定为不做）
-  PRD：PRD.md v1.6 ｜ 字段口径：TECH_DESIGN.md v1.6 第五节
+  PRD：PRD.md v1.8 ｜ 字段口径：TECH_DESIGN.md v1.8 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
 <style>
@@ -487,6 +487,59 @@
   .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
   .modal-text { font-size: 13px; color: var(--text-2); line-height: 1.7; }
   .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  /* ---------- 桌面宽屏（≥900px）：全宽双栏布局（Day 9 补充任务 · B 方案第 2 稿） ----------
+     手机端（640 / 380 断点）一行都不受影响：本块只在 ≥900px 生效。
+     帅化思路：导航条换「墨黑封皮 + 朱砂描边」与纸面反差；内容区放宽到 1560px 占满浏览器；
+     大数字放大、卡片加淡阴影纸质感、大按钮悬停抬升。配色三基调（米白 / 墨黑 / 朱砂）不变。 */
+  @media (min-width: 900px) {
+    .wrap { max-width: 1560px; padding: 28px 48px 60px; min-height: calc(100vh - 64px); }
+    .navbar-inner { max-width: 1560px; padding: 0 48px; height: 64px; }
+
+    /* 导航条 = 账簿封皮：墨黑底、朱砂描边、米白字 */
+    .navbar { background: #1f2328; border-bottom: 2px solid var(--brand); box-shadow: 0 2px 12px rgba(31,35,40,.18); }
+    .brand { color: #f6f1e7; }
+    .brand-en { color: #9aa1ab; }
+    .nav-module { color: #8b929c; }
+    .nav-btn { color: #c9cdd3; }
+    .nav-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+    .nav-btn.is-active { background: var(--brand); color: #fff; }
+    .nav-group + .nav-group { border-left-color: rgba(255,255,255,.14); }
+
+    /* 卡片纸质感：淡阴影 + 标题升一档 */
+    .card { box-shadow: 0 1px 3px rgba(31,35,40,.05); }
+    .card-title { font-size: 17px; }
+
+    /* 底牌页：模块标签占整行 → 大数字 | 本月 三数 → 两个入口占整行 → 参数表单占整行 */
+    #page-home { display: grid; grid-template-columns: 5fr 7fr; column-gap: 28px; align-items: start; }
+    #page-home .page-module, #page-home .big-actions { grid-column: 1 / -1; }
+    #page-home > .card:last-child { grid-column: 1 / -1; }   /* 参数卡跨全宽，别孤零零占左列 */
+    #page-home form#form-profile { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
+    #page-home form#form-profile .btn-row { grid-column: 1 / -1; }
+
+    /* 「还能撑」是全站的戏眼：放大 + 朱砂侧条 + 纸卡微投影 */
+    #page-home .power { padding: 40px 32px 32px; border-left: 4px solid var(--brand); box-shadow: 0 2px 20px rgba(31,35,40,.07); }
+    #page-home .power-value { font-size: 64px; }
+    #page-home .power-label { font-size: 14px; }
+    /* 三数格子升级：白底描边、数字放大（原来是米白小格子） */
+    #page-home .stat { background: var(--card); border: 1px solid var(--line); padding: 16px 10px; }
+    #page-home .stat-value { font-size: 22px; }
+
+    /* 两个大入口：悬停抬升 + 朱砂投影（帅而不闹） */
+    .big-btn { transition: border-color .15s, transform .15s, box-shadow .15s; }
+    .big-btn:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(176,58,46,.12); }
+
+    /* 记一笔 / 记一条：表单 + 列表 左右分栏（表单窄些，列表宽些好读）。
+       ⚠️ 必须挂在 .is-active 上：直接写 #page-expense { display:grid } 特异性会盖掉
+       .page { display:none } 的切页机制，导致这两页在桌面端永远显示（第 2 稿踩过）。 */
+    #page-expense.is-active, #page-entry.is-active {
+      display: grid; grid-template-columns: 5fr 7fr; column-gap: 28px; align-items: start;
+    }
+    #page-expense .page-module, #page-entry .page-module { grid-column: 1 / -1; }
+
+    /* 简历预览：纸居中，不随 1560px 容器拉满 */
+    #page-resume { max-width: 760px; margin: 0 auto; }
+  }
 </style>
 </head>
 <body>
