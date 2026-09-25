@@ -99,9 +99,16 @@
 
   body {
     margin: 0;
-    background: var(--bg);
+    /* Day 10 质感修复：米黄底不再是一块死板纯色 —— 顶部一层暖光（像纸面被灯照着）
+       + 上下微渐变（底部略沉）。色值以原 #f6f1e7 为中心微调，
+       之前实测的灰字对比度结论（≥4.5:1）不受影响。background-color 兜底，
+       万一浏览器不支持渐变就退回纯色。 */
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(1100px 380px at 50% -120px, rgba(255, 243, 214, .75), rgba(255, 243, 214, 0) 70%),
+      linear-gradient(180deg, rgba(255, 255, 255, .4), rgba(148, 118, 60, .06));
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
     line-height: 1.6;
   }
@@ -123,8 +130,10 @@
   .nav-group { display: flex; align-items: center; gap: 2px; }
   .nav-group + .nav-group { padding-left: 12px; border-left: 1px solid var(--line); }
   .nav-module {
-    font-size: 11px; color: var(--text-3); letter-spacing: .5px;
-    margin-right: 3px; white-space: nowrap;
+    /* Day 10 重设计：模块名从裸灰字改成细描边小胶囊，在黑条里有了「标签感」 */
+    font-size: 10px; color: var(--text-3); letter-spacing: 1px;
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 2px 8px 1px; margin-right: 3px; white-space: nowrap;
   }
   .nav-btn {
     border: 0; background: none; font: inherit; cursor: pointer;
@@ -176,28 +185,43 @@
   .page { display: none; }
   .page.is-active { display: block; }
 
-  /* 页面顶部的模块标签：这页属于账簿面还是简历面 */
+  /* 页面顶部的模块标签：这页属于账簿面还是简历面。
+     Day 10 重设计：粉底大胶囊改「朱砂圆点 + 文字」，从色块变成轻量标记 */
   .page-module {
-    display: inline-block; font-size: 11px; letter-spacing: 1px;
-    color: var(--brand); background: var(--brand-soft);
-    border-radius: 999px; padding: 2px 10px; margin-bottom: 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: 1px; font-weight: 500;
+    color: var(--brand); padding: 2px 2px; margin-bottom: 12px;
+  }
+  .page-module::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--brand); flex: none;
   }
 
   .card {
-    background: var(--card);
+    /* Day 10 质感修复：纸白卡加「纸面微光 + 落在桌面的浅影」，不再是一片平白。
+       影子透明度 ≤6%，只提质感不抢内容；布局、间距零改动。 */
+    background: linear-gradient(180deg, #fffefb 0%, var(--card) 55%, #fdf9f0 100%);
     border: 1px solid var(--line);
     border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 6px 16px rgba(31, 35, 40, .05);
     padding: 20px;
     margin-bottom: 16px;
   }
-  .card-title { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .card-title { font-size: 16px; font-weight: 650; margin: 0 0 4px; }
   .card-sub { font-size: 12px; color: var(--text-3); margin: 0 0 16px; }
 
   /* ---------- 底牌页：大数字 ---------- */
   .power { text-align: center; padding: 30px 20px 22px; }
   .power-label { font-size: 13px; color: var(--text-2); }
-  .power-value { font-size: 42px; font-weight: 700; letter-spacing: -1.5px; line-height: 1.2; margin: 4px 0 0; }
+  .power-value { font-size: 42px; font-weight: 700; letter-spacing: -1.5px; line-height: 1.2; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .power-value.is-empty { color: var(--text-3); font-size: 28px; letter-spacing: 0; }
+  /* Day 10 空态重设计：裸灰「—」换成虚线圆环 ¥ 占位，看起来是有意设计的空态而不是漏了数据 */
+  .power-value.is-empty #power-num {
+    display: inline-flex; width: 60px; height: 60px;
+    align-items: center; justify-content: center;
+    border: 2px dashed var(--line); border-radius: 50%;
+    font-size: 24px; font-weight: 500;
+  }
   .power-unit { font-size: 16px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 4px; }
   .power-value.is-empty .power-unit { font-size: 14px; }
   .power-hint { font-size: 13px; color: var(--text-2); margin: 8px 0 0; }
@@ -222,13 +246,17 @@
   .stats.is-two { grid-template-columns: repeat(2, 1fr); }
   .stat { background: var(--bg); border-radius: 8px; padding: 12px 8px; text-align: center; }
   .stat-label { font-size: 12px; color: var(--text-3); }
-  .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
-  .stat-value.is-empty { color: var(--text-3); font-weight: 400; }
+  .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  /* Day 10 空态重设计：三数没数据时不再是裸「—」，改小字「待记录」 */
+  .stat-value.is-empty { color: var(--text-3); font-weight: 400; font-size: 13px; letter-spacing: 2px; padding: 3px 0; }
 
   /* ---------- 两个大按钮 ---------- */
   .big-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
   .big-btn {
-    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    /* Day 10 质感修复：与 .card 同一套纸面微光 + 浅影，两个大入口不再像贴纸 */
+    background: linear-gradient(180deg, #fffefb 0%, var(--card) 60%, #fdf9f0 100%);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 6px 16px rgba(31, 35, 40, .05);
     padding: 18px; font: inherit; text-align: left; cursor: pointer;
     transition: border-color .15s, transform .1s;
   }
@@ -500,7 +528,7 @@
     .navbar { background: #1f2328; border-bottom: 2px solid var(--brand); box-shadow: 0 2px 12px rgba(31,35,40,.18); }
     .brand { color: #f6f1e7; }
     .brand-en { color: #9aa1ab; }
-    .nav-module { color: #8b929c; }
+    .nav-module { color: #8b929c; border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.05); }
     .nav-btn { color: #c9cdd3; }
     .nav-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
     .nav-btn.is-active { background: var(--brand); color: #fff; }
@@ -510,8 +538,11 @@
     .card { box-shadow: 0 1px 3px rgba(31,35,40,.05); }
     .card-title { font-size: 17px; }
 
-    /* 底牌页：模块标签占整行 → 大数字 | 本月 三数 → 两个入口占整行 → 参数表单占整行 */
-    #page-home { display: grid; grid-template-columns: 5fr 7fr; column-gap: 28px; align-items: start; }
+    /* 底牌页：模块标签占整行 → 大数字 | 本月 三数 → 两个入口占整行 → 参数表单占整行。
+       ⚠️ Day 10 修：必须挂 .is-active —— ID 选择器优先级压过 .page { display:none }，
+       原来宽屏（≥900px）下切到别的页，底牌页永远叠在最上面不消失。
+       同一个坑记一笔 / 记一条页当年就防过（见下面 L55x 注释），唯独这行漏了。 */
+    #page-home.is-active { display: grid; grid-template-columns: 5fr 7fr; column-gap: 28px; align-items: start; }
     #page-home .page-module, #page-home .big-actions { grid-column: 1 / -1; }
     #page-home > .card:last-child { grid-column: 1 / -1; }   /* 参数卡跨全宽，别孤零零占左列 */
     #page-home form#form-profile { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
@@ -521,8 +552,12 @@
     #page-home .power { padding: 40px 32px 32px; border-left: 4px solid var(--brand); box-shadow: 0 2px 20px rgba(31,35,40,.07); }
     #page-home .power-value { font-size: 64px; }
     #page-home .power-label { font-size: 14px; }
-    /* 三数格子升级：白底描边、数字放大（原来是米白小格子） */
-    #page-home .stat { background: var(--card); border: 1px solid var(--line); padding: 16px 10px; }
+    /* 三数格子升级：白底描边、数字放大（原来是米白小格子）。Day 10 加同款纸面微光+浅影 */
+    #page-home .stat {
+      background: linear-gradient(180deg, #fffefb 0%, var(--card) 60%, #fdf9f0 100%);
+      border: 1px solid var(--line); padding: 16px 10px;
+      box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 4px 10px rgba(31, 35, 40, .04);
+    }
     #page-home .stat-value { font-size: 22px; }
 
     /* 两个大入口：悬停抬升 + 朱砂投影（帅而不闹） */
@@ -576,7 +611,7 @@
 
     <div class="card power">
       <div class="power-label">还能撑</div>
-      <div class="power-value is-empty" id="power-value"><span id="power-num">—</span><span class="power-unit" id="power-unit" hidden>个月</span></div>
+      <div class="power-value is-empty" id="power-value"><span id="power-num">¥</span><span class="power-unit" id="power-unit" hidden>个月</span></div>
       <div class="power-warn" id="power-warn" hidden>样本不足 3 个月</div>
       <!-- 数字旁边的小入口：点一下才展开算法（PRD 功能 3 用户动作 3），默认收起 -->
       <button type="button" class="power-toggle" id="power-detail-toggle" hidden
@@ -591,15 +626,15 @@
       <div class="stats">
         <div class="stat">
           <div class="stat-label">本月收入</div>
-          <div class="stat-value is-empty" id="home-income">—</div>
+          <div class="stat-value is-empty" id="home-income">待记录</div>
         </div>
         <div class="stat">
           <div class="stat-label">本月支出</div>
-          <div class="stat-value is-empty" id="home-expense">—</div>
+          <div class="stat-value is-empty" id="home-expense">待记录</div>
         </div>
         <div class="stat">
           <div class="stat-label">本月结余</div>
-          <div class="stat-value is-empty" id="home-balance">—</div>
+          <div class="stat-value is-empty" id="home-balance">待记录</div>
         </div>
       </div>
     </div>
@@ -726,11 +761,11 @@
       <div class="stats is-two">
         <div class="stat">
           <div class="stat-label" id="ex-label-income">本月收入</div>
-          <div class="stat-value is-empty" id="ex-stat-income">—</div>
+          <div class="stat-value is-empty" id="ex-stat-income">待记录</div>
         </div>
         <div class="stat">
           <div class="stat-label" id="ex-label-expense">本月支出</div>
-          <div class="stat-value is-empty" id="ex-stat-expense">—</div>
+          <div class="stat-value is-empty" id="ex-stat-expense">待记录</div>
         </div>
       </div>
 
@@ -1212,7 +1247,7 @@
 
     [['#ex-stat-income', sum('收入')], ['#ex-stat-expense', sum('支出')]].forEach(([sel, val]) => {
       const el = $(sel);
-      el.textContent = rows.length ? money(val) : '—';
+      el.textContent = rows.length ? money(val) : '待记录';
       el.classList.toggle('is-empty', !rows.length);
     });
   }
@@ -1365,10 +1400,10 @@
       el.classList.toggle('is-empty', !!isEmpty);
     };
     if (s.count === 0) {
-      // 这月一条记录都没有：显示 —，不拿 ¥0.00 冒充「有数据」
-      setStat('#home-income', '—', true);
-      setStat('#home-expense', '—', true);
-      setStat('#home-balance', '—', true);
+      // 这月一条记录都没有：显示「待记录」，不拿 ¥0.00 冒充「有数据」（Day 10 空态重设计）
+      setStat('#home-income', '待记录', true);
+      setStat('#home-expense', '待记录', true);
+      setStat('#home-balance', '待记录', true);
     } else {
       setStat('#home-income', money(s.income), false);
       setStat('#home-expense', money(s.expense), false);
@@ -1401,8 +1436,8 @@
       unitEl.hidden = false;
     } else {
       valueEl.classList.add('is-empty');
-      numEl.textContent = '—';
-      unitEl.hidden = true;                            // 空态只显示一个破折号，不留「个月」
+      numEl.textContent = '¥';                 // 空态占位：配合 CSS 画成虚线圆环（Day 10 重设计）
+      unitEl.hidden = true;                            // 空态只显示占位圆环，不留「个月」
     }
   }
 
