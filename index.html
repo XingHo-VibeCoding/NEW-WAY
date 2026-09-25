@@ -64,6 +64,10 @@
   PRD：PRD.md v1.8 ｜ 字段口径：TECH_DESIGN.md v1.8 第五节
   模块叫法：账簿面（底牌页 + 记一笔）／ 简历面（记一条 + 简历预览），见 AGENTS.md 附三第 2 条
 -->
+  <!-- 思源宋体（Noto Serif SC）：标题与数字的衬线字体。国内镜像按需分包加载（每片几十 KB），
+       display=swap = 加载完成前先用系统宋体顶着，断网也不影响功能 -->
+  <link rel="preconnect" href="https://fonts.loli.net" crossorigin>
+  <link rel="stylesheet" href="https://fonts.loli.net/css2?family=Noto+Serif+SC:wght@600;700&display=swap">
 <style>
   :root {
     /* Day 9 换色：纸质账簿风格 —— 米白底 + 墨黑字 + 朱砂红强调（对比度全部实测 ≥4.5:1）。
@@ -80,6 +84,7 @@
     --income: #137a36;      /* 收入绿：米白底 4.83 / 纸白卡 5.35（原 #16a34a 在米白底只剩 3.2） */
     --expense: #dc2626;     /* 支出红：纸白卡 4.75，与朱砂红可辨（支出更亮） */
     --radius: 10px;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "STZhongsong", "SimSun", serif;
   }
 
   * { box-sizing: border-box; }
@@ -99,14 +104,18 @@
 
   body {
     margin: 0;
-    /* Day 10 质感修复：米黄底不再是一块死板纯色 —— 顶部一层暖光（像纸面被灯照着）
-       + 上下微渐变（底部略沉）。色值以原 #f6f1e7 为中心微调，
-       之前实测的灰字对比度结论（≥4.5:1）不受影响。background-color 兜底，
-       万一浏览器不支持渐变就退回纯色。 */
-    background-color: var(--bg);
+    /* Day 10 晚间改版（纸 A 定案）：账簿面 = 真牛皮纸。
+       两层 SVG 噪声纹理（feTurbulence 程序化生成、data URI 平铺，零外部文件）：
+       第一层细颗粒 = 纸浆点；第二层低频云斑 = 纤维不均匀（真纸浸水阴干的深浅块）。
+       再叠暖光和四角陈旧阴影。简历面（记一条 / 简历预览）激活时由下面的 body:has 规则换成石墨科技底。 */
+    background-color: #ddc491;
     background-image:
-      radial-gradient(1100px 380px at 50% -120px, rgba(255, 243, 214, .75), rgba(255, 243, 214, 0) 70%),
-      linear-gradient(180deg, rgba(255, 255, 255, .4), rgba(148, 118, 60, .06));
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%3E%3Cfilter%20id%3D%22f%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%223%22%20seed%3D%227%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220.09%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%22240%22%20height%3D%22240%22%20filter%3D%22url(%23f)%22%2F%3E%3C%2Fsvg%3E"),
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%3E%3Cfilter%20id%3D%22f%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.012%22%20numOctaves%3D%224%22%20seed%3D%2211%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220.07%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%22240%22%20height%3D%22240%22%20filter%3D%22url(%23f)%22%2F%3E%3C%2Fsvg%3E"),
+      radial-gradient(1200px 420px at 50% -140px, rgba(255, 244, 214, .5), rgba(255, 244, 214, 0) 70%),
+      radial-gradient(1000px 620px at 108% 115%, rgba(96, 64, 20, .16), rgba(96, 64, 20, 0) 60%),
+      radial-gradient(900px 580px at -8% 112%, rgba(96, 64, 20, .14), rgba(96, 64, 20, 0) 58%),
+      linear-gradient(180deg, rgba(255, 250, 232, .30), rgba(118, 84, 30, .12));
     color: var(--text);
     font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
@@ -575,6 +584,77 @@
     /* 简历预览：纸居中，不随 1560px 容器拉满 */
     #page-resume { max-width: 760px; margin: 0 auto; }
   }
+
+  /* ================================================================
+     Day 10 晚间改版：纸墨 + 科技分面（方案 A，用户 2026-09-25 定案）
+     账簿面（底牌页 / 记一笔）= 牛皮纸（见 body 规则）；简历面（记一条 / 简历预览）
+     = 石墨科技底 + 真玻璃卡片。玻璃要「真」：背景埋了冷光色晕，磨砂才有东西可透。
+     ================================================================= */
+
+  /* 标题与数字换思源宋体 —— 衬线自带底蕴，是整个气质的主角（断网退回系统宋体） */
+  .brand, .card-title, h1, h2, h3, .power-value, .stat-value { font-family: var(--serif); }
+
+  /* ---- 简历面：石墨底 + 蓝图网格（发丝级，5%）+ 三团冷光色晕 ---- */
+  body:has(#page-entry.is-active), body:has(#page-resume.is-active) {
+    background-color: #0d1117;
+    background-image:
+      radial-gradient(640px 460px at 24% 30%, rgba(64, 150, 255, .20), rgba(64, 150, 255, 0) 68%),
+      radial-gradient(560px 420px at 78% 24%, rgba(56, 210, 190, .13), rgba(56, 210, 190, 0) 66%),
+      radial-gradient(700px 500px at 55% 95%, rgba(88, 110, 255, .10), rgba(88, 110, 255, 0) 62%),
+      repeating-linear-gradient(0deg, rgba(150, 180, 230, .05) 0 1px, rgba(150, 180, 230, 0) 1px 36px),
+      repeating-linear-gradient(90deg, rgba(150, 180, 230, .05) 0 1px, rgba(150, 180, 230, 0) 1px 36px),
+      linear-gradient(180deg, #11161f, #0b0f16);
+    color: #e8edf6;   /* 有文字靠继承不吃变量，默认字色也要翻亮 */
+  }
+  /* 简历面内部变量整体翻暗色亮字（控件全走 CSS 变量，改根即全改） */
+  #page-entry, #page-resume {
+    color-scheme: dark;   /* 日期控件的原生日历翻暗色 */
+    --text: #e8edf6;
+    --text-2: #aeb9cb;
+    --text-3: #7d8aa0;
+    --line: rgba(165, 195, 240, .20);
+    --line-2: rgba(165, 195, 240, .15);
+    --card: rgba(255, 255, 255, .055);   /* 输入框跟随：磨砂小块，不再是死白 */
+    --bg: rgba(255, 255, 255, .04);      /* .todo-note 提示框跟随 */
+    --brand: #58a6ff;
+    --brand-soft: rgba(88, 166, 255, .16);
+  }
+  /* 真玻璃卡片：半透明暗卡 + 22px 磨砂，背后的色晕会被模糊透进来 */
+  #page-entry .card, #page-resume .card {
+    background: rgba(20, 28, 44, .42);
+    backdrop-filter: blur(22px) saturate(1.5);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, .14);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .10);
+  }
+  /* 输入框加一层磨砂（backdrop），底色已由 --card 变量翻成半透明 */
+  #page-entry input[type="text"], #page-entry input[type="number"], #page-entry input[type="date"], #page-entry select,
+  #page-resume input[type="text"], #page-resume input[type="number"], #page-resume input[type="date"], #page-resume select {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-color: rgba(255, 255, 255, .16);
+  }
+  /* 简历纸保白：纸是产出物（要打印的文档），永远是一张白纸，内部变量单独翻回暖墨朱砂 */
+  #page-resume .resume-sheet {
+    background: #fffdf6;
+    color: #2a2118;
+    border: 1px solid rgba(255, 255, 255, .25);
+    --text: #2a2118;
+    --text-2: #5a4f3d;
+    --text-3: #8a7f6a;
+    --line: #e6dcc6;
+    --line-2: #e6dcc6;
+    --brand: #a8442e;
+    --brand-soft: rgba(168, 68, 46, .10);
+  }
+
+  /* ---- 本月收支墨线（账本手绘风数据图，接真实账目；空月整块藏掉） ---- */
+  .ink-trend { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .ink-trend .ink-cap {
+    font-size: 11px; letter-spacing: 2px; color: var(--text-3);
+    margin: 0 0 6px; font-family: var(--serif);
+  }
+  .ink-trend svg { display: block; width: 100%; height: 56px; }
 </style>
 </head>
 <body>
@@ -636,6 +716,19 @@
           <div class="stat-label">本月结余</div>
           <div class="stat-value is-empty" id="home-balance">待记录</div>
         </div>
+      </div>
+      <!-- 本月收支墨线：账本手绘风数据图，renderHome 里用本月真实账目画；本月没数据整块藏掉 -->
+      <div class="ink-trend" id="ink-trend" hidden aria-hidden="true">
+        <p class="ink-cap">本月收支墨线</p>
+        <svg viewBox="0 0 300 64" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <path id="trend-income" d="" fill="none" stroke="#3a2f22" stroke-width="1.6"
+                stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <path id="trend-expense" d="" fill="none" stroke="#a8442e" stroke-width="1.4"
+                stroke-dasharray="3 3" opacity=".85" stroke-linejoin="round" stroke-linecap="round"
+                vector-effect="non-scaling-stroke"/>
+          <circle id="trend-dot-income" r="2.6" fill="#3a2f22"/>
+          <circle id="trend-dot-expense" r="2.2" fill="#a8442e"/>
+        </svg>
       </div>
     </div>
 
@@ -1389,6 +1482,44 @@
     $('#pf-contact').value = String(p.contact || '');
   }
 
+  // ---- 本月收支墨线（账本手绘风数据图） ----
+  // 画本月（系统当前自然月，与三数同口径）每天的累计收入 / 累计支出两条曲线。
+  // 只读 Store.data.expenses；本月一条账都没有就整块藏掉，绝不画空线冒充数据。
+  // 图是纯装饰性冗余（数字就在旁边），所以 aria-hidden，读屏用户不受影响。
+  function updateInkTrend() {
+    const box = $('#ink-trend');
+    if (!box) return;
+    const month = currentMonthStr();
+    const rows = Store.data.expenses.filter((r) => (r.date || '').slice(0, 7) === month);
+    if (rows.length === 0) { box.hidden = true; return; }
+
+    const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+    const inc = new Array(days).fill(0);
+    const exp = new Array(days).fill(0);
+    rows.forEach((r) => {
+      const d = Number((r.date || '').slice(8, 10));
+      if (d >= 1 && d <= days) {
+        if (r.type === 'income') inc[d - 1] += r.amount;
+        else exp[d - 1] += r.amount;
+      }
+    });
+    // 逐日累计：账本曲线永远是往右上走的，单日为 0 也不会断线
+    const pi = [], pe = [];
+    let ci = 0, ce = 0;
+    for (let d = 0; d < days; d++) { ci += inc[d]; ce += exp[d]; pi.push(ci); pe.push(ce); }
+    const max = Math.max(ci, ce, 1);
+    const X = (i) => (i / (days - 1)) * 296 + 2;
+    const Y = (v) => 60 - (v / max) * 54;
+    const dAttr = (arr) => arr.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+
+    $('#trend-income').setAttribute('d', dAttr(pi));
+    $('#trend-expense').setAttribute('d', dAttr(pe));
+    const di = $('#trend-dot-income'), de = $('#trend-dot-expense');
+    di.setAttribute('cx', X(days - 1).toFixed(1)); di.setAttribute('cy', Y(ci).toFixed(1));
+    de.setAttribute('cx', X(days - 1).toFixed(1)); de.setAttribute('cy', Y(ce).toFixed(1));
+    box.hidden = false;
+  }
+
   // 画底牌页。凡是改动了数据的操作（记一笔 / 编辑 / 删除 / 改参数）做完都要调它，
   // 保证「改完这页数字立即重算，不用刷新」（PRD 功能 3 最后一条、8.2 验收）
   function renderHome() {
@@ -1409,6 +1540,8 @@
       setStat('#home-expense', money(s.expense), false);
       setStat('#home-balance', balanceText(s.income - s.expense), false);
     }
+
+    updateInkTrend();   // 本月收支墨线跟着三数一起重画（本月没账它自己会藏）
 
     // ---- 还能撑几个月 ----
     const r = calcRunway();
