@@ -341,8 +341,17 @@
     padding: 10px 18px; border-radius: 8px; font-size: 13px;
     opacity: 0; pointer-events: none;
     transition: opacity .2s, transform .2s;
+    display: flex; align-items: center; gap: 10px;   /* Day 11：文字和「撤销」按钮并排 */
   }
-  .toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  /* 隐藏时不许点（pointer-events:none），显示时才放开 —— 否则按钮看不见也点不着 */
+  .toast-act {
+    flex: none; min-height: 24px;                    /* 触控目标高度基线（第 10 条体检口径） */
+    border: 1px solid rgba(255,255,255,.55); background: transparent;
+    color: #fff; font: inherit; font-size: 13px; line-height: 1;
+    padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .toast-act:active { background: rgba(255,255,255,.18); }
 
   /* ---------- 浏览器禁用存储时的警告条（第 2 步） ---------- */
   .storage-warning {
@@ -947,10 +956,11 @@
       <h2 class="card-title">简历预览</h2>
       <p class="card-sub">攒下的经历按结束时间从新到旧排；没填结束时间的（还在做的）排在最前面</p>
       <div class="btn-row">
+        <button type="button" class="btn" id="btn-copy-resume">复制文本</button>
         <button type="button" class="btn" id="btn-print">打印 / 另存为 PDF</button>
       </div>
       <div class="todo-note">
-        点上面这个按钮调起浏览器自带的打印窗口，在「目标」里选「另存为 PDF」就能存成文件。<br>
+        点「打印 / 另存为 PDF」调起浏览器自带的打印窗口，在「目标」里选「另存为 PDF」就能存成文件；点「复制文本」把整份简历的文字复制进剪贴板。<br>
         这页是只读的：经历去「记一条」改；纸顶上的<b>姓名 / 联系方式</b>去底牌页「设置个人参数」填，不填就不显示。<br>
         红色标签是这条经历的<b>量化结果</b>，统一带「成果：」前缀。
       </div>
@@ -1033,11 +1043,39 @@
 
   const toastEl = $('#toast');
   let toastTimer = null;
-  function toast(msg) {
-    toastEl.textContent = msg;
-    toastEl.classList.add('is-show');
+  function hideToast() {
+    toastEl.classList.remove('is-show');
+    // 带动作按钮的提示（Day 11「撤销」）收条时把按钮一起拆掉：
+    // 只藏不拆的话，按钮透明但还能被 Tab 聚焦、被程序点中，等于留了个看不见的活按钮
+    toastEl.querySelectorAll('.toast-act').forEach((b) => b.remove());
+  }
+  // action 形如 { label: '撤销', fn: ... }（Day 11）：传了就在提示条里挂一个动作按钮，
+  // 停留时间从 2.6 秒延长到 6 秒，给人留出看到它、点它的反应时间。
+  // 按钮点完立刻收条；到点没收条时按钮随下一次 toast 的 textContent 覆盖一起清掉。
+  function toast(msg, action) {
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('is-show'), 2600);
+    let stay = 2600;
+    if (action && typeof action.fn === 'function') {
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = msg;
+      const actBtn = document.createElement('button');
+      actBtn.type = 'button';
+      actBtn.className = 'toast-act';
+      actBtn.textContent = action.label || '撤销';
+      actBtn.addEventListener('click', () => {
+        const fn = action.fn;
+        hideToast();
+        fn();
+      });
+      toastEl.textContent = '';
+      toastEl.appendChild(msgSpan);
+      toastEl.appendChild(actBtn);
+      stay = 6000;
+    } else {
+      toastEl.textContent = msg;               // 原行为不变：一句话，两秒半收走
+    }
+    toastEl.classList.add('is-show');
+    toastTimer = setTimeout(hideToast, stay);
   }
 
   // 金额显示：一律两位小数 + 千分位，前面带 ¥（例如 ¥1,234.50）
@@ -1645,7 +1683,8 @@
       renderExpenseList();
       renderExpenseStats();
       renderHome();                              // 底牌页数字跟着重算（第 5 步）
-      toast('已删除');
+      pendingUndo = { kind: 'expense', item: removed, idx: idx };
+      toast('已删除', { label: '撤销', fn: undoDelete });
     });
   }
 
@@ -1777,7 +1816,8 @@
 
       // 记一条页列表和简历预览页都要跟着少一条（PRD 8.4：删除后简历页同步变化）
       syncEntryViews();
-      toast('已删除');
+      pendingUndo = { kind: 'entry', item: removed, idx: idx };
+      toast('已删除', { label: '撤销', fn: undoDelete });
     });
   }
 
@@ -1960,6 +2000,101 @@
   }
 
   /* ============================================================
+     10b-2. 删除后的「撤销」与简历页「复制文本」（Day 11）
+     反馈四态对照（今日任务清单的要求）：
+       成功反馈 → toast（已删除 / 已复制 N 字 / 已撤销删除）
+       再次操作撤销/修改 → toast 里的「撤销」按钮把记录放回原位；复制按钮可反复点拿最新
+       处理期间加载 → 复制按钮进入「复制中…」并禁用（剪贴板写入是异步的）
+       失败提示 → 复制被浏览器拒绝 / 撤销时存储写入失败，都用 toast 说明原因
+     ============================================================ */
+
+  // 刚删掉的那条先在内存里留 6 秒，期间点 toast 里的「撤销」就放回原位。
+  // 只保留最后一次删除的撤销资格：连删两条，能救回的是后删的那条。
+  let pendingUndo = null;   // { kind: 'expense' | 'entry', item, idx }
+
+  function undoDelete() {
+    if (!pendingUndo) return;
+    const u = pendingUndo;
+    pendingUndo = null;
+
+    const cell = u.kind === 'expense' ? 'expenses' : 'entries';
+    const list = Store.data[cell];
+    // 窗口期内数据被整批换掉的情况（导入）已在 applyImport 里清掉 pendingUndo，
+    // 这里再保险一道：同 id 的记录已经回来了就不重复插
+    if (list.some((x) => x.id === u.item.id)) return;
+
+    list.splice(Math.min(u.idx, list.length), 0, u.item);
+    if (!Store.save(cell)) {
+      // 存不进去就再拿出来，屏幕和抽屉保持一致（与删除时的回退同一个套路）
+      list.splice(list.indexOf(u.item), 1);
+      toast('撤销失败：浏览器没让保存数据，记录没能放回');
+      return;
+    }
+
+    if (u.kind === 'expense') {
+      renderExpenseList();
+      renderExpenseStats();
+      renderHome();
+    } else {
+      syncEntryViews();      // 记一条列表 + 简历预览页一起回来
+    }
+    toast('已撤销删除，记录放回了原位');
+  }
+
+  // 把简历拼成纯文本。取数和排法必须与 renderResume 同源
+  // （sortEntries / entryPeriod / resultLabel，第 8 步口径）：两处排法不一致看着就像 bug。
+  // 一条经历都没有时返回空串（只有姓名/联系方式也算没内容可复制），由调用方提示。
+  function buildResumeText() {
+    const profile = Store.data.profile || {};
+    const lines = [];
+    const name = String(profile.name || '').trim();
+    const contact = String(profile.contact || '').trim();
+    if (name) lines.push(name);
+    if (contact) lines.push(contact);
+
+    const rows = sortEntries(Store.data.entries);
+    if (!rows.length) return (name || contact) ? lines.join('\n') : '';
+    lines.push('经历');
+    rows.forEach((r) => {
+      const org = [r.org, r.role].filter(Boolean).join(' · ');
+      let line = entryPeriod(r) + '  ' + r.content;
+      if (org) line += '（' + org + '）';
+      if (r.result) line += '　' + resultLabel(r.result);
+      lines.push(line);
+    });
+    return lines.join('\n');
+  }
+
+  // 简历页「复制文本」：一个按钮走完反馈四态。
+  // 成功后按钮文字变「已复制 ✓」保持 1.6 秒再回空闲，这期间禁用，防连点把状态打乱。
+  let copyResetTimer = null;
+  async function copyResumeText() {
+    const btn = $('#btn-copy-resume');
+    const text = buildResumeText();
+    if (!text) {
+      toast('简历还是空的：先去「记一条」记下第一条经历');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '复制中…';
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = '已复制 ✓';
+      toast('已复制 ' + text.length + ' 字，可以去别处粘贴了');
+      clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => {
+        btn.textContent = '复制文本';
+        btn.disabled = false;
+      }, 1600);
+    } catch (err) {
+      btn.textContent = '复制文本';
+      btn.disabled = false;
+      toast('复制失败：浏览器没放行剪贴板，可手动选中纸上的文字复制');
+    }
+  }
+
+  /* ============================================================
      10c. 导出 / 导入备份（第 10 步）
      依据：PRD v1.6 功能 4 / 8.7 验收、TECH_DESIGN v1.6 5.5（文件格式）+ 10.4（拍板范围）
      两条铁律：
@@ -2078,6 +2213,7 @@
   // 把校验通过的备份整体写回抽屉。中途失败会把已写的几格一起还原。
   // 返回 true（成功）/ false（失败，已还原）
   function applyImport(next) {
+    pendingUndo = null;                         // 数据要整体换人了，刚才删的那条不再有撤销资格
     const snapshot = {};                        // 导入前四格的原样，出事了靠它还原
     BACKUP_CELLS.forEach((n) => { snapshot[n] = Store.data[n]; });
 
@@ -2450,6 +2586,9 @@
     // 11.13b 简历页「打印 / 另存为 PDF」（第 8 步）：直接用浏览器自带打印，
     //        具体打印成什么样子由 CSS 的 @media print 决定（PRD 8.5：本期不自写 PDF 功能）
     $('#btn-print').addEventListener('click', () => window.print());
+
+    // 11.13c 简历页「复制文本」（Day 11）：空闲 → 复制中 → 已复制/失败 的四态按钮
+    $('#btn-copy-resume').addEventListener('click', copyResumeText);
 
     // 11.14 流水列表里每行的「编辑 / 删除」（第 4 步）：在容器上挂一个监听统一处理
     $('#expense-list').addEventListener('click', (e) => {
