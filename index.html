@@ -325,6 +325,20 @@
   .month-bar { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 14px; }
   .month-label { font-size: 14px; font-weight: 600; letter-spacing: .5px; min-width: 78px; text-align: center; }
 
+  /* ---------- 类型筛选条（Day 12） ---------- */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .filter-btn {
+    font: inherit; font-size: 13px; padding: 3px 12px; min-height: 24px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--card); color: var(--text-2); cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .filter-btn:hover { background: var(--line-2); }
+  .filter-btn.is-on {
+    background: var(--brand-soft); color: var(--brand);
+    border-color: var(--brand); font-weight: 600;
+  }
+
   /* ---------- 空态与占位说明 ---------- */
   .empty { text-align: center; padding: 22px 12px; color: var(--text-3); font-size: 13px; }
   .todo-note {
@@ -860,6 +874,14 @@
         <button type="button" class="btn btn-mini" id="btn-next-month">&rarr;</button>
       </div>
 
+      <!-- 类型筛选条（Day 12）：只改「看哪些行」，不动数据本身、不影响上方合计。
+           选中状态用 aria-pressed 标明（无障碍基线：不能只靠颜色区分） -->
+      <div class="filter-bar" id="expense-filter" role="group" aria-label="按类型筛选流水">
+        <button type="button" class="filter-btn is-on" data-filter="全部" aria-pressed="true">全部</button>
+        <button type="button" class="filter-btn" data-filter="支出" aria-pressed="false">只看支出</button>
+        <button type="button" class="filter-btn" data-filter="收入" aria-pressed="false">只看收入</button>
+      </div>
+
       <div class="stats is-two">
         <div class="stat">
           <div class="stat-label" id="ex-label-income">本月收入</div>
@@ -875,7 +897,7 @@
            免得焦点掉回 <body>（本轮体检补） -->
       <div id="expense-list" tabindex="-1"></div>
       <div class="empty" id="expense-empty">这个月还没有流水记录</div>
-      <div class="todo-note">上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。</div>
+      <div class="todo-note">上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。下面的类型筛选只决定列表显示哪些行，不影响这两个数字。</div>
     </div>
 
   </section>
@@ -1284,6 +1306,10 @@
   // 正在编辑哪一条（第 4 步）。null = 新增模式；有值 = 正在改那条记录的 id
   let editingId = null;
 
+  // 类型筛选（Day 12）：'全部' | '支出' | '收入'。只影响列表显示哪些行，
+  // 不动数据本身、不影响上方合计（合计口径仍是「列表正在看的那个月」）
+  let expenseFilter = '全部';
+
   // 「怎么算的」展开没展开（PRD 功能 3 用户动作 3）。默认收起，点一下才展开
   let powerDetailOpen = false;
 
@@ -1311,9 +1337,19 @@
     const emptyBox = $('#expense-empty');
     box.textContent = '';
 
-    const rows = sortExpenses(expensesOfMonth(viewMonth));
+    const monthRows = sortExpenses(expensesOfMonth(viewMonth));
+    // Day 12：先取本月全部，再按类型筛。排序复用 sortExpenses，不在筛选后再另排一次
+    const rows = expenseFilter === '全部'
+      ? monthRows
+      : monthRows.filter((r) => r.type === expenseFilter);
     emptyBox.hidden = rows.length > 0;
-    if (!rows.length) return;
+    if (!rows.length) {
+      // 两种空态说清区别：是这个月没记过东西，还是记了但被筛选挡住了（Skill 第四节：空态要有可读文字）
+      emptyBox.textContent = monthRows.length
+        ? '这个月没有「' + expenseFilter + '」类型的流水'
+        : '这个月还没有流水记录';
+      return;
+    }
 
     rows.forEach((r) => {
       const row = document.createElement('div');
@@ -2573,6 +2609,32 @@
     // 11.12 流水列表：月份左右切换（第 3 步接上）
     $('#btn-prev-month').addEventListener('click', () => shiftMonth(-1));
     $('#btn-next-month').addEventListener('click', () => shiftMonth(1));
+
+    // 11.12b 流水列表类型筛选（Day 12）：点按钮只换「看哪些行」，不动数据、不影响上方合计。
+    //        正在编辑的那条会被筛掉时（比如正在改一笔支出、点「只看收入」），自动退出编辑态
+    //        并提示——口径与切月一致（看不见的记录不能继续改，防误操作）。
+    $('#expense-filter').addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter-btn');
+      if (!btn) return;
+      const next = btn.getAttribute('data-filter');
+      if (next === expenseFilter) return;
+
+      if (editingId !== null) {
+        const editingRow = Store.data.expenses.find((r) => r.id === editingId);
+        if (editingRow && next !== '全部' && editingRow.type !== next) {
+          $('#form-expense').reset();               // reset 会同步退出编辑态（同切月口径）
+          toast('已退出编辑：切换筛选，改动没保存');
+        }
+      }
+
+      expenseFilter = next;
+      $$('#expense-filter .filter-btn').forEach((b) => {
+        const on = b.getAttribute('data-filter') === expenseFilter;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      renderExpenseList();
+    });
 
     // 11.13 导出 / 导入备份（第 10 步，PRD 功能 4）
     //        两个按钮都是「手动才走」：不会自动备份、不会自动上传（PRD 8.7 最后一条）
