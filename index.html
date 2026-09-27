@@ -207,12 +207,16 @@
   }
 
   .card {
-    /* Day 10 质感修复：纸白卡加「纸面微光 + 落在桌面的浅影」，不再是一片平白。
-       影子透明度 ≤6%，只提质感不抢内容；布局、间距零改动。 */
+    /* Day 13 换装（账簿面做透）：老账本文武线 —— 外圈一圈墨线（粗、沉），内圈半透明亮线
+       （细、泛玻璃光），光从纸面掠过的感觉。旧版单层灰边「不够底蕴」就是缺这圈。
+       影子也从冷灰改成暖墨色（落在旧木桌上的影），透明度仍 ≤10% 不抢内容。 */
     background: linear-gradient(180deg, #fffefb 0%, var(--card) 55%, #fdf9f0 100%);
-    border: 1px solid var(--line);
+    border: 1px solid #c4b48f;
     border-radius: var(--radius);
-    box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 6px 16px rgba(31, 35, 40, .05);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, .55),
+      inset 0 1px 0 rgba(255, 255, 255, .65),
+      0 1px 2px rgba(90, 70, 30, .08), 0 10px 24px rgba(90, 70, 30, .10);
     padding: 20px;
     margin-bottom: 16px;
   }
@@ -262,10 +266,13 @@
   /* ---------- 两个大按钮 ---------- */
   .big-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
   .big-btn {
-    /* Day 10 质感修复：与 .card 同一套纸面微光 + 浅影，两个大入口不再像贴纸 */
+    /* Day 13 与 .card 同一套文武线：外墨线 + 内亮圈，两个大入口和卡片是一个账本上剪下来的 */
     background: linear-gradient(180deg, #fffefb 0%, var(--card) 60%, #fdf9f0 100%);
-    border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 6px 16px rgba(31, 35, 40, .05);
+    border: 1px solid #c4b48f; border-radius: var(--radius);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, .55),
+      inset 0 1px 0 rgba(255, 255, 255, .65),
+      0 1px 2px rgba(90, 70, 30, .08), 0 10px 24px rgba(90, 70, 30, .10);
     padding: 18px; font: inherit; text-align: left; cursor: pointer;
     transition: border-color .15s, transform .1s;
   }
@@ -289,6 +296,20 @@
   input:focus, select:focus {
     outline: none; border-color: var(--brand);
     box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+
+  /* Day 13（账簿面做透）：输入框从「近白块」改成纸上手写栏 ——
+     比卡纸略深的米色 + 内凹阴影，像账本上留出来写字的格子；写进去的字像是记在纸上 */
+  #page-home input[type="text"], #page-home input[type="number"], #page-home input[type="date"], #page-home select,
+  #page-expense input[type="text"], #page-expense input[type="number"], #page-expense input[type="date"], #page-expense select {
+    background: #f8f2e3;
+    border-color: #d3c7ab;
+    box-shadow: inset 0 1px 3px rgba(120, 96, 48, .16);
+  }
+  #page-home input:focus, #page-home select:focus,
+  #page-expense input:focus, #page-expense select:focus {
+    border-color: var(--brand);
+    box-shadow: inset 0 1px 3px rgba(120, 96, 48, .16), 0 0 0 3px var(--brand-soft);
   }
 
   .field-err { display: none; font-size: 12px; color: var(--expense); margin: 5px 0 0; }
@@ -519,6 +540,18 @@
     .resume-sheet {
       border: 0; border-radius: 0; box-shadow: none;
       padding: 0; margin: 0; background: #fff;
+      min-height: auto;   /* 宽屏块给纸设了 min-height 撑满屏，打印时按实际内容走，防止多吐白纸 */
+      /* 屏幕上简历纸是深色玻璃文档（变量翻亮），打印必须翻回「白纸黑字 + 暖墨朱砂」，
+         否则亮字印在白纸上 = 白纸一片。这里逐个还原变量，纸的产出物属性不动 */
+      color: #2a2118;
+      backdrop-filter: none; -webkit-backdrop-filter: none;
+      --text: #2a2118;
+      --text-2: #5a4f3d;
+      --text-3: #8a7f6a;
+      --line: #e6dcc6;
+      --line-2: #e6dcc6;
+      --brand: #a8442e;
+      --brand-soft: rgba(168, 68, 46, .10);
     }
     /* 一条经历别被分页劈成上下两半 */
     .resume-item { break-inside: avoid; page-break-inside: avoid; }
@@ -574,7 +607,9 @@
        ⚠️ Day 10 修：必须挂 .is-active —— ID 选择器优先级压过 .page { display:none }，
        原来宽屏（≥900px）下切到别的页，底牌页永远叠在最上面不消失。
        同一个坑记一笔 / 记一条页当年就防过（见下面 L55x 注释），唯独这行漏了。 */
-    #page-home.is-active { display: grid; grid-template-columns: 5fr 7fr; column-gap: 28px; align-items: start; }
+    /* Day 13 追加（对称 + 填满）：双栏 5:7 → 1:1 对称；去掉 align-items:start，
+       让同排两张卡自动拉到同高（默认 stretch），左右底边对齐不再一高一矮 */
+    #page-home.is-active { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
     #page-home .page-module, #page-home .big-actions { grid-column: 1 / -1; }
     #page-home > .card:last-child { grid-column: 1 / -1; }   /* 参数卡跨全宽，别孤零零占左列 */
     #page-home form#form-profile { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
@@ -600,12 +635,13 @@
        ⚠️ 必须挂在 .is-active 上：直接写 #page-expense { display:grid } 特异性会盖掉
        .page { display:none } 的切页机制，导致这两页在桌面端永远显示（第 2 稿踩过）。 */
     #page-expense.is-active, #page-entry.is-active {
-      display: grid; grid-template-columns: 5fr 7fr; column-gap: 28px; align-items: start;
+      display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px;   /* Day 13：5:7 → 1:1 对称，同排卡片同高 */
     }
     #page-expense .page-module, #page-entry .page-module { grid-column: 1 / -1; }
 
-    /* 简历预览：纸居中，不随 1560px 容器拉满 */
-    #page-resume { max-width: 760px; margin: 0 auto; }
+    /* 简历预览（Day 13 对称 + 填满）：纸放宽 760 → 880，高度撑到接近满屏，四周不再大片留空 */
+    #page-resume { max-width: 880px; margin: 0 auto; }
+    #page-resume .resume-sheet { min-height: calc(100vh - 340px); }
   }
 
   /* ================================================================
@@ -616,6 +652,9 @@
 
   /* 标题与数字换思源宋体 —— 衬线自带底蕴，是整个气质的主角（断网退回系统宋体） */
   .brand, .card-title, h1, h2, h3, .power-value, .stat-value { font-family: var(--serif); }
+  /* Day 13「字体柔和优雅」：账簿面正文整页换衬线（不只标题），字距放宽半像素。
+     账本正文本来就是手写墨字，衬线比黑体更贴「纸上有字」的感觉；简历面保持无衬线（科技面） */
+  #page-home, #page-expense { font-family: var(--serif); letter-spacing: .2px; }
 
   /* ---- 简历面：石墨底 + 蓝图网格（发丝级，5%）+ 三团冷光色晕 ---- */
   body:has(#page-entry.is-active), body:has(#page-resume.is-active) {
@@ -642,33 +681,57 @@
     --brand: #58a6ff;
     --brand-soft: rgba(88, 166, 255, .16);
   }
-  /* 真玻璃卡片：半透明暗卡 + 22px 磨砂，背后的色晕会被模糊透进来 */
+  /* 真玻璃卡片（Day 13 加强）：斜向一道光泽扫过卡面（左上亮 → 右下暗，光有方向才像玻璃），
+     亮边提到 .30、上缘高光 .28 —— 用户反馈「玻璃感不明显」，这次的边是一眼可见的玻璃厚边 */
   #page-entry .card, #page-resume .card {
-    background: rgba(20, 28, 44, .42);
-    backdrop-filter: blur(22px) saturate(1.5);
-    -webkit-backdrop-filter: blur(22px) saturate(1.5);
-    border: 1px solid rgba(255, 255, 255, .14);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .10);
+    background: linear-gradient(165deg, rgba(255, 255, 255, .10) 0%, rgba(255, 255, 255, .035) 40%, rgba(20, 28, 44, .40) 100%);
+    backdrop-filter: blur(26px) saturate(1.6);
+    -webkit-backdrop-filter: blur(26px) saturate(1.6);
+    border: 1px solid rgba(200, 225, 255, .30);
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, .5),
+      inset 0 1px 0 rgba(255, 255, 255, .30),
+      inset 0 -1px 0 rgba(255, 255, 255, .06),
+      inset 1px 0 0 rgba(255, 255, 255, .12);
   }
-  /* 输入框加一层磨砂（backdrop），底色已由 --card 变量翻成半透明 */
+  /* 输入框 = 玻璃凹槽：同材质半透明 + 内顶高光，聚焦时一圈蓝光晕（科技面的「通电」感）。
+     用户点名批评的白块就是它 —— 现在和卡片长在一个材质里 */
   #page-entry input[type="text"], #page-entry input[type="number"], #page-entry input[type="date"], #page-entry select,
   #page-resume input[type="text"], #page-resume input[type="number"], #page-resume input[type="date"], #page-resume select {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border-color: rgba(255, 255, 255, .16);
+    border-color: rgba(210, 230, 255, .32);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 0 10px rgba(88, 166, 255, .10);
   }
-  /* 简历纸保白：纸是产出物（要打印的文档），永远是一张白纸，内部变量单独翻回暖墨朱砂 */
+  #page-entry input:focus, #page-entry select:focus,
+  #page-resume input:focus, #page-resume select:focus {
+    border-color: var(--brand);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16),
+                0 0 0 3px rgba(88, 166, 255, .22), 0 0 16px rgba(88, 166, 255, .35);
+  }
+  /* 量化结果标签：玻璃小牌 + 蓝光渗出（原来只是平贴一块色底） */
+  #page-entry .entry-result {
+    box-shadow: 0 0 12px rgba(88, 166, 255, .28), inset 0 1px 0 rgba(255, 255, 255, .18);
+  }
+  /* 简历纸（Day 13 二改，秋鹰师拍板「白纸和玻璃面不搭」）：屏幕上改成深色玻璃文档，
+     和这面的卡片同材质 —— 半透明磨砂 + 亮边 + 上缘高光；内部变量整体翻成亮字冷线，
+     朱砂提亮一档（#a8442e 在深底上太闷，#e8704f 同色相更亮）。
+     打印时 @media print 会把背景和变量全部翻回「白纸黑字 + 暖墨朱砂」，纸的产出物属性不受影响 */
   #page-resume .resume-sheet {
-    background: #fffdf6;
-    color: #2a2118;
-    border: 1px solid rgba(255, 255, 255, .25);
-    --text: #2a2118;
-    --text-2: #5a4f3d;
-    --text-3: #8a7f6a;
-    --line: #e6dcc6;
-    --line-2: #e6dcc6;
-    --brand: #a8442e;
-    --brand-soft: rgba(168, 68, 46, .10);
+    background: rgba(17, 25, 40, .60);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    color: var(--text, #e8edf6);
+    border: 1px solid rgba(255, 255, 255, .28);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 12px 40px rgba(0, 0, 0, .5),
+                inset 0 1px 0 rgba(255, 255, 255, .22);
+    --text: #e8edf6;
+    --text-2: #a9b8cc;
+    --text-3: #7e93a9;
+    --line: rgba(255, 255, 255, .16);
+    --line-2: rgba(255, 255, 255, .13);
+    --brand: #e8704f;
+    --brand-soft: rgba(232, 112, 79, .16);
   }
 
   /* ---- 本月收支墨线（账本手绘风数据图，接真实账目；空月整块藏掉） ---- */
@@ -891,6 +954,16 @@
           <div class="stat-label" id="ex-label-expense">本月支出</div>
           <div class="stat-value is-empty" id="ex-stat-expense">待记录</div>
         </div>
+      </div>
+
+      <!-- Day 13：本月每日支出墨柱图（版画数据图，账簿面「框框里的数据图」）。
+           和底牌页的收支墨线同一家族：吃真实账目、切月跟着变、没支出整块藏掉 -->
+      <div class="ink-trend" id="ex-ink-trend" hidden aria-hidden="true">
+        <p class="ink-cap">本月每日支出墨柱</p>
+        <svg viewBox="0 0 300 56" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="0" y1="51" x2="300" y2="51" stroke="#c9bda0" stroke-width="1" vector-effect="non-scaling-stroke"/>
+          <g id="ex-ink-bars"></g>
+        </svg>
       </div>
 
       <!-- tabindex="-1"：列表本身不进 Tab 顺序，但删完最后一行时可以把焦点落在这儿，
@@ -1417,6 +1490,50 @@
       el.textContent = rows.length ? money(val) : '待记录';
       el.classList.toggle('is-empty', !rows.length);
     });
+    renderExpenseInk();
+  }
+
+  // Day 13：本月每日支出墨柱图（账簿面「框框里的数据图」，版画墨线家族）。
+  // 按列表正在看的月份画：每天一根细墨柱，高度 = 当日支出 / 当月最大单日支出；
+  // 今天的柱子用朱砂红点出来（一眼看到「今天花了多少」）。当月没有支出整块藏掉。
+  function renderExpenseInk() {
+    const box = $('#ex-ink-trend');
+    const g = $('#ex-ink-bars');
+    const rows = expensesOfMonth(viewMonth);
+    const byDay = {};
+    let max = 0;
+    rows.forEach((r) => {
+      if (r.type !== '支出') return;
+      const d = Number((r.date || '').slice(8, 10));
+      if (!d) return;
+      byDay[d] = (byDay[d] || 0) + Number(r.amount || 0);
+      if (byDay[d] > max) max = byDay[d];
+    });
+    const has = max > 0;
+    box.hidden = !has;
+    g.textContent = '';
+    if (!has) return;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const parts = viewMonth.split('-');
+    const days = new Date(Number(parts[0]), Number(parts[1]), 0).getDate();
+    const step = 300 / days;
+    const bw = Math.max(2, step * 0.55);           // 柱宽：留出缝隙才像「一格格墨印」
+    const todayDate = currentMonthStr() === viewMonth ? new Date().getDate() : 0;
+
+    for (let d = 1; d <= days; d++) {
+      const v = byDay[d] || 0;
+      if (!v) continue;                            // 没花钱的日子不立柱，纸上留白也是账本的一部分
+      const h = Math.max(2, (v / max) * 44);
+      const bar = document.createElementNS(NS, 'rect');
+      bar.setAttribute('x', ((d - 1) * step + (step - bw) / 2).toFixed(2));
+      bar.setAttribute('y', (51 - h).toFixed(2));
+      bar.setAttribute('width', bw.toFixed(2));
+      bar.setAttribute('height', h.toFixed(2));
+      bar.setAttribute('fill', d === todayDate ? '#a8442e' : '#6b5d45');
+      bar.setAttribute('opacity', d === todayDate ? '1' : '.78');
+      g.appendChild(bar);
+    }
   }
 
   // 切换列表看的月份（合计数字跟着一起变）
