@@ -72,18 +72,18 @@
   :root {
     /* Day 9 换色：纸质账簿风格 —— 米白底 + 墨黑字 + 朱砂红强调（对比度全部实测 ≥4.5:1）。
        改前的冷灰底 + 蓝强调被换掉；灰字三档整体加深（原 text-3 只有 2.6:1，远低于小字下限 4.5）。 */
-    --bg: #f6f1e7;          /* 页面底：米白（暖纸色） */
-    --card: #fffdf8;        /* 卡片底：比米白更亮的纸白 */
-    --line: #e6dfd1;        /* 边线：暖灰 */
-    --line-2: #efe9dc;      /* 次级边线 */
-    --text: #1f2328;        /* 正文：墨黑 */
-    --text-2: #565d69;      /* 次级文字：米白底 5.89 / 纸白卡 6.53 */
-    --text-3: #656c77;      /* 辅助小字：米白底 4.71 / 纸白卡 5.21（原 #9aa1ab 只有 2.4~2.6） */
-    --brand: #b03a2e;       /* 强调色：朱砂红（纸白卡 5.92 / 浅朱底 5.01） */
-    --brand-soft: #f7e7e1;  /* 强调色的浅底（标签 / 选中态） */
-    --income: #137a36;      /* 收入绿：米白底 4.83 / 纸白卡 5.35（原 #16a34a 在米白底只剩 3.2） */
-    --expense: #dc2626;     /* 支出红：纸白卡 4.75，与朱砂红可辨（支出更亮） */
-    --radius: 10px;
+    --bg: #f7f4ec;          /* 页面底：杂志暖白（冷静的纸，不是牛皮纸） */
+    --card: #fbf9f3;        /* 卡片底：比底更亮的纸面 */
+    --line: #e2dccb;        /* 边线：暖褐灰（发丝线用） */
+    --line-2: #ece7d9;      /* 次级边线 */
+    --text: #191510;        /* 正文：暖墨黑（杂志字色） */
+    --text-2: #5c5546;      /* 次级文字：暖灰褐 */
+    --text-3: #6e6555;      /* 辅助小字：暖灰褐（浅底 ≥4.5 对比实测达标） */
+    --brand: #a63a2b;       /* 强调色：朱砂（加深一档，印刷感） */
+    --brand-soft: #f3e4dc;  /* 强调色的浅底 */
+    --income: #1e5b3e;      /* 收入绿：深墨绿（账本绿账） */
+    --expense: #a63a2b;     /* 支出：并入朱砂 —— 老账本里支取就是朱笔，不再另设亮红 */
+    --radius: 8px;
     --serif: "Noto Serif SC", "Source Han Serif SC", "STZhongsong", "SimSun", serif;
   }
 
@@ -104,18 +104,15 @@
 
   body {
     margin: 0;
-    /* Day 10 晚间改版（纸 A 定案）：账簿面 = 真牛皮纸。
-       两层 SVG 噪声纹理（feTurbulence 程序化生成、data URI 平铺，零外部文件）：
-       第一层细颗粒 = 纸浆点；第二层低频云斑 = 纤维不均匀（真纸浸水阴干的深浅块）。
-       再叠暖光和四角陈旧阴影。简历面（记一条 / 简历预览）激活时由下面的 body:has 规则换成石墨科技底。 */
-    background-color: #ddc491;
+    /* 黑檀账本试版（Day 14 · 方向 D）：账簿面翻黑檀 —— 褐黑打底、烫金线、朱砂跳色。
+       噪声纹理保留（slope .05，暗底上是极弱的木理颗粒）；
+       顶部一抹烫金微光当「灯下的金」；简历面激活时由 body:has 规则换成近黑科技底（不变）。 */
+    background-color: #17110c;
     background-image:
-      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%3E%3Cfilter%20id%3D%22f%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%223%22%20seed%3D%227%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220.09%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%22240%22%20height%3D%22240%22%20filter%3D%22url(%23f)%22%2F%3E%3C%2Fsvg%3E"),
-      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%3E%3Cfilter%20id%3D%22f%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.012%22%20numOctaves%3D%224%22%20seed%3D%2211%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220.07%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%22240%22%20height%3D%22240%22%20filter%3D%22url(%23f)%22%2F%3E%3C%2Fsvg%3E"),
-      radial-gradient(1200px 420px at 50% -140px, rgba(255, 244, 214, .5), rgba(255, 244, 214, 0) 70%),
-      radial-gradient(1000px 620px at 108% 115%, rgba(96, 64, 20, .16), rgba(96, 64, 20, 0) 60%),
-      radial-gradient(900px 580px at -8% 112%, rgba(96, 64, 20, .14), rgba(96, 64, 20, 0) 58%),
-      linear-gradient(180deg, rgba(255, 250, 232, .30), rgba(118, 84, 30, .12));
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%3E%3Cfilter%20id%3D%22f%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%223%22%20seed%3D%227%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220.05%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%22240%22%20height%3D%22240%22%20filter%3D%22url(%23f)%22%2F%3E%3C%2Fsvg%3E"),
+      radial-gradient(900px 420px at 50% -120px, rgba(212, 181, 122, .10), rgba(212, 181, 122, 0) 70%),
+      radial-gradient(760px 520px at 108% 112%, rgba(0, 0, 0, .50), rgba(0, 0, 0, 0) 60%),
+      linear-gradient(180deg, #1b140e, #120d09);
     color: var(--text);
     font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
@@ -196,6 +193,13 @@
 
   /* 页面顶部的模块标签：这页属于账簿面还是简历面。
      Day 10 重设计：粉底大胶囊改「朱砂圆点 + 文字」，从色块变成轻量标记 */
+  /* Skill v2：切页淡入上移微动效（仅 transform/opacity，GPU 友好；
+     prefers-reduced-motion 的全局关停会把它一并停掉） */
+  .page.is-active { animation: pageIn .35s cubic-bezier(.33, 0, .2, 1) both; }
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   .page-module {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 11px; letter-spacing: 1px; font-weight: 500;
@@ -217,10 +221,10 @@
       inset 0 0 0 1px rgba(255, 255, 255, .55),
       inset 0 1px 0 rgba(255, 255, 255, .65),
       0 1px 2px rgba(90, 70, 30, .08), 0 10px 24px rgba(90, 70, 30, .10);
-    padding: 20px;
+    padding: 24px;   /* Skill v2：8px 间距系统的 3 格 */
     margin-bottom: 16px;
   }
-  .card-title { font-size: 16px; font-weight: 650; margin: 0 0 4px; }
+  .card-title { font-size: 16px; font-weight: 700; letter-spacing: .04em; margin: 0 0 4px; }
   .card-sub { font-size: 12px; color: var(--text-3); margin: 0 0 16px; }
 
   /* ---------- 底牌页：大数字 ---------- */
@@ -258,10 +262,20 @@
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .stats.is-two { grid-template-columns: repeat(2, 1fr); }
   .stat { background: var(--bg); border-radius: 8px; padding: 12px 8px; text-align: center; }
-  .stat-label { font-size: 12px; color: var(--text-3); }
+  .stat-label { font-size: 11px; color: var(--text-3); letter-spacing: 2px; font-weight: 500; }   /* Skill v2：caption 层级 */
   .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
   /* Day 10 空态重设计：三数没数据时不再是裸「—」，改小字「待记录」 */
   .stat-value.is-empty { color: var(--text-3); font-weight: 400; font-size: 13px; letter-spacing: 2px; padding: 3px 0; }
+
+  /* Skill v2 签名元素：账本朱砂栏线 —— 老账本内页左边那条红色栏线（双细线），
+     只加在流水列表卡上（.ledger-line），整站就这一处，认得出这是「账本的内页」 */
+  .ledger-line { position: relative; }
+  .ledger-line::before {
+    content: ""; position: absolute; top: 16px; bottom: 16px; left: 12px; width: 1px;
+    background: rgba(176, 58, 46, .40);
+    box-shadow: 3px 0 0 rgba(176, 58, 46, .16);
+    pointer-events: none;
+  }
 
   /* ---------- 两个大按钮 ---------- */
   .big-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
@@ -274,8 +288,10 @@
       inset 0 1px 0 rgba(255, 255, 255, .65),
       0 1px 2px rgba(90, 70, 30, .08), 0 10px 24px rgba(90, 70, 30, .10);
     padding: 18px; font: inherit; text-align: left; cursor: pointer;
+    display: flex; gap: 12px; align-items: flex-start;   /* Skill v2：图标 + 文案横排 */
     transition: border-color .15s, transform .1s;
   }
+  .big-btn .bicon { flex: none; margin-top: 1px; color: var(--brand); }
   .big-btn:hover { border-color: var(--brand); }
   .big-btn:active { transform: scale(.99); }
   .big-btn strong { display: block; font-size: 15px; margin-bottom: 2px; }
@@ -298,18 +314,18 @@
     box-shadow: 0 0 0 3px var(--brand-soft);
   }
 
-  /* Day 13（账簿面做透）：输入框从「近白块」改成纸上手写栏 ——
-     比卡纸略深的米色 + 内凹阴影，像账本上留出来写字的格子；写进去的字像是记在纸上 */
+  /* Day 14（黑檀账本试版）：输入框 = 黑檀凹槽 —— 比面板更深的暖黑 + 内凹阴影，
+     像黑檀木上刻出的写字槽；金发丝边，聚焦时朱砂描一圈 */
   #page-home input[type="text"], #page-home input[type="number"], #page-home input[type="date"], #page-home select,
   #page-expense input[type="text"], #page-expense input[type="number"], #page-expense input[type="date"], #page-expense select {
-    background: #f8f2e3;
-    border-color: #d3c7ab;
-    box-shadow: inset 0 1px 3px rgba(120, 96, 48, .16);
+    background: #191309;
+    border-color: rgba(212, 181, 122, .28);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .55);
   }
   #page-home input:focus, #page-home select:focus,
   #page-expense input:focus, #page-expense select:focus {
     border-color: var(--brand);
-    box-shadow: inset 0 1px 3px rgba(120, 96, 48, .16), 0 0 0 3px var(--brand-soft);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .55), 0 0 0 3px var(--brand-soft);
   }
 
   .field-err { display: none; font-size: 12px; color: var(--expense); margin: 5px 0 0; }
@@ -656,80 +672,216 @@
      账本正文本来就是手写墨字，衬线比黑体更贴「纸上有字」的感觉；简历面保持无衬线（科技面） */
   #page-home, #page-expense { font-family: var(--serif); letter-spacing: .2px; }
 
+  /* ================================================================
+     黑檀账本试版（Day 14 · 方向 D：账簿面翻黑檀，简历面维持深色舱）
+     调子：黑檀褐黑打底，烫金是唯一亮色（报头双线 / 发丝表格线 / 选中态 / 大按钮），
+     朱砂只做跳色（「还能撑」题花线、栏线、强调）。作用域全部 body:has(...) 限定：
+     变量与背景只作用账簿面两页，简历面零波及。
+     ================================================================= */
+  /* 账簿面作用域变量：整体翻「暗底亮字」，控件全走 CSS 变量，改根即全改 */
+  body:has(#page-home.is-active),
+  body:has(#page-expense.is-active) {
+    color-scheme: dark;
+    --text: #ede4d2;        /* 奶白：衬线正文字 */
+    --text-2: #b5a88e;      /* 次级：金灰 */
+    --text-3: #96876c;      /* 辅助小字（暗底对比 5.3:1） */
+    --bg: #191209;          /* 凹面底（比面板更深的暖黑）：三数块 / 注释条用。Day 14 漏定义导致浅底浅字（对比 1.15），补上即归位 */
+    --card: #221a13;        /* 卡片：黑檀面板（比底亮半档） */
+    --line: rgba(212, 181, 122, .30);   /* 烫金发丝线 */
+    --line-2: rgba(212, 181, 122, .16);
+    --brand: #e0664c;       /* 朱砂跳色（Day 14 提亮一档：#221a13 面板小字对比 5.0:1 达标） */
+    --brand-soft: rgba(217, 90, 65, .16);
+    --income: #d4b57a;      /* 收入 = 烫金（D 面「烫金唯一亮色」的落地） */
+    --expense: #e0664c;     /* 支出 = 朱砂（与 brand 同步提亮，金额小字达标） */
+  }
+  /* 主按钮：朱砂亮底 + 黑檀深字（印刷印章的阳文），白字在朱砂上只有 3.4~3.8 不达标 */
+  body:has(#page-home.is-active) .btn-primary,
+  body:has(#page-expense.is-active) .btn-primary {
+    color: #1a130c;
+  }
+  body:has(#page-home.is-active) .btn-primary:hover,
+  body:has(#page-expense.is-active) .btn-primary:hover {
+    background: #e87a60; border-color: #e87a60;
+  }
+  /* 报头：黑檀导航条 + 烫金双线（粗金线 + 下方间隔细金线），灯下金边的规矩 */
+  body:has(#page-home.is-active) .navbar,
+  body:has(#page-expense.is-active) .navbar {
+    background: #1d1610;
+    border-bottom: 1.2px solid rgba(212, 181, 122, .55);
+    box-shadow: none;
+  }
+  body:has(#page-home.is-active) .navbar::after,
+  body:has(#page-expense.is-active) .navbar::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -5px;
+    border-bottom: 1px solid rgba(212, 181, 122, .22);
+    pointer-events: none;
+  }
+  /* 导航按钮：金字 + 下方金短横线选中态（烫金题签的当前页标记） */
+  body:has(#page-home.is-active) .nav-btn,
+  body:has(#page-expense.is-active) .nav-btn { border-radius: 0; color: var(--text-2); }
+  body:has(#page-home.is-active) .nav-btn:hover,
+  body:has(#page-expense.is-active) .nav-btn:hover {
+    background: rgba(212, 181, 122, .08); color: var(--text);
+  }
+  body:has(#page-home.is-active) .nav-btn.is-active,
+  body:has(#page-expense.is-active) .nav-btn.is-active {
+    background: none; color: #d4b57a; font-weight: 600;
+    box-shadow: inset 0 -2px 0 rgba(212, 181, 122, .75);
+  }
+  body:has(#page-home.is-active) .brand,
+  body:has(#page-expense.is-active) .brand { color: var(--text); letter-spacing: 3px; }
+  body:has(#page-home.is-active) .brand-en,
+  body:has(#page-expense.is-active) .brand-en { color: var(--text-3); }
+  body:has(#page-home.is-active) .nav-module,
+  body:has(#page-expense.is-active) .nav-module {
+    border-radius: 0; border-color: var(--line); background: none; color: var(--text-3);
+  }
+  /* 账簿面卡片：黑檀面板（圆角 2px + 金发丝边 + 深投影），Day 13 纸白渐变在两页一起盖掉。
+     Day 14 教训：只盖 #page-home 时记一笔页卡片仍是白渐变底 + 奶白字（几乎隐形），两页必须同盖 */
+  body:has(#page-home.is-active) .card,
+  body:has(#page-expense.is-active) .card {
+    background: var(--card);
+    background-image: none;   /* 盖掉写死的纸白→黑檀渐变（简写会把它留在 background-image 层） */
+    border-radius: 2px;
+    border-color: rgba(212, 181, 122, .26);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .40), 0 10px 26px rgba(0, 0, 0, .35);
+  }
+  /* 戏眼「还能撑」：顶部一条朱砂题花线压阵（D 面的朱砂跳色），大数字奶白衬线 */
+  body:has(#page-home.is-active) .power {
+    border-top: 2px solid var(--brand); text-align: left; padding: 26px 26px 22px;
+  }
+  body:has(#page-home.is-active) .power-label { letter-spacing: 4px; color: var(--text-3); }
+  body:has(#page-home.is-active) .power-value { letter-spacing: -.5px; font-weight: 600; }
+  /* 存款警告胶囊：奶油黄改暗金琥珀（黑檀上的警告牌，不再是刺眼浅块） */
+  body:has(#page-home.is-active) .power-warn {
+    color: #e6cf9a; background: rgba(212, 181, 122, .12); border-color: rgba(212, 181, 122, .40);
+  }
+  /* 大入口：烫金按钮 —— 主（记一笔）金边金字 + 金粉渐变（灯下金），次（记一条）奶白发丝描边 */
+  body:has(#page-home.is-active) .big-btn {
+    border-radius: 2px; background: none;
+    border: 1px solid rgba(237, 228, 210, .35); box-shadow: none; color: var(--text);
+  }
+  body:has(#page-home.is-active) .big-btn:hover { transform: translateY(-1px); }
+  body:has(#page-home.is-active) .big-btn[data-goto="expense"] {
+    background: linear-gradient(160deg, rgba(212, 181, 122, .18), rgba(212, 181, 122, .05) 52%, rgba(212, 181, 122, 0));
+    border-color: rgba(212, 181, 122, .85); color: #e6cf9a;
+  }
+  body:has(#page-home.is-active) .big-btn[data-goto="expense"] .btxt span { color: rgba(230, 207, 154, .62); }
+  body:has(#page-home.is-active) .big-btn[data-goto="expense"]:hover { transform: translateY(-1px); border-color: rgba(212, 181, 122, 1); }
+
+  /* 宽屏（≥900px）追加：盖掉旧「墨黑封皮导航」，三数改金发丝表格线 */
+  @media (min-width: 900px) {
+    body:has(#page-home.is-active) .power {
+      border-left: 0; border-top: 2px solid var(--brand); padding: 34px 30px 28px;
+    }
+    body:has(#page-home.is-active) .power-value { font-size: 58px; }
+    /* 三数金发丝表格：底牌页 + 记一笔页同款（Day 14 对比度修复时统一，两页调性一致） */
+    body:has(#page-home.is-active) .stats,
+    body:has(#page-expense.is-active) .stats {
+      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    }
+    body:has(#page-home.is-active) .stat,
+    body:has(#page-expense.is-active) .stat {
+      background: none; border-radius: 0; border: 0;
+      border-left: 1px solid var(--line); padding: 14px 10px;
+    }
+    body:has(#page-home.is-active) .stat:first-child,
+    body:has(#page-expense.is-active) .stat:first-child { border-left: 0; }
+  }
+
   /* ---- 简历面：石墨底 + 蓝图网格（发丝级，5%）+ 三团冷光色晕 ---- */
   body:has(#page-entry.is-active), body:has(#page-resume.is-active) {
-    background-color: #0d1117;
+    background-color: #100d0a;   /* Day 14 黑檀玻璃舱：比账簿面（#17110c）更深一档，玻璃要深底才透 */
     background-image:
-      radial-gradient(640px 460px at 24% 30%, rgba(64, 150, 255, .20), rgba(64, 150, 255, 0) 68%),
-      radial-gradient(560px 420px at 78% 24%, rgba(56, 210, 190, .13), rgba(56, 210, 190, 0) 66%),
-      radial-gradient(700px 500px at 55% 95%, rgba(88, 110, 255, .10), rgba(88, 110, 255, 0) 62%),
-      repeating-linear-gradient(0deg, rgba(150, 180, 230, .05) 0 1px, rgba(150, 180, 230, 0) 1px 36px),
-      repeating-linear-gradient(90deg, rgba(150, 180, 230, .05) 0 1px, rgba(150, 180, 230, 0) 1px 36px),
-      linear-gradient(180deg, #11161f, #0b0f16);
-    color: #e8edf6;   /* 有文字靠继承不吃变量，默认字色也要翻亮 */
+      radial-gradient(640px 460px at 24% 30%, rgba(212, 181, 122, .14), rgba(212, 181, 122, 0) 68%),
+      radial-gradient(560px 420px at 78% 24%, rgba(217, 90, 65, .10), rgba(217, 90, 65, 0) 66%),
+      radial-gradient(700px 500px at 55% 95%, rgba(212, 181, 122, .07), rgba(212, 181, 122, 0) 62%),
+      repeating-linear-gradient(0deg, rgba(212, 181, 122, .05) 0 1px, rgba(212, 181, 122, 0) 1px 36px),
+      repeating-linear-gradient(90deg, rgba(212, 181, 122, .05) 0 1px, rgba(212, 181, 122, 0) 1px 36px),
+      linear-gradient(180deg, #141009, #0a0705);
+    color: #ede4d2;   /* 有文字靠继承不吃变量，默认字色也要翻亮（与账簿面同款奶白） */
   }
-  /* 简历面内部变量整体翻暗色亮字（控件全走 CSS 变量，改根即全改） */
+  /* 简历面内部变量整体翻暗色亮字（控件全走 CSS 变量，改根即全改）。
+     Day 14 黑檀玻璃舱：冷蓝系全部归队 —— 金灰文字、金发丝线、品牌色翻烫金；
+     朱砂只留给简历纸的品牌线（跳色），玻璃材质本身（白系半透明）不变 */
   #page-entry, #page-resume {
     color-scheme: dark;   /* 日期控件的原生日历翻暗色 */
-    --text: #e8edf6;
-    --text-2: #aeb9cb;
-    --text-3: #7d8aa0;
-    --line: rgba(165, 195, 240, .20);
-    --line-2: rgba(165, 195, 240, .15);
-    --card: rgba(255, 255, 255, .055);   /* 输入框跟随：磨砂小块，不再是死白 */
+    --text: #ede4d2;
+    --text-2: #b5a88e;
+    --text-3: #96876c;
+    --line: rgba(212, 181, 122, .24);
+    --line-2: rgba(212, 181, 122, .16);
+    --card: rgba(255, 255, 255, .09);   /* 输入框跟随：磨砂小块，不再是死白（暗色玻璃提不透明度口径） */
     --bg: rgba(255, 255, 255, .04);      /* .todo-note 提示框跟随 */
-    --brand: #58a6ff;
-    --brand-soft: rgba(88, 166, 255, .16);
+    --brand: #d4b57a;
+    --brand-soft: rgba(212, 181, 122, .14);
+    --expense: #e0664c;   /* 必填星号 .req 用它；Day 14 漏定义时继承 :root 旧朱砂（深底 3.0 不达标），补上与账簿面同值 */
+    --income: #d4b57a;    /* 简历面暂无收支金额，防以后引用时漏翻 */
   }
-  /* 真玻璃卡片（Day 13 加强）：斜向一道光泽扫过卡面（左上亮 → 右下暗，光有方向才像玻璃），
-     亮边提到 .30、上缘高光 .28 —— 用户反馈「玻璃感不明显」，这次的边是一眼可见的玻璃厚边 */
+  /* 真玻璃卡片（Skill v2 按调研修正）：blur 26→14（研究口径：超 20px 发闷不透气），
+     卡面不透明度提高（暗色玻璃要 20-30% 才有存在感），亮边 .30→.38 —— 暗色下边框是第一视觉指示。
+     Day 14：亮边与渐变尾翻暖（金边、黑檀尾），冷蓝退场 */
   #page-entry .card, #page-resume .card {
-    background: linear-gradient(165deg, rgba(255, 255, 255, .10) 0%, rgba(255, 255, 255, .035) 40%, rgba(20, 28, 44, .40) 100%);
-    backdrop-filter: blur(26px) saturate(1.6);
-    -webkit-backdrop-filter: blur(26px) saturate(1.6);
-    border: 1px solid rgba(200, 225, 255, .30);
+    background: linear-gradient(165deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, .05) 40%, rgba(30, 22, 15, .55) 100%);
+    backdrop-filter: blur(14px) saturate(1.6);
+    -webkit-backdrop-filter: blur(14px) saturate(1.6);
+    border: 1px solid rgba(212, 181, 122, .40);
     box-shadow:
       0 12px 40px rgba(0, 0, 0, .5),
       inset 0 1px 0 rgba(255, 255, 255, .30),
       inset 0 -1px 0 rgba(255, 255, 255, .06),
       inset 1px 0 0 rgba(255, 255, 255, .12);
   }
-  /* 输入框 = 玻璃凹槽：同材质半透明 + 内顶高光，聚焦时一圈蓝光晕（科技面的「通电」感）。
+  /* 浏览器不支持磨砂时降级成近实底面板，保证文字对比度不塌（调研口径：@supports 兜底） */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    #page-entry .card, #page-resume .card, #page-resume .resume-sheet {
+      background: rgba(28, 21, 15, .94);
+    }
+  }
+  /* 输入框 = 玻璃凹槽：同材质半透明 + 内顶高光，聚焦时一圈金光晕（「通电」感，与烫金报头同语言）。
      用户点名批评的白块就是它 —— 现在和卡片长在一个材质里 */
   #page-entry input[type="text"], #page-entry input[type="number"], #page-entry input[type="date"], #page-entry select,
   #page-resume input[type="text"], #page-resume input[type="number"], #page-resume input[type="date"], #page-resume select {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border-color: rgba(210, 230, 255, .32);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 0 10px rgba(88, 166, 255, .10);
+    border-color: rgba(212, 181, 122, .35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 0 10px rgba(212, 181, 122, .12);
   }
   #page-entry input:focus, #page-entry select:focus,
   #page-resume input:focus, #page-resume select:focus {
     border-color: var(--brand);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16),
-                0 0 0 3px rgba(88, 166, 255, .22), 0 0 16px rgba(88, 166, 255, .35);
+                0 0 0 3px rgba(212, 181, 122, .22), 0 0 16px rgba(212, 181, 122, .30);
   }
-  /* 量化结果标签：玻璃小牌 + 蓝光渗出（原来只是平贴一块色底） */
+  /* 量化结果标签：玻璃小牌 + 金光渗出（原来只是平贴一块色底） */
   #page-entry .entry-result {
-    box-shadow: 0 0 12px rgba(88, 166, 255, .28), inset 0 1px 0 rgba(255, 255, 255, .18);
+    box-shadow: 0 0 12px rgba(212, 181, 122, .28), inset 0 1px 0 rgba(255, 255, 255, .18);
+  }
+  /* 主按钮（保存）：金底 + 黑檀深字 —— 烫金铭牌的阳文；白字在金底只有 2.0 不达标 */
+  #page-entry .btn-primary, #page-resume .btn-primary {
+    color: #1a130c;
+  }
+  #page-entry .btn-primary:hover, #page-resume .btn-primary:hover {
+    background: #e2c48a; border-color: #e2c48a;
   }
   /* 简历纸（Day 13 二改，秋鹰师拍板「白纸和玻璃面不搭」）：屏幕上改成深色玻璃文档，
-     和这面的卡片同材质 —— 半透明磨砂 + 亮边 + 上缘高光；内部变量整体翻成亮字冷线，
-     朱砂提亮一档（#a8442e 在深底上太闷，#e8704f 同色相更亮）。
+     和这面的卡片同材质 —— 半透明磨砂 + 亮边 + 上缘高光。
+     Day 14 黑檀玻璃舱：纸底与内部变量翻暖（黑檀底、金灰字、金微线），
+     --brand 保持朱砂 #e8704f —— 简历纸上的品牌线是朱砂跳色，与账簿面的题花线同语言。
      打印时 @media print 会把背景和变量全部翻回「白纸黑字 + 暖墨朱砂」，纸的产出物属性不受影响 */
   #page-resume .resume-sheet {
-    background: rgba(17, 25, 40, .60);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    color: var(--text, #e8edf6);
-    border: 1px solid rgba(255, 255, 255, .28);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 12px 40px rgba(0, 0, 0, .5),
+    background: rgba(26, 20, 14, .68);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    color: var(--text, #ede4d2);
+    border: 1px solid rgba(212, 181, 122, .30);
+    box-shadow: 0 0 0 1px rgba(212, 181, 122, .08), 0 12px 40px rgba(0, 0, 0, .5),
                 inset 0 1px 0 rgba(255, 255, 255, .22);
-    --text: #e8edf6;
-    --text-2: #a9b8cc;
-    --text-3: #7e93a9;
-    --line: rgba(255, 255, 255, .16);
-    --line-2: rgba(255, 255, 255, .13);
+    --text: #ede4d2;
+    --text-2: #b5a88e;
+    --text-3: #96876c;
+    --line: rgba(212, 181, 122, .20);
+    --line-2: rgba(212, 181, 122, .15);
     --brand: #e8704f;
     --brand-soft: rgba(232, 112, 79, .16);
   }
@@ -807,23 +959,25 @@
       <div class="ink-trend" id="ink-trend" hidden aria-hidden="true">
         <p class="ink-cap">本月收支墨线</p>
         <svg viewBox="0 0 300 64" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-          <path id="trend-income" d="" fill="none" stroke="#3a2f22" stroke-width="1.6"
+          <path id="trend-income" d="" fill="none" stroke="#d4b57a" stroke-width="1.6"
                 stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-          <path id="trend-expense" d="" fill="none" stroke="#a8442e" stroke-width="1.4"
+          <path id="trend-expense" d="" fill="none" stroke="#d95a41" stroke-width="1.4"
                 stroke-dasharray="3 3" opacity=".85" stroke-linejoin="round" stroke-linecap="round"
                 vector-effect="non-scaling-stroke"/>
-          <circle id="trend-dot-income" r="2.6" fill="#3a2f22"/>
-          <circle id="trend-dot-expense" r="2.2" fill="#a8442e"/>
+          <circle id="trend-dot-income" r="2.6" fill="#d4b57a"/>
+          <circle id="trend-dot-expense" r="2.2" fill="#d95a41"/>
         </svg>
       </div>
     </div>
 
     <div class="big-actions">
       <button type="button" class="big-btn" data-goto="expense">
-        <strong>记一笔</strong><span>三秒记下今天的收支</span>
+        <svg class="bicon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H18a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6.5A1.5 1.5 0 0 1 5 19.5Z"/><path d="M5 17.5A1.5 1.5 0 0 1 6.5 16H19"/><path d="M9 7.5h6"/></svg>
+        <span class="btxt"><strong>记一笔</strong><span>三秒记下今天的收支</span></span>
       </button>
       <button type="button" class="big-btn" data-goto="entry">
-        <strong>记一条</strong><span>记下今天做成了什么</span>
+        <svg class="bicon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9Z"/><path d="M18.5 16.5v5M16 19h5"/></svg>
+        <span class="btxt"><strong>记一条</strong><span>记下今天做成了什么</span></span>
       </button>
     </div>
 
@@ -927,7 +1081,7 @@
       <div class="todo-note" id="expense-form-note">保存会真的记进浏览器，刷新页面后还在。点列表里某条右侧的「编辑」可以改它，点「删除」会先问你一次。</div>
     </div>
 
-    <div class="card">
+    <div class="card ledger-line">
       <h2 class="card-title">流水列表</h2>
       <p class="card-sub">默认显示当前月，可左右切换月份；上方两个数字<strong>跟着看的月份走</strong></p>
 
@@ -961,7 +1115,7 @@
       <div class="ink-trend" id="ex-ink-trend" hidden aria-hidden="true">
         <p class="ink-cap">本月每日支出墨柱</p>
         <svg viewBox="0 0 300 56" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-          <line x1="0" y1="51" x2="300" y2="51" stroke="#c9bda0" stroke-width="1" vector-effect="non-scaling-stroke"/>
+          <line x1="0" y1="51" x2="300" y2="51" stroke="rgba(212, 181, 122, .25)" stroke-width="1" vector-effect="non-scaling-stroke"/>
           <g id="ex-ink-bars"></g>
         </svg>
       </div>
@@ -1530,7 +1684,7 @@
       bar.setAttribute('y', (51 - h).toFixed(2));
       bar.setAttribute('width', bw.toFixed(2));
       bar.setAttribute('height', h.toFixed(2));
-      bar.setAttribute('fill', d === todayDate ? '#a8442e' : '#6b5d45');
+      bar.setAttribute('fill', d === todayDate ? '#d95a41' : '#8d7a55');
       bar.setAttribute('opacity', d === todayDate ? '1' : '.78');
       g.appendChild(bar);
     }
