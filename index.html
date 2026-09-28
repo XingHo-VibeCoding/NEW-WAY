@@ -377,7 +377,43 @@
   }
 
   /* ---------- 空态与占位说明 ---------- */
+  /* ---------- Day 13：流水列表四态（加载 / 正常 / 空 / 出错） ----------
+     一份容器、一个开关：容器带 data-state，CSS 按它决定露出哪一块。
+     JS 只改 data-state 这一个属性，不用满页 hidden 来 hidden 去（那样最容易漏掉一块）。 */
+  .list-state > * { display: none; }
+  .list-state[data-state="loading"] .list-skeleton,
+  .list-state[data-state="loading"] .list-state-text { display: block; }
+  .list-state[data-state="ready"] #expense-list { display: block; }
+  .list-state[data-state="empty"] #expense-empty { display: block; }
+  .list-state[data-state="error"] .list-error { display: block; }
+
+  /* 骨架屏：三排灰条，像上菜前先摆好的空盘子 —— 让「正在翻账本」这件事看得见 */
+  .list-skeleton { padding: 4px 0 2px; }
+  .list-skeleton .sk-bar {
+    display: block; height: 14px; border-radius: 4px; margin: 14px 0;
+    background: linear-gradient(90deg, var(--line-2) 0%, var(--line) 50%, var(--line-2) 100%);
+    background-size: 200% 100%;
+    animation: skSlide 1.2s linear infinite;
+  }
+  .list-skeleton .sk-bar:nth-child(1) { width: 62%; }
+  .list-skeleton .sk-bar:nth-child(2) { width: 84%; animation-delay: .18s; }
+  .list-skeleton .sk-bar:nth-child(3) { width: 48%; animation-delay: .34s; }
+  @keyframes skSlide { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  /* 加载中那句「正在翻账本…」：居中小字，屏幕阅读器也能听到（role="status"） */
+  .list-state-text { margin: 10px 0 0; font-size: 13px; color: var(--text-3); text-align: center; }
+
+  /* 出错块：一句话说清「错在哪、数据还在」+ 一个重试按钮。
+     边线用朱砂（账簿面的支取色），不用纯红警告色，跟整本的调子一致 */
+  .list-error {
+    text-align: center; padding: 18px 14px; border-radius: var(--radius);
+    border: 1px dashed var(--expense); background: var(--bg);
+  }
+  .list-error p { margin: 0 0 12px; font-size: 13px; color: var(--text-2); line-height: 1.7; }
+
+  /* 空态与「无结果」共用这一条（Day 9 原样，别丢）：居中小字，不靠图标只靠一句话说清 */
   .empty { text-align: center; padding: 22px 12px; color: var(--text-3); font-size: 13px; }
+
   .todo-note {
     font-size: 12px; color: var(--text-3); line-height: 1.7;
     background: var(--bg); border: 1px dashed var(--line);
@@ -1120,10 +1156,29 @@
         </svg>
       </div>
 
-      <!-- tabindex="-1"：列表本身不进 Tab 顺序，但删完最后一行时可以把焦点落在这儿，
-           免得焦点掉回 <body>（本轮体检补） -->
-      <div id="expense-list" tabindex="-1"></div>
-      <div class="empty" id="expense-empty">这个月还没有流水记录</div>
+      <!-- Day 13：流水列表四态容器。data-state 是唯一开关，四种状态各占一块：
+           loading = 骨架屏 + 一句「正在翻账本…」 / ready = 真实列表
+           empty   = 空态一句话 / error = 出错了 + 重试按钮 -->
+      <div class="list-state" id="expense-state" data-state="loading">
+        <!-- 骨架条是纯视觉占位，不给屏幕阅读器念（要播报的是下面那句文字） -->
+        <div class="list-skeleton" aria-hidden="true">
+          <span class="sk-bar"></span><span class="sk-bar"></span><span class="sk-bar"></span>
+        </div>
+        <p class="list-state-text" role="status">正在翻账本…</p>
+
+        <!-- tabindex="-1"：列表本身不进 Tab 顺序，但删完最后一行时可以把焦点落在这儿，
+             免得焦点掉回 <body>（本轮体检补） -->
+        <div id="expense-list" tabindex="-1"></div>
+
+        <!-- tabindex="-1"：空态也能接住焦点（删完最后一行时，焦点该落到这句话上，
+             而不是掉回页面顶部）。它不进 Tab 顺序 -->
+        <div class="empty" id="expense-empty" tabindex="-1">这个月还没有流水记录</div>
+
+        <div class="list-error" role="alert">
+          <p>账本读取失败，数据还在，点重试试试</p>
+          <button type="button" class="btn" id="btn-retry-expense">重试</button>
+        </div>
+      </div>
       <div class="todo-note">上方两个数字统计的是<strong>列表正在看的那一个月</strong>（底牌页的「本月」才按电脑系统时间算）。下面的类型筛选只决定列表显示哪些行，不影响这两个数字。</div>
     </div>
 
@@ -1423,9 +1478,41 @@
   };
 
   /* ============================================================
-     4. 页面切换
+     4. 页面切换（Day 13：从「切类名」升级为「地址路由 hash」）
+     ------------------------------------------------------------
+     以前：点导航 → 直接 showPage() 换显示，地址栏一动不动。
+           三个后遗症：①刷新永远回底牌页 ②浏览器后退键不管用
+           ③没法把「记一笔页」的地址发给别人——对方打开还是底牌页。
+     现在：地址栏 # 后面就是门牌号（#/home、#/expense、#/entry、#/resume）。
+           点导航 = 换门牌；浏览器发现门牌变了（hashchange）再来换页面。
+           刷新 / 后退键 / 手改地址，三条路都汇到同一个 showPage()，不会各走各的。
+     为什么不用前端路由库：只有四个视图、零依赖的单文件，几十行就够用；
+           引库要联网要构建，对现在的简册是负担（今日不做也写了「够用就好」）。
      ============================================================ */
 
+  // 允许出现在地址栏的四个门牌号。不在这份名单里的地址，一律退回底牌页
+  const PAGE_NAMES = ['home', 'expense', 'entry', 'resume'];
+
+  // 地址 → 页名：'#/expense' → 'expense'；'#expense'、'#/expense/' 也认；其余 → 'home'
+  function pageFromHash(hash) {
+    const raw = String(hash || '').replace(/^#\/?/, '').replace(/\/+$/, '').trim().toLowerCase();
+    return PAGE_NAMES.indexOf(raw) > -1 ? raw : 'home';
+  }
+
+  // 页名 → 地址：'expense' → '#/expense'（底牌页也写成 #/home，四种地址形态一致好记）
+  function hashForPage(name) { return '#/' + name; }
+
+  // 换页：先改门牌号，地址一变，下面的 hashchange 会自动来叫 showPage()。
+  // 若目标门牌号和现在一样（在记一笔页又点了一次「记一笔」），
+  // 地址没变也就没有 hashchange，这里补渲染一次，保证点了必有反馈。
+  function goPage(name) {
+    const clean = PAGE_NAMES.indexOf(name) > -1 ? name : 'home';
+    if (location.hash === hashForPage(clean)) { showPage(clean); return; }
+    location.hash = hashForPage(clean);
+  }
+
+  // 只负责「把这一页显示出来」：换 class、标高亮、给屏幕阅读器报当前页。
+  // 它不碰地址栏——地址的事归 goPage() 和 hashchange 管
   function showPage(name) {
     $$('.page').forEach((p) => p.classList.toggle('is-active', p.id === 'page-' + name));
     $$('.nav-btn').forEach((b) => {
@@ -1438,7 +1525,25 @@
     // 每次进简历页都重排一次：这页是「看的产物」，保证一进来看到的就是最新数据
     // （函数声明会整体提升，这里写在 renderResume 定义之前也能调到）
     if (name === 'resume') renderResume();
+    // Day 13：每次进记一笔页，流水列表都从「加载中」走一遍
+    // （读的是本地账本，可能命中 ?demo=error 的演示故障）
+    if (name === 'expense') loadExpenseList();
     window.scrollTo(0, 0);
+  }
+
+  // 从地址进页：首次打开、后退键、手改地址，三条路都走这里
+  function enterPageFromHash() {
+    const raw = String(location.hash || '').replace(/^#\/?/, '').replace(/\/+$/, '').trim().toLowerCase();
+    const name = PAGE_NAMES.indexOf(raw) > -1 ? raw : 'home';
+    // 两种要顺手修地址的情况：①地址栏空着（首次打开）→ 补上 #/home
+    //                          ②写了个不认识的页名 → 改回 #/home，免得地址和页面对不上
+    // 用 replaceState 而不是改 hash：这样不会往后退键的历史里多塞一条，
+    // 用户点一次「记一笔」再点后退，应该回到他来时那个页面，而不是原地踏步。
+    if (name !== raw) {
+      // file:// 下个别浏览器不让改地址，改不动就算了，页面照常落在底牌页
+      try { history.replaceState(null, '', hashForPage('home')); } catch (err) { /* 忽略 */ }
+    }
+    showPage(name);
   }
 
   /* ============================================================
@@ -1569,12 +1674,12 @@
     const rows = expenseFilter === '全部'
       ? monthRows
       : monthRows.filter((r) => r.type === expenseFilter);
-    emptyBox.hidden = rows.length > 0;
     if (!rows.length) {
       // 两种空态说清区别：是这个月没记过东西，还是记了但被筛选挡住了（Skill 第四节：空态要有可读文字）
       emptyBox.textContent = monthRows.length
         ? '这个月没有「' + expenseFilter + '」类型的流水'
-        : '这个月还没有流水记录';
+        : '这个月还没有流水记录，去上面记第一笔吧';
+      setListState('empty');          // Day 13：空态也是四态之一，由这儿落状态
       return;
     }
 
@@ -1623,6 +1728,56 @@
       row.appendChild(acts);
       box.appendChild(row);
     });
+
+    setListState('ready');            // Day 13：有行可看 = 正常态
+  }
+
+  /* ---------- Day 13：流水列表四态的状态机 ----------
+     先说清真实情况：账本存在浏览器本地（localStorage），读它是一瞬间的事——
+     就像从自己口袋里掏钱包，不存在「等对方回复」，所以「正在读」「读失败」
+     这两种状态在真实使用里几乎看不到。
+     今天练的就是四态交互，为了能亲眼验收，这里特意加了两段【演示专用】逻辑：
+       ① 人为延迟 260ms：让「加载中」能被看见（否则一闪而过，截图都来不及）；
+       ② 地址里带 ?demo=error：进列表时强制走一趟错误态，点「重试」即恢复。
+     拆掉很容易：下面凡是标了【演示专用】的地方，删掉就回到纯真实行为。 */
+
+  const LIST_LOAD_MS = 260;      // 【演示专用】假装翻账本要花的时间
+  let listLoadTimer = null;
+  let demoErrorUsed = false;     // 【演示专用】这个假故障只发作一次，好让「重试」有得可点
+
+  // 【演示专用】地址里带 ?demo=error 就假装读失败；没有这串参数时恒为 false
+  function demoErrorRequested() {
+    return /(^|[?&])demo=error(&|$)/.test(location.search || '');
+  }
+
+  // 【演示专用】地址里带 ?demo=slow 就把「翻账本」放慢到 3 秒。
+  // 为什么需要它：260ms 人眼看得见，但手截屏截不到 —— 想看加载态就临时放慢。
+  function demoSlowRequested() {
+    return /(^|[?&])demo=slow(&|$)/.test(location.search || '');
+  }
+
+  // 四态的唯一开关：改这一个属性，CSS 自己决定露出哪一块（骨架 / 列表 / 空态 / 错误）
+  function setListState(state) {
+    const box = $('#expense-state');
+    if (box) box.dataset.state = state;
+  }
+
+  // 走一遍「加载中 → 结果」：进这一页时、点「重试」时都走这里。
+  // 保存 / 删除 / 切月 / 切筛选仍走 renderExpenseList()（同步即时），
+  // 不走这里 —— 否则每记一笔都要等 260ms，反馈反而变慢（Day 11 的即时反馈口径不能丢）
+  function loadExpenseList() {
+    if (listLoadTimer) clearTimeout(listLoadTimer);
+    setListState('loading');
+    const delay = demoSlowRequested() ? 3000 : LIST_LOAD_MS;   // 【演示专用】慢速开关
+    listLoadTimer = setTimeout(() => {
+      listLoadTimer = null;
+      if (demoErrorRequested() && !demoErrorUsed) {   // 【演示专用】假故障
+        demoErrorUsed = true;
+        setListState('error');
+        return;
+      }
+      renderExpenseList();          // 内部自己会落成 ready 或 empty
+    }, delay);
   }
 
   // 列表上方那两个数字：统计的是列表正在看的那个月（viewMonth，PRD v1.4 功能 1 / 8.3）
@@ -2037,11 +2192,16 @@
     // 触发弹层的那个「删除」按钮如果已经随记录一起被删掉，就把焦点落在该页的列表上。
     setTimeout(() => {
       // body 不算「能接住焦点的目标」：触摸屏上点按钮常常不会让它拿到焦点，
-      // 这时 activeElement 就是 body，focus(body) 等于什么都没做 —— 直接退回列表更稳
+      // 这时 activeElement 就是 body，focus(body) 等于什么都没做 —— 直接退回列表更稳。
+      // Day 13 修：原先只查 el.hidden 属性，现在列表是靠父容器的 data-state 用 CSS 藏起来的，
+      // 属性查不到 —— 必须查「真正画没画出来」（getComputedStyle），否则会给隐藏元素设焦点、
+      // 静默失败、焦点掉回页面顶部。
       const usable = (el) => !!el && el !== document.body
-        && document.contains(el) && !el.hidden;
+        && document.contains(el) && getComputedStyle(el).display !== 'none';
       const list = $((fallbackSel || '#expense-list'));
-      const target = usable(back) ? back : (usable(list) ? list : null);
+      // 删掉最后一行时列表会切进空态（不可见），这时焦点落到空态那句话上（它有 tabindex="-1"）
+      const emptyHint = list ? list.parentNode.querySelector('.empty') : null;
+      const target = [back, list, emptyHint].filter(usable)[0] || null;
       if (target) target.focus();
     }, 0);
   }
@@ -2650,14 +2810,19 @@
       renderHome();
     });
 
-    // 11.4 导航条切换页面
+    // 11.4 导航条切换页面（Day 13：走 goPage —— 它先改地址、再由 hashchange 落页）
     $$('.nav-btn').forEach((b) => {
-      b.addEventListener('click', () => showPage(b.dataset.page));
+      b.addEventListener('click', () => goPage(b.dataset.page));
     });
 
-    // 11.5 底牌页两个大按钮
+    // 11.5 底牌页两个大按钮（同上，统一走地址）
     $$('[data-goto]').forEach((b) => {
-      b.addEventListener('click', () => showPage(b.dataset.goto));
+      b.addEventListener('click', () => goPage(b.dataset.goto));
+    });
+
+    // 11.5b Day 13：流水列表出错时的「重试」——重走一遍加载，成功了列表自己回来
+    $('#btn-retry-expense').addEventListener('click', () => {
+      loadExpenseList();
     });
 
     // 11.6 收 / 支切换 → 重建分类选项
@@ -2982,6 +3147,12 @@
       else next = (at === -1 || at === items.length - 1) ? first : items[at + 1];
       next.focus();
     });
+
+    // 11.17 Day 13 地址路由收口：先按地址栏落页（首次打开 / 刷新不丢页），
+    //       再挂上监听（点后退键、手改地址栏都能换页）。
+    //       放在最后做：此刻两个列表、底牌页数字都已渲染完，进来就是成品页
+    window.addEventListener('hashchange', enterPageFromHash);
+    enterPageFromHash();
   }
 
   // 暴露给控制台做验证（F12 → Console → 输入 Jiance 回车，能看到版本、四格名、Store）
