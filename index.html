@@ -676,27 +676,72 @@
   /* ---------- 打印 / 另存为 PDF（第 8 步） ---------- */
   /* 只用浏览器自带打印（PRD 8.5：本期不自写 PDF 功能）。
      屏幕上那些「操作界面」的东西一律藏掉，只留简历纸本身。 */
+  /* ---------- 打印 / 另存为 PDF（第 8 步；Day 14 按实测重做） ---------- */
+  /* 只用浏览器自带打印（PRD 8.5：本期不自写 PDF 功能）。
+     屏幕上那些「操作界面」的东西一律藏掉，只留简历纸本身。
+
+     ⚠️ Day 14 实测踩到的三个真 bug（打印出来是一份不能用的简历，附探针数据）：
+     ① 黑底印出来：`body:has(#page-resume.is-active)`（第 942 行）是 body+伪类+ID 的复合选择器，
+        特异性高过本块的裸 `body`，白底被它盖掉；而且它还有 background-image（金网格 + 色晕），
+        本块原先只改 background 简写、没管这个属性 → 印出来是深色网格纸。
+        → 修法：改用同等或更高特异性的选择器，并用 background-image: none 单独清掉网格。
+     ② 「AI 优化」按钮被印出来：隐藏名单漏了 .resume-ai（每条经历下面那个屏幕操作按钮）。
+        招聘官看到简历上印着「AI 优化」四个字，等于告诉对方这份简历是机器写的。
+     ③ 量化结果标签印成空白框：本块把 color 改成 #000，但深色底仍在 → 黑字落深底，看不见。
+        → 修法：标签底色必须一起翻白（连父层深底一并清除）。
+     另修两处「不好看」：纸张定死 A4（原先是 Letter 216×279mm）、字号提到纸面可读档位。
+
+     原则不变：屏幕上那套黑檀玻璃一点不动，本块只负责「纸的产出物」。 */
   @media print {
+    /* ---- 1. 该藏的藏掉 ---- */
     .navbar, .storage-warning, .toast, .modal-mask,
     .resume-toolbar, .ai-card, .ai-result, .todo-note { display: none !important; }
+    /* Day 14 补：简历纸上的操作按钮不是产出物。它跟着每条经历印出来，
+       等于把「这份简历是 AI 弄的」写在纸上给招聘官看 */
+    .resume-ai { display: none !important; }
     /* 四个页面平时靠显示/隐藏切换，打印时只让简历页出来 */
     .page { display: none !important; }
     #page-resume { display: block !important; }
     /* 岗位匹配页没有产出物（结果在屏幕上读），一律不打印 */
     #page-match { display: none !important; }
     #page-resume .page-module { display: none; }
-    body { background: #fff; overflow: visible !important; }   /* 弹层开着时 body 被锁了滚动，打印要解开 */
+
+    /* ---- 2. 底色翻白 + 文字翻墨：屏幕上那套深底 + 奶白字，必须成对翻掉 ----
+       ⚠️ 实测踩坑（Day 14 第一次修失败的原因）：只改背景 = 白底白字。
+       第 942-952 行那条 `body:has(#page-resume.is-active)` 干了两件事：
+         ① background-color + background-image（金网格 / 色晕）→ 不清掉，印出来是深网格纸
+         ② 写死 color: #ede4d2（奶白字）→ 不清掉，白纸上全是看不见的白字
+       而它用的是 body + 伪类 + ID 的复合选择器，特异性高过裸 body —— 必须原样对打。
+       变量也得在 body 层翻一遍：纸里所有 color: var(--text) 的元素靠继承链取值。 */
+    body,
+    body:has(#page-resume.is-active) {
+      background-color: #fff !important;
+      background-image: none !important;
+      color: #2a2118 !important;
+      --text: #2a2118;
+      --text-2: #5a4f3d;
+      --text-3: #8a7f6a;
+      --line: #e6dcc6;
+      --line-2: #e6dcc6;
+      --brand: #a8442e;
+      --brand-soft: rgba(168, 68, 46, .10);
+      overflow: visible !important;   /* 弹层开着时 body 被锁了滚动，打印要解开 */
+    }
     /* 左边距：@page 的 12mm 是纸本身的边距，这里再留 4mm 安全边 ——
        万一有人在打印窗口把边距选成「无边距」，内容也不会贴着纸边、被裁掉半个字 */
     .wrap { max-width: none; padding: 4mm; }
+
+    /* ---- 3. 简历纸 = 白纸黑字（产出物） ---- */
     .resume-sheet {
       border: 0; border-radius: 0; box-shadow: none;
-      padding: 0; margin: 0; background: #fff;
+      padding: 0; margin: 0;
+      background: #fff !important;
+      background-image: none !important;
       min-height: auto;   /* 宽屏块给纸设了 min-height 撑满屏，打印时按实际内容走，防止多吐白纸 */
-      /* 屏幕上简历纸是深色玻璃文档（变量翻亮），打印必须翻回「白纸黑字 + 暖墨朱砂」，
-         否则亮字印在白纸上 = 白纸一片。这里逐个还原变量，纸的产出物属性不动 */
-      color: #2a2118;
-      backdrop-filter: none; -webkit-backdrop-filter: none;
+      /* 屏幕上简历纸是深色玻璃文档（第 1023-1038 行的变量翻亮），打印必须翻回「白纸黑字 + 暖墨朱砂」。
+         这里再翻一遍变量：纸是这一页里变量作用域最内层，比 body 层更精确 */
+      color: #2a2118 !important;
+      backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
       --text: #2a2118;
       --text-2: #5a4f3d;
       --text-3: #8a7f6a;
@@ -705,13 +750,54 @@
       --brand: #a8442e;
       --brand-soft: rgba(168, 68, 46, .10);
     }
+    /* 纸宽跟着 A4 走：屏幕上是 1080px 的「纸」，纸上没有这个宽度概念。
+       210mm 减掉左右各 12mm 页边距 = 186mm 可用宽；这里给 180mm 留一点安全边，
+       内容宽度不再随浏览器窗口大小漂移（实测原先纸是 Letter 216×279，非 A4） */
+    #page-resume { max-width: none !important; margin: 0 !important; }
+    .wrap { max-width: 180mm !important; }
+
+    /* ---- 4. 分页与节奏：纸上是「可读」优先，不是「紧凑」优先 ---- */
     /* 一条经历别被分页劈成上下两半 */
     .resume-item { break-inside: avoid; page-break-inside: avoid; }
+    /* 抬头 / 小节标题也别单独留在页尾（孤行），跟它下面的内容一起走 */
+    .resume-head, .resume-subhead { break-after: avoid; page-break-after: avoid; }
+
+    /* 字号提到纸面可读档位（屏幕上正文 14px / 辅助 12px，印在 A4 上偏小；
+       探针实测原先辅助文字只有 9pt，接近合同小字） */
+    .resume-content { font-size: 11pt; line-height: 1.65; }
+    .resume-org { font-size: 10pt; }
+    .resume-when { font-size: 10pt; width: 44mm; }   /* 固定列宽改成跟随内容，不再死占 150px */
+    .resume-h1 { font-size: 12pt; }
+    .resume-count { font-size: 9pt; }
+    .resume-name { font-size: 20pt; }
+    .resume-contact { font-size: 10pt; }
+    /* 条目之间给足呼吸：屏幕上 12px，纸上要像正式的简历段落 */
+    .resume-item { padding: 9pt 0; }
+
     /* 打印默认不印背景色，量化结果那种浅底标签会变成一片白底黑字、跟正文分不出来，
-       改成「描边」才看得见（描边是印得出来的） */
-    .resume-result { background: none; color: #000; border: 1px solid #999; padding: 1px 6px; }
+       改成「描边」才看得见（描边是印得出来的）。
+       ⚠️ Day 14：底色必须一起翻白 —— 只改 color 的话，深色底还在，黑字落深底 = 空白框 */
+    .resume-result {
+      background: #fff !important; color: #8a3a26 !important;
+      border: 1px solid #c9a68f; padding: 1.5pt 5pt;
+    }
+
+    /* ---- 5. 兜底：纸里所有文字直接钉死颜色，不靠继承链 ----
+       第一次修的教训就是「背景翻了、字色没跟上」。这组选择器是最后一道保险：
+       哪怕上面的变量层将来被谁改乱，纸里也不会再出现白字。
+       （简历纸里的文字元素就这几个，列全了不漏） */
+    .resume-sheet, .resume-sheet * { color: #2a2118; }
+    .resume-sheet .resume-name { color: #1a130c; }
+    .resume-sheet .resume-contact,
+    .resume-sheet .resume-org,
+    .resume-sheet .resume-when,
+    .resume-sheet .resume-h1 { color: #5a4f3d; }
+    .resume-sheet .resume-count { color: #8a7f6a; }
+    .resume-sheet .resume-result { color: #8a3a26; }
   }
-  @page { margin: 12mm; }
+  /* A4 纸张定死（原先没写 size，浏览器默认 Letter 216×279mm，比 A4 矮 18mm 且更宽；
+     国内打印店默认 A4，用 Letter 会两边留白不均、或被打印机缩放） */
+  @page { size: A4; margin: 12mm; }
 
   /* ---------- 危险按钮（确认删除用） ---------- */
   .btn-danger { background: #c62828; border-color: #c62828; color: #fff; font-weight: 500; }
