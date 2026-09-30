@@ -485,6 +485,27 @@
   .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
   /* Day 10 空态重设计：三数没数据时不再是裸「—」，改小字「待记录」 */
   .stat-value.is-empty { color: var(--text-3); font-weight: 400; font-size: 13px; letter-spacing: 0; padding: 3px 0; }
+  /* 板块①联动：底牌三数变成可点按钮 → 跳记一笔页且带筛选。
+     视觉上仍是「格」，但 hover 时多一个「→ 去看」提示 + 浅底色，让人知道可点 */
+  .stat-jump {
+    display: block; width: 100%; padding: 12px 8px;
+    font: inherit; color: inherit; text-align: center;
+    border: 0; background: var(--bg); cursor: pointer;
+    transition: background .15s ease, transform .12s ease;
+  }
+  .stat-jump:hover { background: var(--line-2); }
+  .stat-jump:active { transform: scale(.97); }
+  .stat-jump:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+  .stat-jump-arrow {
+    display: block; font-size: 10px; color: var(--text-3);
+    margin-top: 2px; opacity: 0; transition: opacity .15s ease;
+  }
+  .stat-jump:hover .stat-jump-arrow,
+  .stat-jump:focus-visible .stat-jump-arrow { opacity: .8; }
+  @media (prefers-reduced-motion: reduce) {
+    .stat-jump, .stat-jump-arrow { transition: none; }
+    .stat-jump:active { transform: none; }
+  }
 
   /* Skill v2 签名元素：账本朱砂栏线 —— 老账本内页左边那条红色栏线（双细线），
      只加在流水列表卡上（.ledger-line），整站就这一处，认得出这是「账本的内页」 */
@@ -775,6 +796,36 @@
   /* ---------- 简历预览页（第 8 步） ---------- */
   /* 「简历纸」：这页的产出是一份要打印 / 导出成 PDF 的文档，所以留白比普通卡片大 */
   .resume-sheet { padding: 28px 26px; }
+  /* 板块①联动·D：抬头空字段提示条 —— 朱栏线 + 浅底，左侧贴一条 3px 朱色细线
+     复用 .stat-jump 的 hover 浅底色 + 焦点环思路，但更克制（简历纸里不能太跳） */
+  .resume-warn {
+    display: flex; align-items: stretch;
+    margin-bottom: 14px;
+    background: rgba(176, 58, 46, .04);
+    border-left: 3px solid var(--brand);
+    border-radius: 3px;
+    transition: background .15s ease;
+  }
+  .resume-warn:hover { background: rgba(176, 58, 46, .08); }
+  .resume-warn-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 12px;
+    background: transparent; border: 0; cursor: pointer;
+    font: inherit; color: inherit; text-align: left;
+  }
+  .resume-warn-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 2px; }
+  .resume-warn-arrow {
+    color: var(--brand); font-size: 14px; font-weight: 700;
+    font-family: var(--serif);
+  }
+  .resume-warn-text { font-size: 13px; color: var(--text-1); }
+  @media (prefers-reduced-motion: reduce) {
+    .resume-warn { transition: none; }
+  }
+  @media print {
+    /* 打印时把提示条撕掉：简历纸上不能挂任何 UI 装饰 */
+    .resume-warn { display: none !important; }
+  }
   /* 抬头（姓名 / 联系方式）：底牌页填过才出现，没填时整块藏掉、不留空行 */
   .resume-head { border-bottom: 2px solid var(--brand); padding-bottom: 10px; }
   /* 姓名可能是超长的一串英文（上限 20 字），不加断行会把整张纸顶宽 —— 和联系方式一个道理 */
@@ -1996,18 +2047,34 @@
       <h2 class="card-title">本月</h2>
       <p class="card-sub">本月 = 电脑系统时间所在的自然月（记一笔页上方的合计跟的是列表看的月份，两者口径不同）</p>
       <div class="stats">
-        <div class="stat">
+        <button type="button" class="stat stat-jump" data-jump="income" aria-label="跳到记一笔页，看本月收入">
           <div class="stat-label">本月收入</div>
           <div class="stat-value is-empty" id="home-income">待记录</div>
-        </div>
-        <div class="stat">
+          <span class="stat-jump-arrow" aria-hidden="true">→ 去看</span>
+        </button>
+        <button type="button" class="stat stat-jump" data-jump="expense" aria-label="跳到记一笔页，看本月支出">
           <div class="stat-label">本月支出</div>
           <div class="stat-value is-empty" id="home-expense">待记录</div>
-        </div>
-        <div class="stat">
+          <span class="stat-jump-arrow" aria-hidden="true">→ 去看</span>
+        </button>
+        <button type="button" class="stat stat-jump" data-jump="balance" aria-label="跳到记一笔页，看本月流水">
           <div class="stat-label">本月结余</div>
           <div class="stat-value is-empty" id="home-balance">待记录</div>
-        </div>
+          <span class="stat-jump-arrow" aria-hidden="true">→ 去看</span>
+        </button>
+      </div>
+      <!-- 板块①联动·C：底牌页下方两格（本月经历数 / 最近匹配），都是可跳按钮 -->
+      <div class="stats is-two">
+        <button type="button" class="stat stat-jump" data-jump="entries" aria-label="跳到简历预览，看本月记的经历">
+          <div class="stat-label">本月经历</div>
+          <div class="stat-value is-empty" id="home-entries">0 条</div>
+          <span class="stat-jump-arrow" aria-hidden="true">→ 去看</span>
+        </button>
+        <button type="button" class="stat stat-jump" data-jump="lastmatch" aria-label="跳到岗位匹配，看最近的匹配记录">
+          <div class="stat-label">最近匹配</div>
+          <div class="stat-value" id="home-lastmatch">去岗位匹配看看 →</div>
+          <span class="stat-jump-arrow" aria-hidden="true">→ 去看</span>
+        </button>
       </div>
       <!-- 本月收支墨线：账本手绘风数据图，renderHome 里用本月真实账目画；本月没数据整块藏掉 -->
       <div class="ink-trend" id="ink-trend" hidden aria-hidden="true">
@@ -2330,6 +2397,15 @@
 
     <!-- 简历纸：屏幕上看到的样子就是打印出来的样子 -->
     <div class="card resume-sheet" id="resume-sheet">
+      <!-- 板块①联动·D：抬头有空字段时显示提示条，引导用户去底牌页补。
+           放在 .resume-sheet 最顶部、抬头之前 —— 不挡简历主体内容。
+           抬头字段（name / contact）填了就藏起来，不存在「纸面多一块空白」的问题。 -->
+      <div class="resume-warn" id="resume-warn" hidden>
+        <button type="button" class="resume-warn-btn" data-fill="name">
+          <span class="resume-warn-arrow" aria-hidden="true">→</span>
+          <span class="resume-warn-text" id="resume-warn-text">补上简历抬头</span>
+        </button>
+      </div>
       <!-- 抬头：底牌页填过姓名 / 联系方式才出现，没填时由 renderResume 把整块藏掉。
            姓名故意用 <p> 不用标题标签：「经历」才是这份简历的章节标题（h3），
            姓名只是抬头顶上的一行大字 —— 用 h3 的话，没填姓名时纸里就只剩 h4，
@@ -2779,7 +2855,13 @@
     if (name === 'resume') { renderResume(); checkAIConnection(); }
     // Day 13：每次进记一笔页，流水列表都从「加载中」走一遍
     // （读的是本地账本，可能命中 ?demo=error 的演示故障）
-    if (name === 'expense') loadExpenseList();
+    // 板块①联动：进页后把路上带的预设（筛选/月份/聚焦）应用掉 —— 必须在 loadExpenseList 之后
+    // 因为 setViewMonth 会触发 renderExpenseList，聚焦要在那一拍之后才能拿到 DOM
+    if (name === 'expense') { loadExpenseList(); applyPendingJump(); }
+    // 板块①联动·D：进底牌页时应用路上带来的预设（如从简历页提示条跳过来要聚焦姓名/联系）
+    // 底牌页 DOM 一直在（不像记一笔页会重建），所以 applyPendingJump 只负责聚焦，
+    // 不需要刷数据。renderHome 由数据保存那边主动调，这里不重复触发。
+    if (name === 'home') { applyPendingJump(); }
     // 岗位匹配页（Day 14 插入任务）：进页自动看一眼云端通道 —— 这页全靠 AI，
     // 没接通就直接把话说在前面，不等到用户点「开始匹配」才发现连不上
     if (name === 'match') { ensureMatchConnected(); renderMatchList(); }
@@ -2894,6 +2976,12 @@
 
   // 列表正在看的月份，格式 2026-09。默认当前自然月（PRD 8.3）
   let viewMonth = currentMonthStr();
+  /* Day 15 板块①联动：从别的页跳到记一页时，沿路的预设（筛选 / 月份 / 聚焦）暂存，
+     进页时一次性应用，应用完即清掉。不持久化、不污染页面内部状态。
+     为什么不清掉会出问题：用户进来后主动改筛选会被识别成「编辑态切筛选」，
+     触发 reset() + toast「已退出编辑」——这是误报。
+     所以应用完立刻置 null，让记一笔页内部筛选状态回归正常。 */
+  let pendingJump = null;
 
   // 正在编辑哪一条（第 4 步）。null = 新增模式；有值 = 正在改那条记录的 id
   let editingId = null;
@@ -3071,6 +3159,35 @@
       }
       renderExpenseList();          // 内部自己会落成 ready 或 empty
     }, delay);
+  }
+
+  // 板块①联动：进记一笔页时，把路上带的预设（筛选 / 月份）一次性应用掉。
+  // 应用完立即清空 pendingJump，免得误影响下次进页。
+  // 不应用「聚焦字段」——聚焦单独走 focusPending 标志，
+  //   因为 setViewMonth 会触发 renderExpenseList，而聚焦要在列表渲染后做才对得上 DOM。
+  function applyPendingJump() {
+    if (!pendingJump) return;
+    const jp = pendingJump;
+    pendingJump = null;
+    if (jp.filter && jp.filter !== expenseFilter) {
+      expenseFilter = jp.filter;
+      $$('#expense-filter .filter-btn').forEach((b) => {
+        const on = b.getAttribute('data-filter') === expenseFilter;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+    }
+    if (jp.month && jp.month !== viewMonth) {
+      setViewMonth(jp.month);
+    }
+    if (jp.focus) {
+      // 等列表刷完下一起的 renderExpenseList 落 DOM 再聚焦
+      // 用 setTimeout(0) 把焦点推到下一帧，避免被浏览器自动滚回顶吃掉
+      setTimeout(() => {
+        const el = $('#' + jp.focus);
+        if (el) { el.focus({ preventScroll: false }); }
+      }, 0);
+    }
   }
 
   // 列表上方那两个数字：统计的是列表正在看的那个月（viewMonth，PRD v1.4 功能 1 / 8.3）
@@ -3341,6 +3458,33 @@
       setStatNum('#home-income', 'income', s.income, money);
       setStatNum('#home-expense', 'expense', s.expense, money);
       setStatNum('#home-balance', 'balance', s.income - s.expense, balanceText);
+    }
+
+    // ---- 板块①联动·C：底牌页下方两格 ----
+    // 「本月经历」：数 startDate 在本月的经历数。startDate 不在本月、endDate 在本月的不算
+    // （经历是「开始于某月」的概念，不是「存在于某月」——和会计里的口吻一致）
+    const monthStr = currentMonthStr();
+    const entryCount = (Store.data.entries || []).filter((e) =>
+      String(e.startDate || '').slice(0, 7) === monthStr
+    ).length;
+    const entryEl = $('#home-entries');
+    entryEl.textContent = entryCount > 0 ? entryCount + ' 条' : '0 条';
+    entryEl.classList.toggle('is-empty', entryCount === 0);
+
+    // 「最近匹配」：按 createdAt 倒序取最新一条；没记录时显示引导文案「去岗位匹配看看 →」
+    // matches 数组按 push 顺序（matchRecord 在 saveMatchRecord 里 push 到末尾，行 5427），
+    // 所以 sort 仅作防御，存得对就不需要排
+    const matches = (Store.data.matches || []).slice().sort((a, b) =>
+      String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+    );
+    const matchEl = $('#home-lastmatch');
+    if (matches.length > 0) {
+      const t = String(matches[0].title || '（未命名）');
+      matchEl.textContent = t.length > 10 ? t.slice(0, 10) + '…' : t;
+      matchEl.classList.remove('is-empty');
+    } else {
+      matchEl.textContent = '去岗位匹配看看 →';
+      matchEl.classList.add('is-empty');
     }
 
     updateInkTrend();   // 本月收支墨线跟着三数一起重画（本月没账它自己会藏）
@@ -3749,6 +3893,31 @@
     const contactEl = $('#resume-contact');
     contactEl.textContent = contact;
     contactEl.hidden = !contact;
+
+    // 板块①联动·D：抬头空字段提示条
+    // 三档文案：
+    //   两个都空 → 「简历还差抬头，去底牌页补上」
+    //   只缺姓名 → 「补上姓名，简历抬头更完整」
+    //   只缺联系方式 → 「补上联系方式，简历抬头更完整」
+    //   都填了 → 整条提示藏起来，不挂任何东西在纸面上
+    const warnEl = $('#resume-warn');
+    const warnBtn = warnEl.querySelector('.resume-warn-btn');
+    const warnText = $('#resume-warn-text');
+    if (!ownerName && !contact) {
+      warnText.textContent = '简历还差抬头，去底牌页补上';
+      warnBtn.setAttribute('data-fill', 'name');   // 默认聚焦姓名（先补第一个）
+      warnEl.hidden = false;
+    } else if (!ownerName) {
+      warnText.textContent = '补上姓名，简历抬头更完整';
+      warnBtn.setAttribute('data-fill', 'name');
+      warnEl.hidden = false;
+    } else if (!contact) {
+      warnText.textContent = '补上联系方式，简历抬头更完整';
+      warnBtn.setAttribute('data-fill', 'contact');
+      warnEl.hidden = false;
+    } else {
+      warnEl.hidden = true;
+    }
 
     const rows = sortEntries(Store.data.entries);
     emptyBox.hidden = rows.length > 0;
@@ -4573,6 +4742,29 @@
       b.addEventListener('click', () => goPage(b.dataset.goto));
     });
 
+    // 11.5b' 板块①联动：底牌页三数（收入/支出/结余）= 三个可点击入口。
+    // 点收入 → 跳记一笔页且筛选「只看收入」+ 月份 = 本月；
+    // 点支出 → 跳记一笔页且筛选「只看支出」+ 月份 = 本月；
+    // 点结余 → 跳记一笔页且筛选「全部」+ 月份 = 本月。
+    // 月份必须 = 本月（底牌三数的口径就是「本月」），不能保留用户原本看到的月份——跳进来就该看到这个月。
+    $('#page-home').addEventListener('click', (e) => {
+      const btn = e.target.closest('.stat-jump');
+      if (!btn) return;
+      const kind = btn.getAttribute('data-jump');
+      if (kind === 'income' || kind === 'expense' || kind === 'balance') {
+        pendingJump = {
+          filter: kind === 'income' ? '收入' : kind === 'expense' ? '支出' : '全部',
+          month: currentMonthStr()
+        };
+        goPage('expense');
+        return;
+      }
+      // 板块①联动·C：底牌页下方两格 —— 直接跳，不带任何预设
+      // （简历预览 / 岗位匹配 自己有初始化逻辑，不需要路上夹带状态）
+      if (kind === 'entries')   { goPage('resume'); return; }
+      if (kind === 'lastmatch') { goPage('match');  return; }
+    });
+
     // 11.5b Day 13：流水列表出错时的「重试」——重走一遍加载，成功了列表自己回来
     $('#btn-retry-expense').addEventListener('click', () => {
       loadExpenseList();
@@ -4924,6 +5116,19 @@
       optimizeEntry(btn.getAttribute('data-id'), btn);
     });
 
+    // 板块①联动·D：抬头空字段提示条的点击 → 跳底牌页 + 自动聚焦对应字段
+    // 为什么要走 pendingJump：底牌页本身不在数据联动下被自动 focus，pendingJump.focus 字段
+    // 由 applyPendingJump 调（同样的钩子，记一笔页用它聚焦表单字段，底牌页用它聚焦参数）
+    // 见 home 页面的 applyPage 处理逻辑
+    $('#resume-warn').addEventListener('click', () => {
+      const target = $('#resume-warn-btn, .resume-warn-btn');
+      const which = (document.querySelector('#resume-warn .resume-warn-btn') || {}).getAttribute
+        ? document.querySelector('#resume-warn .resume-warn-btn').getAttribute('data-fill')
+        : 'name';
+      pendingJump = { focus: which === 'contact' ? 'pf-contact' : 'pf-name' };
+      goPage('home');
+    });
+
     // 11.18 AI 简历助手（板块①）：这个按钮只管「用户主动再查一遍」。
     //        第一次的自动检查由 showPage('resume') 触发
     $('#btn-ai-check').addEventListener('click', () => checkAIConnection(true));
@@ -4967,6 +5172,7 @@
       const act = btn.getAttribute('data-act');
       const id = btn.getAttribute('data-id');
       if (act === 'view') viewMatchRecord(id);
+      else if (act === 'rerun') rerunMatchRecord(id);
       else if (act === 'del') askDeleteMatch(id);
     });
 
@@ -5483,7 +5689,8 @@
 
       const acts = document.createElement('span');
       acts.className = 'entry-acts';
-      [['view', '查看', 'match-act-view'], ['del', '删除', 'match-act-del']].forEach(([act, label, extra]) => {
+      // 板块①联动·E：「重新跑」放在「查看」和「删除」之间——顺序是「再看一遍 → 再跑一遍 → 删掉」
+      [['view', '查看', 'match-act-view'], ['rerun', '重新跑', 'match-act-rerun'], ['del', '删除', 'match-act-del']].forEach(([act, label, extra]) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'entry-act ' + extra;
@@ -5510,6 +5717,28 @@
     // 滚到结果区，不然用户点了「查看」屏幕上没动静
     const r = $('#ma-result');
     if (r && r.scrollIntoView) r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // 板块①联动·E：把这条记录的字段全量写进 matchDraft，跳回匹配页。
+  // 跳过去后 ensureMatchConnected 会自动调 fillMatchDraft 把表单填好（已有的钩子，不重复造）。
+  // 不自动点「开始匹配」——云端调用应该由用户明确触发，避免意外烧额度。
+  function rerunMatchRecord(id) {
+    const m = (Store.data.matches || []).filter((x) => x.id === id)[0];
+    if (!m) { toast('这条记录已经不在了'); return; }
+    if (Store.usable) {
+      try {
+        localStorage.setItem(MA_DRAFT_KEY, JSON.stringify({
+          jd:     String(m.jd     || ''),
+          title:  String(m.title  || ''),
+          company:String(m.company|| ''),
+          city:   String(m.city   || ''),
+          salary: String(m.salary || ''),
+          edu:    String(m.edu    || '')
+        }));
+      } catch (err) { /* 草稿写不进别炸页 */ }
+    }
+    goPage('match');
+    toast('已载入 JD，点「开始匹配」再跑一遍');
   }
 
   // 删除某条记录：先弹确认框（与删除经历同一套），删完给 6 秒撤销
