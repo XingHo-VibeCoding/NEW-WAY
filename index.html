@@ -70,20 +70,43 @@
   <link rel="stylesheet" href="https://fonts.loli.net/css2?family=Noto+Serif+SC:wght@600;700&display=swap">
 <style>
   :root {
-    /* Day 9 换色：纸质账簿风格 —— 米白底 + 墨黑字 + 朱砂红强调（对比度全部实测 ≥4.5:1）。
-       改前的冷灰底 + 蓝强调被换掉；灰字三档整体加深（原 text-3 只有 2.6:1，远低于小字下限 4.5）。 */
-    --bg: #f7f4ec;          /* 页面底：杂志暖白（冷静的纸，不是牛皮纸） */
-    --card: #fbf9f3;        /* 卡片底：比底更亮的纸面 */
-    --line: #e2dccb;        /* 边线：暖褐灰（发丝线用） */
-    --line-2: #ece7d9;      /* 次级边线 */
-    --text: #191510;        /* 正文：暖墨黑（杂志字色） */
-    --text-2: #5c5546;      /* 次级文字：暖灰褐 */
-    --text-3: #6e6555;      /* 辅助小字：暖灰褐（浅底 ≥4.5 对比实测达标） */
-    --brand: #a63a2b;       /* 强调色：朱砂（加深一档，印刷感） */
-    --brand-soft: #f3e4dc;  /* 强调色的浅底 */
-    --income: #1e5b3e;      /* 收入绿：深墨绿（账本绿账） */
-    --expense: #a63a2b;     /* 支出：并入朱砂 —— 老账本里支取就是朱笔，不再另设亮红 */
-    --radius: 8px;
+    /* ============================================================
+       甲 · 一册两纸（2026-09-30 Day 15 视觉重做 · 第一刀：只换料）
+       定调：这本 App 叫「账簿」，而账簿的材料是**纸**。
+             两块面都是纸，只是两种纸：
+               账簿面 = 账簿纸（暖白微黄，账房里那种）
+               简历面 = 打印纸（冷白纯净，你真正要交出去的那种）
+             对比不再来自「黑底 + 一个亮色」，而来自**两种纸的色温差 + 栏线**。
+       Day 9 的「米白 / 墨 / 朱」原本就走对了路；Day 14「纯黑金线」把纸弄丢了，
+       这一版把纸找回来，但结构（双栏、门牌号、四态）一行不动。
+       两条自律：
+         ① 朱只出现在**有账务含义**的地方（支出数字 / 栏线强调 / 必填 / 键盘焦点）。
+            标题、图标、装饰一律不沾朱 —— 颜色跟语义走，不跟「好看」走。
+         ② 圆角按层级分三档，不再「全站一个圆角」（那是生成式设计最典型的痕迹）。
+       ============================================================ */
+    color-scheme: light;     /* 表单原生控件（日历 / 下拉）跟随浅色，不再被系统当成暗色 App */
+    --paper: #faf6ed;        /* 账簿纸：账簿面「册页框」的面 */
+    --sheet: #f4f3ee;        /* 冷白纸：简历面「册页框」的面（比账簿纸冷一档，是另一种纸） */
+    --desk: #ebe5d8;         /* 案几：body 底。比纸只深一点点 —— 靠落影和栏线分界，不靠色差 */
+    --desk-line: #d5cdb9;    /* 案几上的线：报头压边 */
+    --wrap-w: 1320px;        /* 册页统一宽：封面 + 五个内页同一规格（Day 15 追加，见「册页框」） */
+    --page-face: var(--paper); /* 册页框的面：默认账簿纸；简历面在下面覆盖成冷白纸 */
+    --bg: #f1ece0;           /* 凹面底（三数块 / 输入槽 / 注释条）：比纸面沉一档 */
+    --card: #fffdf8;         /* 账簿面卡面：比纸面亮半档 */
+    --sheet-card: #ffffff;   /* 简历面卡面：纯白打印纸 */
+    --line: #d9cfb8;         /* 栏线：账簿纸上的细栏线（发丝级） */
+    --line-2: #e8e0cd;       /* 次级栏线 */
+    --text: #1b1916;         /* 墨：正文 */
+    --text-2: #5f584c;       /* 淡墨：次级文字 */
+    --text-3: #6e6656;       /* 更淡：辅助小字（浅底 ≥4.5 对比实测达标） */
+    --brand: #a7392a;        /* 朱：支出 / 栏线强调 / 必填 / 焦点（不是亮陶土红，是印刷朱） */
+    --brand-soft: #f2e3dd;   /* 朱的浅底 */
+    --income: #24425e;       /* 靛：收入 / 结余为正（蓝黑墨水，与朱对打 —— 老账本「朱出墨入」） */
+    --expense: #a7392a;      /* 支出 = 朱（老账本里支取就是朱笔，不另设亮红） */
+    --r-sheet: 2px;          /* 圆角档一：纸 / 大块面 —— 纸是方的 */
+    --r-card: 6px;           /* 圆角档二：卡片 */
+    --r-ctl: 3px;            /* 圆角档三：按钮 / 输入 —— 控件微圆 */
+    --radius: var(--r-card); /* 兼容旧写法：旧代码里的 var(--radius) 一律走卡片档 */
     --serif: "Noto Serif SC", "Source Han Serif SC", "STZhongsong", "SimSun", serif;
   }
 
@@ -104,50 +127,90 @@
 
   body {
     margin: 0;
-    /* Day 14 方向 C（纯黑金线 · 秋鹰师 2026-09-28 拍板）：账簿面翻「纯黑 + 金线」。
-       底 = 近纯黑 #0b0b0b（不是深灰 —— 深灰显脏，C 面的硬朗来自纯黑）；
-       噪声纹理极弱（.035，纯黑上只做一丝金属颗粒）；
-       顶部一抹金微光当「灯下的金」；简历面激活时由 body:has 规则换成同族深底。 */
-    background-color: #0b0b0b;
+    /* 甲 · 一册两纸 → Day 15 追加「案几」：
+       body 底不再是「账簿纸」，而是**案几**（比任何一页纸都深一档的暖灰）。
+       理由：册页框要有东西可衬托 —— 桌面上摊着一本册子，纸才读得出是纸；
+       底色和纸色如果是同一个，页面边界就消失了，内容就变成「横铺在屏幕上」。
+       极弱纤维噪声保留（纸和木都有纹理），上一版那抹顶部光晕取消。 */
+    background-color: var(--desk);
     background-image:
       url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%3E%3Cfilter%20id%3D%22f%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%223%22%20seed%3D%227%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220.035%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%22240%22%20height%3D%22240%22%20filter%3D%22url(%23f)%22%2F%3E%3C%2Fsvg%3E"),
-      radial-gradient(900px 420px at 50% -120px, rgba(212, 181, 122, .09), rgba(212, 181, 122, 0) 70%),
-      linear-gradient(180deg, #101010, #080808);
+      linear-gradient(180deg, #f0ebdf, #e4ddcd);
     color: var(--text);
     font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
     line-height: 1.6;
   }
 
-  /* ---------- 导航条 ---------- */
+  /* ================================================================
+     册页框（Day 15 追加 · 秋鹰师反馈「进去就窄的突然变宽、被横铺」）
+     病根：主界面是一块有边界的「台面」，点进任何一页却直接铺在整块底色上、
+           宽屏还被拉到 1560px 双栏 —— 有边界 → 无边界、窄 → 更宽，一进一出就散架。
+     治法：**每一页都是同一本册子的一页**，共用同一个「框」：
+             ① 同宽：一律 1280px（--wrap-w），不再出现「这页宽那页窄」
+             ② 同构造：纸面 + 发丝栏线 + 微圆角 + 一层很浅的落影（纸压在案上）
+             ③ 有边界：框外能看见案几的深色，页面不再无边无际地横铺
+     两处刻意不同（这是「一册两纸」的落地，不是偷懒的统一）：
+             · 主界面 = 封面台面（凹、深半档，牌躺在里面）
+             · 内页   = 纸页（凸、亮，账簿面暖白 / 简历面冷白）
+     ⚠️ 打印时框必须整个抹掉（白纸上不该出现屏幕的框）—— 见 @media print 第 3.5 节。
+     ================================================================ */
+  .page.is-active {
+    position: relative;
+    background: var(--page-face);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    /* 三层：上缘一线白（纸的厚度）→ 贴地的浅影 → 离地的大软影。
+       影很淡（最大 10%），它是「纸压在案上」，不是「卡片浮在空中」。 */
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, .80),
+      0 1px 3px rgba(90, 74, 46, .05),
+      0 10px 28px rgba(90, 74, 46, .08);
+    padding: 28px 30px 34px;
+  }
+
+  /* ---------- 导航条 = 账本索引栏 ----------
+     造型依据：账本内页的索引 —— 一条贯穿的栏线，索引签坐在线上。
+     所以这里不放「按钮」，放「索引签」：无底色、无边框、无圆角，只有字 + 一条下划线。
+     当前页用朱色字 + 朱色下划线（账本里用朱笔圈出当前那一栏）。
+     这是全站唯一一处把朱用于导航的地方 —— 因为「我在哪一栏」需要一眼可辨，
+     而其余位置（标题、装饰）一律不沾朱，这是甲版的自律。 */
   .navbar {
+    /* 报头坐在**案几**上，不坐在纸上 —— 纸是册页，报头是桌沿那条索引栏。
+       底色和 body 一致，册页浮在它下面，层次才对。 */
     position: sticky; top: 0; z-index: 10;
-    background: var(--card);
-    border-bottom: 1px solid var(--line);
+    background: var(--desk);
+    border-bottom: 1px solid var(--desk-line);
   }
   .navbar-inner {
     max-width: 720px; margin: 0 auto; padding: 0 20px;
     height: 58px; display: flex; align-items: center; gap: 16px;
   }
-  .brand { font-size: 16px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
-  .brand-en { font-size: 11px; font-weight: 400; color: var(--text-3); letter-spacing: 0; margin-left: 6px; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; }
+  .brand-en { font-size: 11px; font-weight: 400; color: var(--text-3); letter-spacing: 0; margin-left: 7px; }
   /* 导航分两个模块：账簿面 / 简历面（AGENTS.md 附三第 2 条统一叫法） */
-  .nav-links { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-  .nav-group { display: flex; align-items: center; gap: 2px; }
-  .nav-group + .nav-group { padding-left: 12px; border-left: 1px solid var(--line); }
+  .nav-links { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+  .nav-group { display: flex; align-items: center; gap: 1px; }
+  .nav-group + .nav-group { padding-left: 16px; border-left: 1px solid var(--line); }
+  /* 模块名 = 账本栏头的标记：一个墨色小方点 + 小字。
+     不是胶囊、不是描边贴纸 —— 那种「小标签」是生成式设计的常见装饰，这里改成结构记号。 */
   .nav-module {
-    /* Day 10 重设计：模块名从裸灰字改成细描边小胶囊，在黑条里有了「标签感」 */
-    font-size: 10px; color: var(--text-3); letter-spacing: 1px;
-    border: 1px solid var(--line); border-radius: 999px;
-    padding: 2px 8px 1px; margin-right: 3px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--text-3); letter-spacing: 0;
+    border: 0; padding: 0; margin-right: 6px; white-space: nowrap;
   }
+  .nav-module::before {
+    content: ''; width: 5px; height: 5px; flex: none;
+    background: var(--text-2); border-radius: 1px;
+  }
+  /* 索引签：只有字和一条下划线，没有底色 —— 悬停时字色变深，当前页由 ::after 画朱线 */
   .nav-btn {
     border: 0; background: none; font: inherit; cursor: pointer;
-    color: var(--text-2); padding: 6px 12px; border-radius: 8px;
+    color: var(--text-2); padding: 6px 10px; border-radius: var(--r-ctl);
     white-space: nowrap;   /* 按钮文字不许断行，否则窄屏会变成一个字一行 */
-    transition: background .15s, color .15s;
+    transition: color .15s;
   }
-  .nav-btn:hover { background: var(--line-2); color: var(--text); }
+  .nav-btn:hover { color: var(--text); }
   .nav-btn.is-active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
 
   /* 窄屏（约 640px 以下）：导航条折成两行 —— 第一行品牌，第二行四个入口。
@@ -195,37 +258,167 @@
      Day 10 重设计：粉底大胶囊改「朱砂圆点 + 文字」，从色块变成轻量标记 */
   /* Skill v2：切页淡入上移微动效（仅 transform/opacity，GPU 友好；
      prefers-reduced-motion 的全局关停会把它一并停掉） */
-  .page.is-active { animation: pageIn .35s cubic-bezier(.33, 0, .2, 1) both; }
-  @keyframes pageIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  /* ⚠️ Day 15 撤销：这里原本有一条 `.page.is-active { animation: pageIn }` ——
+     新页从下方 8px 落下 + 淡入。秋鹰师看过实机后要求「去掉页面进出的动画」，
+     理由是切页时整块内容动一下反而让人等（页面在动，手指要等它停）。
+     现在切页是**瞬间的**：一挂上 .is-active 就直接是最终状态，没有淡入、没有位移。
+     随之作废的还有一条临时补丁 `:not(.is-entering)`（本是为「点牌进门」让路用的）——
+     进门那套 page-bloom 也一并撤掉了，见下面第 6 节的说明。
+     ⚠️ 唯一保留的页面级动效是「底牌页 ↔ 简历预览」的翻面（.flip-out / .flip-in）：
+        那是**翻一本簿子的两面**，不是「页面进出」，且只在改地址 / 后退键时走得到。 */
+  /* 页面归属标记：与导航条同一套「栏头」语言 —— 墨色小方点 + 小字。
+     甲版纪律：朱只出现在有账务含义的地方。「这页属于哪个模块」是结构信息，不是账务信息，
+     所以这里用墨不用朱（Day 10 的朱点在此降级为墨点，全站只留一处朱 = 导航当前页）。 */
   .page-module {
     display: inline-flex; align-items: center; gap: 6px;
-    font-size: 11px; letter-spacing: 1px; font-weight: 500;
-    color: var(--brand); padding: 2px 2px; margin-bottom: 12px;
+    font-size: 11px; letter-spacing: 0; font-weight: 500;
+    color: var(--text-2); padding: 2px 2px; margin-bottom: 12px;
   }
   .page-module::before {
-    content: ''; width: 6px; height: 6px; border-radius: 50%;
-    background: var(--brand); flex: none;
+    content: ''; width: 6px; height: 6px; border-radius: 1px;
+    background: var(--text-2); flex: none;
   }
 
+  /* ---------- 区块造型：两面**故意不一样** ----------
+     这是甲版最重要的一条结构决定。
+     账簿面 = 账本的「栏目」：没有卡片、没有圆角、没有阴影 —— 账本内页本来就不长卡片，
+              它是被栏线切开的一栏一栏，区块之间靠「文武线」（一粗一细两道墨线）分隔。
+     简历面 = 「纸卡片」：那一面的产出物本来就是一张张纸，卡片在这里有语义，
+              由下面 #page-entry/#page-resume/#page-match 那组规则把栏目样式整组还原。
+     Day 14 的病根正是「同一种 .card 换层皮铺满五个页面」—— 两面看起来像一个 App 的两个主题，
+     而不是一本簿子的两页。这里把它掰开。 */
   .card {
-    /* Day 13 换装（账簿面做透）：老账本文武线 —— 外圈一圈墨线（粗、沉），内圈半透明亮线
-       （细、泛玻璃光），光从纸面掠过的感觉。旧版单层灰边「不够底蕴」就是缺这圈。
-       影子也从冷灰改成暖墨色（落在旧木桌上的影），透明度仍 ≤10% 不抢内容。 */
-    background: linear-gradient(180deg, #fffefb 0%, var(--card) 55%, #fdf9f0 100%);
-    border: 1px solid #c4b48f;
-    border-radius: var(--radius);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, .55),
-      inset 0 1px 0 rgba(255, 255, 255, .65),
-      0 1px 2px rgba(90, 70, 30, .08), 0 10px 24px rgba(90, 70, 30, .10);
-    padding: 28px;   /* Day 14 疏密：24→28，卡内呼吸感撑开 */
-    margin-bottom: 20px;   /* Day 14 疏密：16→20，卡与卡之间拉开 */
+    position: relative;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 18px 0 0;
+    margin-bottom: 32px;
   }
+  /* 「文武线」（一粗一细两道墨线）用**两个伪元素**画，不用 border —— 因为它们要能动：
+     首次进站时从左向右「画出来」，像有人拿笔把栏线一格一格划出来。
+     border 没法只动画某一条边、也没法 transform，所以这里必须换成伪元素。 */
+  .card::before, .card::after {
+    content: ""; position: absolute; left: 0; right: 0;
+    transform-origin: left center; pointer-events: none;
+  }
+  .card::before { top: -2px; height: 2px; background: var(--text); }   /* 粗线：栏头 */
+  .card::after { top: -6px; height: 1px; background: var(--line); }    /* 细线：压在粗线上方 */
+  /* 戏眼那块：粗线换朱（题花线），并且不要细线 —— 一条朱线压阵就够，叠三道会打架 */
+  .card.power::before { background: var(--brand); }
+  .card.power::after { display: none; }
   .card-title { font-size: 16px; font-weight: 700; letter-spacing: .04em; margin: 0 0 4px; }
   .card-sub { font-size: 12px; color: var(--text-3); margin: 0 0 16px; }
+
+  /* ================================================================
+     装订册手作感（Day 15 · C 选项）
+     两面各自一套装订册装饰 —— 三件套：装订线 / 暗纹水印 / 边角图章
+     ⚠️ 全部用 .page-deco 包成独立容器，pointer-events:none，z-index:0
+        —— 不抢卡片 z-index，不挡触控。
+     ⚠️ @media print 必须全部撕干净：白纸上不该有屏幕装订线、印章、暗纹。
+     ================================================================ */
+  .page-deco {
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 0; overflow: hidden;
+  }
+  /* 卡片内容要浮在装饰之上（z-index 高一档） */
+  .page.is-active > .card,
+  .page.is-active > .page-module,
+  .page.is-active > .big-actions,
+  .page.is-active > .resume-paper { position: relative; z-index: 1; }
+
+  /* ---- 暗纹水印（账簿面 = 竖条纹账本线）---- */
+  .page-deco.is-ledger::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(
+      to right,
+      transparent 0, transparent 31px,
+      rgba(60, 46, 26, .045) 31px, rgba(60, 46, 26, .045) 32px
+    );
+  }
+  /* ---- 暗纹水印（简历面 = 极淡点阵网格）---- */
+  .page-deco.is-resume::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(60, 46, 26, .06) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+
+  /* ---- 装订线（左缘竖线，账簿面朱、简历面灰）---- */
+  .deco-binding {
+    position: absolute; top: 0; bottom: 0; left: 8px;
+    width: 1.5px;
+    background: linear-gradient(
+      to bottom,
+      var(--brand) 0%, var(--brand) 60%,
+      transparent 100%
+    );
+  }
+  .page-deco.is-resume .deco-binding {
+    background: linear-gradient(
+      to bottom,
+      rgba(60, 46, 26, .32) 0%, rgba(60, 46, 26, .32) 70%,
+      transparent 100%
+    );
+    width: 1px;
+  }
+  /* 装订线上方再加一排小孔 —— 老式账本/笔记本的装订孔，账簿面独有 */
+  .page-deco.is-ledger .deco-binding::before {
+    content: ""; position: absolute;
+    top: 10%; left: -2.5px; width: 6px; height: 6px;
+    background: rgba(60, 46, 26, .18);
+    border-radius: 50%;
+    box-shadow:
+      0 28px 0 rgba(60, 46, 26, .18),
+      0 56px 0 rgba(60, 46, 26, .18),
+      0 84px 0 rgba(60, 46, 26, .18),
+      0 112px 0 rgba(60, 46, 26, .18),
+      0 140px 0 rgba(60, 46, 26, .18);
+  }
+
+  /* ---- 边角图章（账簿面 = 朱蓝「账」，简历面 = 灰描边「履」）---- */
+  .deco-seal {
+    position: absolute; right: 18px; bottom: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    font-family: var(--serif); font-size: 13px; font-weight: 700;
+    border-radius: 3px;
+    transform: rotate(-7deg);
+    box-shadow: 0 1px 2px rgba(60, 46, 26, .15);
+    opacity: .88;
+    letter-spacing: 0;
+  }
+  .page-deco.is-ledger .deco-seal {
+    color: #fff; background: var(--brand);
+  }
+  .page-deco.is-resume .deco-seal {
+    color: rgba(60, 46, 26, .65);
+    background: transparent;
+    border: 1.5px solid rgba(60, 46, 26, .45);
+    box-shadow: none;
+    transform: rotate(4deg);
+  }
+
+  /* ---- 页脚折痕（两道横线，账簿面更明显、简历面更克制）---- */
+  .deco-fold {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 8px;
+    border-top: 1px solid rgba(60, 46, 26, .12);
+    border-bottom: 1px solid rgba(60, 46, 26, .05);
+  }
+  .page-deco.is-resume .deco-fold { opacity: .55; }
+
+  /* ---- @media print：装订册装饰全部撕干净 ----
+     简历预览和岗位匹配本身走 .resume-paper，纸面外的屏幕装饰必须清干净，
+     否则白纸上会出现朱色印章/暗纹/装订线 —— 那是 bug 不是设计。 */
+  @media print {
+    .page-deco,
+    .page-deco::before,
+    .deco-binding,
+    .deco-binding::before,
+    .deco-seal,
+    .deco-fold { display: none !important; }
+  }
 
   /* ---------- 底牌页：大数字 ---------- */
   .power { text-align: center; padding: 30px 20px 22px; }
@@ -244,9 +437,9 @@
   .power-hint { font-size: 13px; color: var(--text-2); margin: 8px 0 0; }
   /* 样本不足 3 个月的小标注（第 5 步） */
   .power-warn {
-    display: inline-block; font-size: 11px; color: #92600a;
-    background: #fff6e0; border: 1px solid #f0e2b8;
-    border-radius: 999px; padding: 1px 9px; margin-top: 9px;
+    display: inline-block; font-size: 11px; color: #8a5a08;
+    background: #fdf3e0; border: 1px solid #ecdcb6;
+    border-radius: var(--r-ctl); padding: 1px 9px; margin-top: 9px;
   }
   /* 「这个数是怎么算的」：一个可点开收起的小入口 + 展开后的说明（第 5 步） */
   .power-toggle {
@@ -258,14 +451,40 @@
   .power-toggle:hover { background: var(--brand-soft); }
   .power-detail { font-size: 12px; color: var(--text-3); margin: 6px 0 0; }
 
+  /* ---------- 戏眼「还能撑」的量柱（甲版唯一敢花胆量的地方） ----------
+     为什么不是「大数字 + 小标签」：那正是生成式设计默认的「英雄区」解法
+     —— 一个大数、一个小标签、几个支持数据、一点渐变强调。简册的戏眼不该长成那样。
+     改成一根**账本刻度柱**：横轴 12 格，每格 1 个月，够用的月份落墨、剩余留白。
+     一眼读出的不是「几个字」，而是「够不够一年」—— 这才是要转行的人真正关心的问题
+     （数字仍在旁边，可读性一点没少；它从主角退成注脚，主角是这根柱子的长度）。
+     整块 aria-hidden：数字已经有文本，屏幕阅读器不需要第二条重复信息。 */
+  .runway-viz {
+    position: relative; height: 16px; margin: 14px 0 7px;
+    border-bottom: 1px solid var(--line);
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+    background-image: repeating-linear-gradient(90deg,
+      var(--line-2) 0 1px, transparent 1px calc(100% / 12));
+  }
+  .runway-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+    background: var(--income);   /* 落墨：撑得住的月份用靛（与「收入」同一支墨水：手头还有） */
+    transition: width .35s cubic-bezier(.2, .7, .3, 1);
+  }
+  /* 不足 3 个月：整根翻朱告急 —— 朱在本站就是「账务要紧处」的颜色 */
+  .runway-viz.is-short .runway-fill { background: var(--brand); }
+  .runway-cap {
+    font-size: 11px; color: var(--text-3); margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* ---------- 三个数字 ---------- */
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .stats.is-two { grid-template-columns: repeat(2, 1fr); }
   .stat { background: var(--bg); border-radius: 8px; padding: 12px 8px; text-align: center; }
-  .stat-label { font-size: 11px; color: var(--text-3); letter-spacing: 2px; font-weight: 500; }   /* Skill v2：caption 层级 */
+  .stat-label { font-size: 11px; color: var(--text-3); letter-spacing: 0; font-weight: 500; }   /* 甲：字距归零，层级靠字号 + 颜色分 */
   .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
   /* Day 10 空态重设计：三数没数据时不再是裸「—」，改小字「待记录」 */
-  .stat-value.is-empty { color: var(--text-3); font-weight: 400; font-size: 13px; letter-spacing: 2px; padding: 3px 0; }
+  .stat-value.is-empty { color: var(--text-3); font-weight: 400; font-size: 13px; letter-spacing: 0; padding: 3px 0; }
 
   /* Skill v2 签名元素：账本朱砂栏线 —— 老账本内页左边那条红色栏线（双细线），
      只加在流水列表卡上（.ledger-line），整站就这一处，认得出这是「账本的内页」 */
@@ -305,7 +524,7 @@
 
   input[type="text"], input[type="number"], input[type="date"], select {
     width: 100%; padding: 8px 10px;
-    border: 1px solid var(--line); border-radius: 8px;
+    border: 1px solid var(--line); border-radius: var(--r-ctl);
     font: inherit; color: var(--text); background: var(--card);
   }
   input::placeholder { color: var(--text-3); }
@@ -314,28 +533,37 @@
     box-shadow: 0 0 0 3px var(--brand-soft);
   }
 
-  /* Day 14（方向 C）：输入框 = 纯黑凹槽 —— 比面板更深的黑 + 内凹阴影，
-     像金属上刻出的写字槽；金发丝边，聚焦时朱砂描一圈。
-     （诊断出的「四个刺眼白块」根因就在这里 + 宽屏那段亮色规则，两处一起修） */
+  /* 账簿面的输入框 = 账本上的**填空栏**：只画一条下栏线，不是四边方框。
+     理由：账本里没有「文本框」，只有一条等着被写上去的横线；
+     四边方框那种形状属于 Web 表单，不属于簿子。
+     命中区一点没缩水 —— 靠极浅的纸底撑住，不是靠边框撑住。
+     聚焦时下栏线翻朱 + 全局那圈浅朱光晕照旧，键盘用户照样一眼看得出焦点在哪。
+     简历面（另一张纸）保持四边方框 —— 那一面是给打印稿填空，形状跟着那边的语言走。 */
   #page-home input[type="text"], #page-home input[type="number"], #page-home input[type="date"], #page-home select,
   #page-expense input[type="text"], #page-expense input[type="number"], #page-expense input[type="date"], #page-expense select {
-    background: #0a0a0a;
-    border-color: rgba(212, 181, 122, .26);
-    border-radius: var(--radius);
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .80);
+    border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+    background: rgba(27, 25, 22, .035);
+    padding: 8px 8px 7px;
   }
   #page-home input:focus, #page-home select:focus,
   #page-expense input:focus, #page-expense select:focus {
-    border-color: var(--brand);
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .80), 0 0 0 3px var(--brand-soft);
+    border-bottom-color: var(--brand);
+    background: var(--brand-soft);
   }
+  /* 收 / 支 分段控件在账簿面上也退成栏格：底色透明，只留竖线分隔 */
+  #page-home .seg span, #page-expense .seg span { background: transparent; }
+
+  /* 甲 · 一册两纸：账簿面的输入框 = 纸上的空栏（不是金属刻槽）。
+     Day 14 那条「纯黑凹槽 + 内凹阴影 + 金发丝边」整段撤掉 —— 纸上是刻不出凹槽的，
+     那套语言属于黑金属版。现在回归下面那条统一写法（白纸底 + 栏线 + 聚焦朱圈），
+     账簿面 / 简历面同源，不再需要按页特判。 */
 
   .field-err { display: none; font-size: 12px; color: var(--expense); margin: 5px 0 0; }
   .field.has-error .field-err { display: block; }
   .field.has-error input, .field.has-error select { border-color: var(--expense); }
 
   /* ---------- 收 / 支 分段控件 ---------- */
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-ctl); overflow: hidden; }
   .seg label { position: relative; margin: 0; }
   .seg input { position: absolute; opacity: 0; width: 0; height: 0; }
   .seg span {
@@ -350,7 +578,7 @@
   /* ---------- 按钮 ---------- */
   .btn {
     font: inherit; font-size: 14px; padding: 8px 20px;
-    border: 1px solid var(--line); border-radius: 8px;
+    border: 1px solid var(--line); border-radius: var(--r-ctl);
     background: var(--card); color: var(--text); cursor: pointer;
     transition: background .15s, border-color .15s;
   }
@@ -360,22 +588,44 @@
   .btn-mini { padding: 3px 10px; font-size: 13px; line-height: 1.4; }
   .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 2px; }
 
-  /* ---------- 月份切换条 ---------- */
-  .month-bar { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 14px; }
-  .month-label { font-size: 14px; font-weight: 600; letter-spacing: .5px; min-width: 78px; text-align: center; }
-
-  /* ---------- 类型筛选条（Day 12） ---------- */
-  .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-  .filter-btn {
-    font: inherit; font-size: 13px; padding: 3px 12px; min-height: 24px;
-    border: 1px solid var(--line); border-radius: 999px;
-    background: var(--card); color: var(--text-2); cursor: pointer;
-    transition: background .15s, color .15s, border-color .15s;
+  /* ---------- 月份切换条 = 账页顶上的「某年某月」栏头 ----------
+     造型：左右各一条可伸缩的栏线，中间夹着当前月份（衬线）。
+     切换箭头退成无框墨字，不跟月份抢位置 —— 账本里月份是这个位置唯一的主角。 */
+  .month-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .month-bar::before, .month-bar::after {
+    content: ""; flex: 1 1 auto; min-width: 16px;
+    border-top: 1px solid var(--line);
   }
+  .month-label {
+    font-size: 15px; font-weight: 600; letter-spacing: 0;
+    white-space: nowrap; font-family: var(--serif);
+  }
+  .month-bar button {
+    font: inherit; font-size: 15px; line-height: 1;
+    border: 0; background: none; color: var(--text-2); cursor: pointer;
+    padding: 6px 8px; min-height: 28px; border-radius: var(--r-ctl);
+    transition: color .15s, background .15s;
+  }
+  .month-bar button:hover { color: var(--brand); background: var(--brand-soft); }
+
+  /* ---------- 类型筛选条 = 账本表头那一排栏格 ----------
+     造型：连成一体的栏格（像账本表头的「全部 | 收 | 支」），竖线分隔。
+     不再是一堆各自独立的圆角小胶囊 —— 那种「chip 墙」是生成式设计的常见形状，
+     而且胶囊彼此等距、各自带边，读起来像「一堆并列的开关」，不像表头。 */
+  .filter-bar {
+    display: inline-flex; flex-wrap: wrap; margin-bottom: 16px;
+    border: 1px solid var(--line); border-radius: var(--r-ctl); overflow: hidden;
+  }
+  .filter-btn {
+    font: inherit; font-size: 13px; padding: 5px 14px; min-height: 24px;
+    border: 0; border-left: 1px solid var(--line); border-radius: 0;
+    background: var(--card); color: var(--text-2); cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .filter-btn:first-child { border-left: 0; }
   .filter-btn:hover { background: var(--line-2); }
   .filter-btn.is-on {
-    background: var(--brand-soft); color: var(--brand);
-    border-color: var(--brand); font-weight: 600;
+    background: var(--brand-soft); color: var(--brand); font-weight: 600;
   }
 
   /* ---------- 空态与占位说明 ---------- */
@@ -426,8 +676,8 @@
   .toast {
     position: fixed; left: 50%; bottom: 34px; z-index: 50;
     transform: translateX(-50%) translateY(12px);
-    background: #1f2328; color: #fff;
-    padding: 10px 18px; border-radius: 8px; font-size: 13px;
+    background: #1b1916; color: #fdfbf6;   /* 甲：墨色纸条（不是冷灰蓝块），整张纸里最沉的一块 */
+    padding: 10px 18px; border-radius: var(--r-card); font-size: 13px;
     opacity: 0; pointer-events: none;
     transition: opacity .2s, transform .2s;
     display: flex; align-items: center; gap: 10px;   /* Day 11：文字和「撤销」按钮并排 */
@@ -445,8 +695,8 @@
   /* ---------- 浏览器禁用存储时的警告条（第 2 步） ---------- */
   .storage-warning {
     max-width: 720px; margin: 12px auto 0; padding: 10px 14px;
-    background: #fdecea; border: 1px solid #f5c6c0; border-radius: 8px;
-    color: #b3261e; font-size: 13px; line-height: 1.6;
+    background: #f7e7e2; border: 1px solid #ddb9ae; border-radius: var(--r-card);
+    color: #8e2e20; font-size: 13px; line-height: 1.6;
   }
 
   /* ---------- 流水列表的一行（第 3 步） ---------- */
@@ -480,11 +730,11 @@
     transition: background .15s, border-color .15s, color .15s;
   }
   .exp-act:hover, .entry-act:hover { background: var(--line-2); color: var(--text); }
-  .exp-act-del:hover, .entry-act-del:hover { background: #fdecea; border-color: #f5c6c0; color: #b3261e; }
+  .exp-act-del:hover, .entry-act-del:hover { background: #f7e7e2; border-color: #ddb9ae; color: #8e2e20; }
 
   /* 正在编辑的那一行，加一层浅底 + 「编辑」按钮变主题色，一眼看出在改哪条 */
   .exp-row.is-editing, .entry-row.is-editing {
-    background: #faf0ec; border-radius: 8px; padding-left: 8px; padding-right: 8px;
+    background: #f6ece7; border-radius: var(--r-ctl); padding-left: 8px; padding-right: 8px;
   }
   .exp-row.is-editing .exp-act-edit, .entry-row.is-editing .entry-act-edit {
     border-color: var(--brand); color: var(--brand);
@@ -581,14 +831,15 @@
   }
 
   /* ---------- AI 简历助手（板块①：接云端大模型） ----------
-     铁律：颜色一律走 CSS 变量，不写死 —— 简历面是暗色玻璃，变量随页面切换翻色，
-     写死颜色会在某个主题下变成「看不见的字」（第 722 行那条坑，Day 14 已踩两次）。
-     失败态用 --brand：朱砂在本项目就是「错误提示」色（见第 735 行注释）。 */
+     ⚠️ 甲版重做后，这段注释里「简历面是暗色玻璃」的说法已经作废 —— 简历面现在是白纸。
+     铁律不变、而且比原来更硬：颜色一律走 CSS 变量，不写死。
+     写死颜色会在换纸 / 换主题时变成「看不见的字」（第 700 行那条坑，Day 14 踩过两次）。
+     失败态用 --brand：朱在本项目就是「账务要紧处」的颜色（见打印块上方注释）。 */
   .ai-status {
     font-size: 13px; line-height: 1.9; color: var(--text-2);
     /* 留一个最小高度：连接中文案和结果文案行数不一样，不留会让卡片高度跳一下 */
     min-height: 44px; margin: 8px 0 14px; padding: 10px 12px;
-    border: 1px solid var(--line-2); border-radius: 8px;
+    border: 1px solid var(--line-2); border-radius: var(--r-ctl);
     /* 模型名一列一个，换行原样保留；长名字断行，不撑破卡片 */
     white-space: pre-wrap; word-break: break-word;
   }
@@ -596,7 +847,7 @@
   .ai-status.is-err { color: var(--brand); }
 
   /* ---------- 选模型下拉框（板块②追加） ---------- */
-  /* 颜色一律走变量：简历面是暗色玻璃，写死颜色会出现「白底白字」看不见的输入框。
+  /* 颜色一律走变量：这条在甲版之后依然是硬要求（写死颜色会在换纸时变成看不见的字）。
      原生 select 在各浏览器表现不一致，所以显式给它 border/background/color */
   .ai-model-row {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -605,7 +856,7 @@
   .ai-model-label { font-size: 13px; color: var(--text-2); flex: none; }
   .ai-model-select {
     font: inherit; font-size: 13px;
-    padding: 5px 9px; border-radius: 8px;
+    padding: 5px 9px; border-radius: var(--r-ctl);
     border: 1px solid var(--line); background: var(--card); color: var(--text);
     max-width: 100%; min-width: 0; flex: 1 1 200px;
   }
@@ -623,7 +874,7 @@
      所以按钮放在正文下面一行，不占右侧那一列 —— 右侧那一列会顶窄正文宽度 */
   .resume-ai {
     font: inherit; font-size: 12px; line-height: 1.5;
-    padding: 2px 9px; border-radius: 6px; margin-top: 2px;
+    padding: 2px 9px; border-radius: var(--r-ctl); margin-top: 2px;
     border: 1px solid var(--line-2); background: transparent;
     color: var(--text-2); cursor: pointer;
     transition: background .15s, border-color .15s, color .15s;
@@ -642,7 +893,7 @@
   .ai-result {
     width: 100%; box-sizing: border-box;
     margin: 10px 0 2px; padding: 12px 14px;
-    border: 1px solid var(--line); border-radius: 10px;
+    border: 1px solid var(--line); border-radius: var(--r-card);
     background: var(--brand-soft);
   }
   .ai-result-head {
@@ -672,6 +923,470 @@
   @media (prefers-reduced-motion: reduce) {
     .ai-caret { animation: none; }
   }
+
+  /* ================================================================
+     主界面 · 封面 + 牌桌（页面 0 · 默认落地页 · 唯一入口）
+     造型分三层，缺一层就显得空：
+       ① 封面抬头：大字书名 + 朱色藏书印 + 文武线（一粗一细压边）
+       ② 牌桌：一块有底色的面，牌躺在上面 —— 牌浮在空白里就没有「桌面」这件事
+       ③ 五张**竖版**牌：真牌是竖的，比例 5:7。上一版做成 134px 高的横条，
+          那不是牌、是一排横幅，所以看着既空又没质感。
+     三条自律（沿用本轮动效纪律）：
+       只做两种动作反馈 ——「指针在牌上移动时牌跟着偏」和「点下去翻面」。
+       不做常驻自转 / 漂浮 / 发光（那是装饰，会变噪音）；
+       prefersReduced 下连倾斜都不做，点击直接进页。
+     ⚠️ 不要给 .pcard 加 filter / overflow —— 这两个属性会把 preserve-3d 压平，
+        里面的翻面就变成了一张纸片原地闪一下。
+     ================================================================ */
+  /* 整屏居中：主界面只有一屏内容，顶部对齐会在下面留一大片空白。
+     让它纵向居中，视线落在正中 —— 这是「一整张封面」该有的站法。 */
+  #page-start { padding-top: 16px; }
+  /* 封面 = 册页框里的「台面」。它也是同一规格的框（同宽、同圆角、同边线），
+     只是面**凹一档、深半档** —— 牌躺在里面，而不是贴在纸上。
+     这一条是「不再窄突然变宽」的关键：封面和内页现在共享同一个框规格，
+     差别只在「台面 / 纸页」这一层材质，不在宽度。 */
+  #page-start.is-active {
+    display: flex; flex-direction: column; justify-content: center;
+    min-height: calc(100vh - 200px);
+    min-height: calc(100dvh - 200px);   /* 移动端用 dvh：地址栏收放时高度不会跟着跳 */
+    background: linear-gradient(180deg, #f8f3e8, #ebe2cf);
+    box-shadow:
+      inset 0 2px 7px rgba(102, 84, 50, .10),
+      inset 0 -1px 0 rgba(255, 255, 255, .55),
+      0 1px 0 rgba(255, 255, 255, .60),
+      0 10px 28px rgba(90, 74, 46, .08);
+    padding: 36px 34px 30px;
+  }
+
+  /* ---- ① 封面抬头 ---- */
+  .start-cover { margin-bottom: 34px; }
+  .start-brand { display: flex; align-items: center; gap: 0; }
+  .start-brand-cn {
+    font-family: var(--serif); font-size: 46px; font-weight: 700;
+    letter-spacing: 8px; line-height: 1;
+    /* 极浅的一道上白下深 —— 像墨压进纸里留下的边，不是描边也不是阴影 */
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+  }
+  /* 藏书印：朱色阳文方印。全站最像「一本册子」的一个记号。
+     故意压住字尾一点、还带一点歪 —— 真印章是手盖的，不会正正好好。
+     这一点歪，是整张封面里最不像「网页」的地方。 */
+  .start-seal {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; flex: none;
+    margin-left: -12px; margin-bottom: -6px;
+    transform: rotate(-6deg);
+    background: var(--brand); color: #fff;
+    font-family: var(--serif); font-size: 24px; font-weight: 700;
+    border-radius: var(--r-sheet);
+    box-shadow: 0 2px 10px rgba(140, 50, 34, .30);
+  }
+  .start-brand-en {
+    font-size: 12px; color: var(--text-3); letter-spacing: 3px;
+    margin: 12px 0 18px;
+  }
+  /* 文武线：一粗一细两道，老账本封皮上的压印 */
+  .start-rule {
+    border-top: 2px solid var(--brand);
+    border-bottom: 1px solid var(--line);
+    height: 4px; margin: 0 0 22px;
+  }
+  .start-title {
+    font-family: var(--serif); font-size: 26px; font-weight: 700;
+    letter-spacing: 2px; margin: 0 0 9px;
+  }
+  .start-sub { font-size: 13px; color: var(--text-3); margin: 0; line-height: 1.8; }
+
+  /* ---- ② 牌桌 ----
+     Day 15：牌桌自己的背景 / 边线 / 凹影整组撤掉 —— 那份「凹」现在由封面框本体承担
+     （见 #page-start.is-active）。这里只留「摆牌」这一件事：栅格 + 透视。
+     要是留着，就会变成「框里套框」，两层边线并排出现。 */
+  .pdeck {
+    display: grid; gap: 20px;
+    grid-template-columns: repeat(5, 1fr);
+    padding: 0;
+    perspective: 1500px;   /* 透视放在桌面上：五张牌共用同一个视点 */
+  }
+  .pdeck-hint {
+    font-size: 12px; color: var(--text-3);
+    margin: 16px 0 0; text-align: center;
+  }
+
+  /* ---- ③ 一张牌 ---- */
+  /* 指针在牌上移动时，JS 只写这两个变量；牌的 transform 一直读它们 ——
+     这样倾斜是「指针跟出来的」，而不是 CSS 自己猜的固定角度。 */
+  .pcard {
+    all: unset;
+    display: block; box-sizing: border-box;
+    aspect-ratio: 5 / 7;                /* 竖版：真牌的比例 */
+    cursor: pointer;
+    transform-style: preserve-3d;       /* 逐层打开，否则里面的翻面会被压平 */
+    /* 三层叠在一起：摆放高度（弧线）→ 摆放角度（手摆的）→ 指针倾斜（跟鼠标） */
+    transform: translateY(calc(var(--rest-lift, 0px) + var(--lift, 0px)))
+               rotate(var(--rest-rot, 0deg))
+               rotateY(var(--tilt-y, 0deg))
+               rotateX(var(--tilt-x, 0deg));
+    transition: transform .3s cubic-bezier(.2, .7, .3, 1);
+  }
+  /* 五张牌各自带一点摆放角度，并沿一条**很浅的弧**排列 —— 像一只手把牌摊在桌上，
+     不是被排版软件对齐的。绝对的齐平，一眼就看得出是机器排出来的。
+     鼠标靠近时它会自己立正（角度归零）+ 抬起 —— 像牌被拿起来看了一眼。 */
+  .pcard:nth-child(1) { --rest-rot: -1.8deg; --rest-lift: 9px; }
+  .pcard:nth-child(2) { --rest-rot: 1deg;    --rest-lift: -2px; }
+  .pcard:nth-child(3) { --rest-rot: -.5deg;  --rest-lift: -8px; }
+  .pcard:nth-child(4) { --rest-rot: 1.3deg;  --rest-lift: -2px; }
+  .pcard:nth-child(5) { --rest-rot: -1.4deg; --rest-lift: 9px; }
+  .pcard:hover { --lift: -10px; --rest-rot: 0deg; }
+  .pcard:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
+
+  .pcard-inner {
+    position: relative; display: block; width: 100%; height: 100%;
+    transform-style: preserve-3d;
+    transition: transform .2s cubic-bezier(.35, 0, .25, 1);
+  }
+  .pcard.is-open .pcard-inner { transform: rotateY(180deg); }   /* 点击后翻面 */
+
+  .pcard-face {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 18px 16px 32px;
+    backface-visibility: hidden;       /* 转到背面就藏掉，否则会看到镜像的字 */
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top-width: 2px;             /* 顶边留给「题花线」，比其余三边粗一档 */
+    border-radius: var(--r-card);
+    box-shadow: 0 1px 2px rgba(60, 46, 26, .10), 0 10px 22px rgba(60, 46, 26, .13);
+  }
+  /* 牌面内圈一道细框 —— 真牌都有这道内框，有了它才像牌不像便签 */
+  .pcard-face::after {
+    content: ""; position: absolute; inset: 8px;
+    border: 1px solid var(--line-2); border-radius: var(--r-sheet);
+    pointer-events: none;
+  }
+  /* 题的线按「面」分色：账簿面用朱（那是账务），简历面用墨。
+     两面的区别因此在牌上就是一眼可见的，不用另加说明。 */
+  /* 五张牌一律用朱色题花线：五道一起出现就不再是「点缀」，而成了一套印记
+     （呼应封面那方朱印）。「账簿面 / 简历面」的归属改由牌面下沿的落款说明 ——
+     原先用朱 / 墨两种顶线去分，并排看着像两拨人在抢，反而不整。 */
+  .pcard-front { border-top-color: var(--brand); }
+
+  /* 模块名做成牌面的「落款」：压在底部居中，像封面下沿印着这是哪一册。
+     主体（页名 + 一句说明）因此可以稳稳居中，牌心不再空一块。 */
+  .pcard-mod {
+    position: absolute; left: 0; right: 0; bottom: 15px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 9px; color: var(--text-3);
+  }
+  .pcard-mod::before {
+    content: ""; width: 4px; height: 4px; flex: none;
+    background: var(--text-2); border-radius: 1px;
+  }
+  .pcard-name {
+    font-family: var(--serif); font-size: 23px; font-weight: 700;
+    letter-spacing: 2px; margin: 0 0 9px; line-height: 1.3;
+  }
+  .pcard-desc { font-size: 11.5px; color: var(--text-3); line-height: 1.65; }
+
+  /* 背面 = 场景舞台（Day 15 场景穿越：5 页各自不同，牌翻过去看到的不是「翻开」二字，
+     而是这一页的小小戏剧：账本翻开 / 笔划过纸 / 纸落下 / 纸面展开 / 雷达图辐射。
+     ⚠️ 页面级动效已全部撤销（见第 6 节说明），所以场景只在牌心演，
+        演完切页，新页面瞬间到位 —— 没有任何 .page 上的 transform / animation）。 */
+  .pcard-back {
+    transform: rotateY(180deg);
+    align-items: stretch; justify-content: stretch; padding: 0;
+    background: var(--brand); border-color: var(--brand); border-top-color: var(--brand);
+    overflow: hidden;
+  }
+  .pcard-back::after { border-color: rgba(255, 255, 255, .34); }
+
+  /* 没翻开时场景元素隐藏 —— 防止 3D 翻转时透过背面看到场景的影子 */
+  .pcard:not(.is-open) .pcard-scene > * { opacity: 0; }
+  .pcard.is-open .pcard-scene > * { opacity: 1; }
+
+  /* ============================================================
+     场景穿越 · 5 个牌心场景
+     总时长约 700ms：场景演完 → 切页（瞬间到位，无页面动效）
+     ============================================================ */
+
+  /* ---- #/home · 账本翻开（栏线从左向右画 + 中缝出现 + 几条文本线）---- */
+  .scene-ledger { position: relative; padding: 18% 14%; }
+  .scene-ledger-spine {
+    position: absolute; top: 16%; bottom: 16%; left: 50%; width: 1px;
+    background: rgba(255, 255, 255, 0.42);
+    transform: scaleY(0); transform-origin: center center;
+    animation: ledger-spine-in .4s cubic-bezier(.2, .7, .3, 1) 60ms both;
+  }
+  .scene-ledger-rule {
+    display: block; height: 2px; background: rgba(255, 255, 255, 0.85);
+    margin: 0 0 9%;
+    transform: scaleX(0); transform-origin: left center;
+    animation: ledger-rule-in .42s cubic-bezier(.2, .7, .3, 1) both;
+  }
+  .scene-ledger-rule:nth-of-type(1) { animation-delay: 120ms; }
+  .scene-ledger-rule:nth-of-type(2) { animation-delay: 220ms; }
+  .scene-ledger-rule:nth-of-type(3) { animation-delay: 320ms; }
+  .scene-ledger-line {
+    display: block; height: 1px; width: 38%;
+    background: rgba(255, 255, 255, 0.55);
+    margin: 6px 0;
+    transform: scaleX(0); transform-origin: left center;
+    animation: ledger-rule-in .3s cubic-bezier(.2, .7, .3, 1) both;
+  }
+  .scene-ledger-line:nth-of-type(1) { margin-left: 4%; animation-delay: 440ms; }
+  .scene-ledger-line:nth-of-type(2) { margin-left: 14%; width: 50%; animation-delay: 500ms; }
+  @keyframes ledger-rule-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes ledger-spine-in { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+  /* ---- #/expense · 笔划过纸面（纸面 + 笔尖沿弧线划过 + 朱色划痕渐出）---- */
+  .scene-pen { position: relative; }
+  .scene-pen-svg {
+    position: absolute; inset: 16% 14%;
+    color: rgba(255, 255, 255, 0.85);
+    overflow: visible;
+  }
+  .scene-pen-paper {
+    stroke: rgba(255, 255, 255, 0.35); stroke-width: 1;
+    stroke-dasharray: 80; stroke-dashoffset: 80;
+    animation: pen-paper-in .35s ease-out 40ms both;
+  }
+  .scene-pen-stroke {
+    fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round;
+    stroke-dasharray: 140; stroke-dashoffset: 140;
+    animation: pen-stroke-in .62s cubic-bezier(.4, .1, .3, 1) 100ms both;
+  }
+  .scene-pen-tip {
+    fill: #fff;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+    opacity: 0;
+    animation: pen-cell-fade-in .04s linear 100ms both;
+  }
+  @keyframes pen-paper-in { from { stroke-dashoffset: 80; } to { stroke-dashoffset: 0; } }
+  @keyframes pen-stroke-in { from { stroke-dashoffset: 140; } to { stroke-dashoffset: 0; } }
+  @keyframes pen-cell-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---- #/entry · 打印纸落下（白纸从上方飘落，落地弹一下，三条文本线渐现）---- */
+  .scene-print { position: relative; }
+  .scene-print-sheet {
+    position: absolute; top: 18%; bottom: 18%; left: 22%; right: 22%;
+    background: rgba(255, 255, 255, 0.94);
+    border-radius: 1px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    display: flex; flex-direction: column; gap: 5px; padding: 16% 14% 0;
+    transform: translateY(-180%) rotate(-7deg);
+    animation: print-fall .7s cubic-bezier(.18, .8, .3, 1.05) 80ms both;
+  }
+  .scene-print-line {
+    display: block; height: 2px;
+    background: rgba(228, 102, 76, 0.55);
+    transform: scaleX(0); transform-origin: left center;
+    animation: print-line-in .22s ease-out both;
+  }
+  .scene-print-line:nth-of-type(1) { width: 75%; animation-delay: 520ms; }
+  .scene-print-line:nth-of-type(2) { width: 85%; animation-delay: 560ms; }
+  .scene-print-line:nth-of-type(3) { width: 65%; animation-delay: 600ms; }
+  .scene-print-line-short { width: 45% !important; animation-delay: 640ms; }
+  @keyframes print-fall {
+    from { transform: translateY(-180%) rotate(-7deg); }
+    60%  { transform: translateY(6%) rotate(1.5deg); }
+    80%  { transform: translateY(-2%) rotate(-0.5deg); }
+    to   { transform: translateY(0) rotate(0); }
+  }
+  @keyframes print-line-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  /* ---- #/resume · 纸面展开（左右两半从中心向两侧摊开，中缝一道亮线）---- */
+  .scene-fold { position: relative; }
+  .scene-fold-half {
+    position: absolute; top: 16%; bottom: 16%;
+    background: rgba(255, 255, 255, 0.94);
+    border-radius: 1px;
+  }
+  .scene-fold-l { left: 50%; transform-origin: right center; transform: scaleX(0); animation: fold-l-out .6s cubic-bezier(.25, .8, .3, 1) 80ms both; }
+  .scene-fold-r { right: 50%; transform-origin: left center;  transform: scaleX(0); animation: fold-r-out .6s cubic-bezier(.25, .8, .3, 1) 80ms both; }
+  .scene-fold-seam {
+    position: absolute; top: 16%; bottom: 16%; left: 50%; width: 1px;
+    background: rgba(255, 255, 255, 0.85);
+    transform: scaleY(0); transform-origin: center;
+    animation: ledger-spine-in .35s cubic-bezier(.2, .7, .3, 1) 540ms both;
+  }
+  @keyframes fold-l-out { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes fold-r-out { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  /* ---- #/match · 雷达图辐射（中心环 + 6 条线从中心射出，尖端小圆点逐个亮起）---- */
+  .scene-radar { position: relative; }
+  .scene-radar-svg {
+    position: absolute; inset: 14%; width: 72%; height: 72%; left: 14%; top: 14%;
+    color: rgba(255, 255, 255, 0.85);
+    overflow: visible;
+  }
+  .scene-radar-ring {
+    fill: none; stroke: currentColor; stroke-width: 1; opacity: 0.4;
+    stroke-dasharray: 240; stroke-dashoffset: 240;
+    animation: radar-ring-in .45s ease-out 60ms both;
+  }
+  .scene-radar-ray {
+    stroke: currentColor; stroke-width: 1.6; stroke-linecap: round;
+    stroke-dasharray: 50; stroke-dashoffset: 50;
+    animation: radar-ray-out .42s cubic-bezier(.2, .7, .3, 1) both;
+  }
+  .scene-radar-ray:nth-of-type(2) { animation-delay: 90ms; }
+  .scene-radar-ray:nth-of-type(3) { animation-delay: 140ms; }
+  .scene-radar-ray:nth-of-type(4) { animation-delay: 190ms; }
+  .scene-radar-ray:nth-of-type(5) { animation-delay: 240ms; }
+  .scene-radar-ray:nth-of-type(6) { animation-delay: 290ms; }
+  .scene-radar-ray:nth-of-type(7) { animation-delay: 340ms; }
+  .scene-radar-dot {
+    fill: currentColor; opacity: 0;
+    transform-origin: center;
+    animation: radar-dot-in .22s cubic-bezier(.2, .7, .3, 1) both;
+  }
+  .scene-radar-dot:nth-of-type(8)  { animation-delay: 460ms; }
+  .scene-radar-dot:nth-of-type(9)  { animation-delay: 500ms; }
+  .scene-radar-dot:nth-of-type(10) { animation-delay: 540ms; }
+  .scene-radar-dot:nth-of-type(11) { animation-delay: 580ms; }
+  .scene-radar-dot:nth-of-type(12) { animation-delay: 620ms; }
+  .scene-radar-dot:nth-of-type(13) { animation-delay: 660ms; }
+  @keyframes radar-ring-in { from { stroke-dashoffset: 240; } to { stroke-dashoffset: 0; } }
+  @keyframes radar-ray-out { from { stroke-dashoffset: 50; } to { stroke-dashoffset: 0; } }
+  @keyframes radar-dot-in {
+    from { opacity: 0; transform: scale(0); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  @media (max-width: 1000px) {
+    .pdeck { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .start-brand-cn { font-size: 34px; letter-spacing: 5px; }
+    .start-seal { width: 38px; height: 38px; font-size: 21px; }
+    .start-title { font-size: 22px; }
+    .pdeck { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0; }
+    .pcard-name { font-size: 17px; }
+    .pcard-desc { font-size: 10.5px; }
+
+    /* ---- 册页框在手机上「收边」（Day 15）----
+       手机屏就 390px 上下，桌面那套 30px 左右内距会白白吃掉五分之一的可视宽，
+       内容被挤成细长一条。所以框保留（边界感是要的），但内距整体收到 16px。 */
+    .wrap { padding: 12px; }
+    .page.is-active { padding: 18px 16px 24px; }
+    /* 封面在手机上不再强撑一屏高：屏幕矮，撑满会逼着用户往下滚才能看到第一张牌。
+       改成「够高就好」—— 内容多高就多高，最少留一点呼吸。 */
+    #page-start.is-active {
+      padding: 24px 18px 22px;
+      min-height: 0;
+    }
+    .start-cover { margin-bottom: 22px; }
+    .pdeck-hint { text-align: left; }
+  }
+
+  /* ================================================================
+     动效系统（甲版）
+     三条纪律 —— 这些动画是筛选过的，不是随手加的：
+       ① 非用户触发的动效，全站只留**一个**：首次进站的「落笔序列」。
+          其余动效一律由用户动作触发，且必须能回答「什么变了」。
+       ② **不做**「每个区块依次淡入上浮」那一套 —— 那是生成式设计最典型的手法，
+          逐段入场看着很忙，其实一个字的信息都没多。
+       ③ CSS 动效由第 182 行那条全局 prefers-reduced-motion 一并关停；
+          由 JS 驱动的（数字滚动）在 JS 里单独判断，见 renderHome 里的 prefersReduced。
+     ================================================================ */
+  @keyframes rule-in {          /* 栏线从左向右画出来（落笔） */
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes deal-in {          /* 发牌：牌从桌面下方翻上来，落回它自己的摆放角度与高度 */
+    from {
+      opacity: 0;
+      transform: translateY(calc(var(--rest-lift, 0px) + 34px))
+                 rotate(calc(var(--rest-rot, 0deg) - 7deg)) scale(.9);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(var(--rest-lift, 0px))
+                 rotate(var(--rest-rot, 0deg)) scale(1);
+    }
+  }
+  @keyframes drop-in {          /* 新内容从上方落下（一次 AI 结果） */
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shortPulse {       /* 告急：呼吸三下就停，不做无限闪 */
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .45; }
+  }
+
+  /* ---- 1. 落笔序列：首次进站，栏线依次画出（只发生一次）----
+     stagger 由 JS 写进 --intro-delay（每块错开 70ms）—— 是一次编排，不是所有线同时闪一下。
+     序列约 1.4s，跑完 JS 就把 body.intro 摘掉，之后永不重复。 */
+  body.intro .card::before,
+  body.intro .card::after {
+    animation: rule-in .5s cubic-bezier(.2, .7, .3, 1) var(--intro-delay, 0ms) both;
+  }
+  /* 主界面的五张牌按「发牌」顺序入场 —— 与栏线的落笔共用同一条序列、同一套错开延迟。
+     注意：动画随 body.intro 一起被摘掉，摘掉后牌才恢复「可悬停微倾」的自由状态
+     （animation-fill-mode: both 会把 transform 钉在终值，不摘掉的话 hover 就失灵了）。 */
+  body.intro .pcard {
+    animation: deal-in .42s cubic-bezier(.2, .7, .3, 1) var(--intro-delay, 0ms) both;
+  }
+
+  /* ---- 2. 切页 = 朱笔圈栏：当前页那道朱线从左画出来 ----
+     「翻过一张纸」由上面的 pageIn 负责，「圈到哪一栏」由这里负责 —— 两件事分开说。 */
+  .nav-btn { position: relative; }
+  .nav-btn.is-active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: var(--brand); transform-origin: left center;
+    animation: rule-in .22s cubic-bezier(.2, .7, .3, 1) both;
+  }
+
+  /* ---- 3. AI 结果落下 ----
+     它是「被生成出来的」，出场时落一下。只加在这里，不加在列表行上：
+     列表每次重排都是整块重建，加了会变成「整页抖动」，属于上面第②条禁项。 */
+  .ai-result { animation: drop-in .28s cubic-bezier(.2, .7, .3, 1) both; }
+
+  /* ---- 4. 告急呼吸：不足 3 个月时朱柱呼吸三下就停 ----
+     有界（3 次）是关键：无限闪会变成噪音，也会干扰阅读。 */
+  .runway-viz.is-short .runway-fill {
+    background: var(--brand);
+    animation: shortPulse 1.1s ease-in-out 3;
+  }
+
+  /* ---- 5. 卡牌翻转：底牌页 ↔ 简历预览 ----
+     为什么偏偏是这两页：它们是一本簿子的正反两面 ——
+     底牌页是账簿面的「戏眼」（还能撑多久），简历预览是简历面的产出物（一叠纸）。
+     翻面这个动作本身就在说「你看的是同一本簿子的另一面」，不是两个无关页面。
+     实现要点：
+       ① 舞台透视放在 main.wrap —— 弹层 / 浮动提示 / 导航条都在它外面，不会被这层 3D 波及
+       ② 两个半场：旧页绕 Y 轴转出去 → 换页 → 新页从另一侧转回来
+       ③ 全程只动 transform / opacity，不碰布局、不触发重排
+       ④ 翻牌期间把 pageIn 关掉，否则两条动画会互相抢同一帧 */
+  main.wrap { perspective: 1800px; }
+  .page { backface-visibility: hidden; }
+  /* ⚠️ 这里必须用 :not() 把翻牌自己的两个类排除掉。
+     一开始写成 `body.is-flipping .page.is-active { animation: none }`，
+     结果把「转出去」那条动画也一起关了 —— 旧页的 animationend 永不触发，
+     换页卡在半场、flip-out 类残留（自测 A14/A15 就是这么抓到它的）。 */
+  body.is-flipping .page.is-active:not(.flip-out):not(.flip-in) { animation: none; }
+  @keyframes flipOut {
+    from { opacity: 1; transform: rotateY(0deg) scale(1); }
+    to   { opacity: 0; transform: rotateY(calc(var(--flip-sign, 1) * -78deg)) scale(.94); }
+  }
+  @keyframes flipIn {
+    from { opacity: 0; transform: rotateY(calc(var(--flip-sign, 1) * 78deg)) scale(.94); }
+    to   { opacity: 1; transform: rotateY(0deg) scale(1); }
+  }
+  .page.flip-out { animation: flipOut .26s cubic-bezier(.55, 0, .85, .4) both; will-change: transform, opacity; }
+  .page.flip-in  { animation: flipIn .3s cubic-bezier(.15, .6, .3, 1) both; will-change: transform, opacity; }
+
+  /* ---- 6.（Day 15 撤销）点牌进门：页面本身不做任何动画 ----
+     这里原有两版「点牌 → 目标页进场」动效，都被秋鹰师否掉了，记下来免得以后又绕回去：
+       ① 初版：「翻面（420ms）→ 牌飞走（220ms）→ 页面铺开（520ms）」串着走。
+          点一下要等一秒，原话是「点进去的延迟太高了」。
+       ② 第二版：把换页提前到第 120ms，牌只转了一半就被切走 —— 看着不是翻牌、
+          是**动画被打断**；页面那套「从牌的位置缩放铺开 + 3° 前倾」又让整页像往里弹了一下。
+          原话是「你这做的是什么屎效果」。
+     最终结论（原话「去掉那个页面进出的动画」）：**切页瞬间到位，页面零动画**。
+       全屏页面尤其不该做缩放 —— 哪怕只缩到 90%，眼睛读到的也是「整块屏幕在弹」，
+       而不是「翻到了下一页」。
+     现在点一张牌，只有**牌自己**动（翻到朱色背面，见 .pcard-inner 的 transition），
+     翻完就换页，新页直接就是最终样子。 */
 
   /* ---------- 打印 / 另存为 PDF（第 8 步） ---------- */
   /* 只用浏览器自带打印（PRD 8.5：本期不自写 PDF 功能）。
@@ -730,6 +1445,17 @@
     /* 左边距：@page 的 12mm 是纸本身的边距，这里再留 4mm 安全边 ——
        万一有人在打印窗口把边距选成「无边距」，内容也不会贴着纸边、被裁掉半个字 */
     .wrap { max-width: none; padding: 4mm; }
+
+    /* ---- 3.5 册页框（Day 15 追加）：屏幕上那个「框」不是产出物 ----
+       框上带了五样东西：纸面色、边线、圆角、落影、内距。任何一样印在白纸上都是脏的，
+       而简历纸是唯一的产出物，它必须是一张干净的白纸。所以打印时把框整个抹平。 */
+    .page, .page.is-active {
+      background: none !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
 
     /* ---- 3. 简历纸 = 白纸黑字（产出物） ---- */
     .resume-sheet {
@@ -800,20 +1526,23 @@
   @page { size: A4; margin: 12mm; }
 
   /* ---------- 危险按钮（确认删除用） ---------- */
-  .btn-danger { background: #c62828; border-color: #c62828; color: #fff; font-weight: 500; }
-  .btn-danger:hover { background: #a91f1f; border-color: #a91f1f; }
+  /* 甲：危险色 = 朱的加深档。全站只有朱一个红，不为 danger 另发明一个红 ——
+     老账本里销账也是朱笔。严重度靠「实底 + 白字」区分，不靠换色相。 */
+  .btn-danger { background: #8e2e20; border-color: #8e2e20; color: #fff; font-weight: 500; }
+  .btn-danger:hover { background: #74241a; border-color: #74241a; }
 
   /* ---------- 确认弹层（第 4 步新增，第 8 步导入覆盖确认会复用） ---------- */
   .modal-mask {
     position: fixed; inset: 0; z-index: 100;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(15, 20, 30, .38); padding: 20px;
+    background: rgba(43, 34, 24, .44); padding: 20px;   /* 甲：暖墨遮罩，不是冷灰蓝 */
   }
   .modal-mask[hidden] { display: none; }
   .modal {
-    background: var(--card); border-radius: 12px; padding: 22px 22px 18px;
+    background: var(--sheet-card); border: 1px solid var(--line);
+    border-radius: var(--r-card); padding: 22px 22px 18px;
     width: 100%; max-width: 360px;
-    box-shadow: 0 16px 40px rgba(15, 20, 30, .22);
+    box-shadow: 0 16px 40px rgba(43, 34, 24, .22);
   }
   .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
   .modal-text { font-size: 13px; color: var(--text-2); line-height: 1.7; }
@@ -824,8 +1553,14 @@
      帅化思路：导航条换「墨黑封皮 + 朱砂描边」与纸面反差；内容区放宽到 1560px 占满浏览器；
      大数字放大、卡片加淡阴影纸质感、大按钮悬停抬升。配色三基调（米白 / 墨黑 / 朱砂）不变。 */
   @media (min-width: 900px) {
-    .wrap { max-width: 1560px; padding: 28px 48px 60px; min-height: calc(100vh - 64px); }
-    .navbar-inner { max-width: 1560px; padding: 0 48px; height: 64px; }
+    /* 宽度统一到 --wrap-w（1320）：这是「册页框」成立的前提 ——
+       报头、封面、五个内页共用同一个左右边界，视线才不会一进页就「横着散开」。
+       旧值 1560 是「铺满浏览器」的思路，正是「被横铺」的来源。 */
+    .wrap { max-width: var(--wrap-w); padding: 26px 24px 72px; min-height: calc(100vh - 64px); }
+    .navbar-inner { max-width: var(--wrap-w); padding: 0 24px; height: 64px; }
+    /* 五页的框一律「内容多高就多高」，不给统一的下限。
+       给过一版 min-height: calc(100vh - 240px)，结果内容少的页（记一笔）
+       变成「上面一小块内容 + 下面一大片空纸」——那不是整齐，那是没做完。 */
 
     /* Day 14 方向 C（纯黑金线）：宽屏这段原先是 Day 13 的亮色纸面规则（米白渐变 / 墨黑导航），
        用 ID 选择器改写后特异性反压过黑檀作用域，把深色盖回了米白 —— 与「一个底色一个强调色」冲突。
@@ -840,16 +1575,35 @@
        只靠 stretch 拉伸会让左卡文字顶在上方、右下角大片空。改成两栏各自 flex 纵向居中，
        两块内容的视觉重心落在同一条中线上，高度照样相等。 */
     #page-home.is-active {
-      display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px;
+      display: grid; grid-template-columns: 1fr 1fr; column-gap: 0;
       grid-row-gap: 20px; align-items: stretch;
     }
     #page-home .page-module, #page-home .big-actions { grid-column: 1 / -1; }
     #page-home > .card:last-child { grid-column: 1 / -1; }   /* 参数卡跨全宽，别孤零零占左列 */
     #page-home form#form-profile { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
     #page-home form#form-profile .btn-row { grid-column: 1 / -1; }
-    /* 两栏等高 + 内容垂直居中：左「还能撑」右「本月」，重心齐平 */
-    #page-home > .card.power,
-    #page-home > .card:nth-of-type(2) { display: flex; flex-direction: column; justify-content: center; }
+    /* 两栏等高 + 内容垂直居中：左「还能撑」右「本月」，重心齐平。
+       ⚠️ Day 15 修：原写 `> .card:nth-of-type(2)`，但 nth-of-type 数的是 div 序号，
+       第 2 个 div 就是 .card.power 本身 —— 两条选择器打的是同一个元素，
+       右栏「本月」从来没被垂直居中过。按注释本意改成 nth-of-type(3)。 */
+    #page-home > .card:nth-of-type(2),
+    #page-home > .card:nth-of-type(3) { display: flex; flex-direction: column; justify-content: center; }
+
+    /* ---------- 册页中缝（≥900px 的两栏页通用）----------
+       两栏之间不再只是「留个空隙」，而是画一条竖细线 —— 像摊开的两页中间那道装订缝。
+       这是「一册两纸」从主界面延伸到内页的那一笔：页面是「一册」，不是「一屏」。
+       做法放在左栏的右边缘，右栏只吃内距：这样账簿面（透明栏目）和
+       简历面（白纸卡片）用同一条规则都成立，不用各写一套。 */
+    #page-home.is-active > .card:nth-of-type(2),
+    #page-expense.is-active > .card:nth-of-type(2),
+    #page-entry.is-active > .card:nth-of-type(2) {
+      padding-right: 36px; border-right: 1px solid var(--line);
+    }
+    #page-home.is-active > .card:nth-of-type(3),
+    #page-expense.is-active > .card:nth-of-type(3),
+    #page-entry.is-active > .card:nth-of-type(3) {
+      padding-left: 36px;
+    }
 
     /* Day 14 「还能撑」空态专门修：没数据时左卡内容极少（一个空圆环 + 一行提示），
        被拉到与右卡同高后上下各空一大块，看着像「页面没做完」。
@@ -859,11 +1613,14 @@
     }
     #page-home .power-hint { font-size: 13px; max-width: 260px; margin-left: auto; margin-right: auto; }
 
-    /* 「还能撑」是全站的戏眼：放大 + 朱砂题花线（颜色交给黑檀作用域，这里只管尺度） */
+    /* 「还能撑」是全站的戏眼。甲版：尺度让给量柱 —— 数字从 60px 收到 52px。
+       理由是再大的数字也只是「一个数」，而 12 格刻度的长度能直接对上「够不够一年」这把尺。 */
     #page-home .power { padding: 40px 32px 32px; }
-    #page-home .power-value { font-size: 60px; }
+    #page-home .power-value { font-size: 52px; }
     #page-home .power-label { font-size: 14px; }
     #page-home .stat-value { font-size: 22px; }
+    /* 宽屏下量柱加粗一档：它是这块的主角，不能被数字压过去 */
+    #page-home .runway-viz { height: 22px; margin: 18px 0 9px; }
 
     /* 两个大入口：悬停抬升（阴影交给黑檀，这里只给位移） */
     .big-btn { transition: border-color .15s, transform .15s; }
@@ -873,13 +1630,17 @@
        ⚠️ 必须挂在 .is-active 上：直接写 #page-expense { display:grid } 特异性会盖掉
        .page { display:none } 的切页机制，导致这两页在桌面端永远显示（第 2 稿踩过）。 */
     #page-expense.is-active, #page-entry.is-active {
-      display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px;   /* Day 13：5:7 → 1:1 对称，同排卡片同高 */
+      display: grid; grid-template-columns: 1fr 1fr; column-gap: 0;   /* Day 13：5:7 → 1:1 对称，同排卡片同高 */
     }
     #page-expense .page-module, #page-entry .page-module { grid-column: 1 / -1; }
 
-    /* 简历预览（Day 13 对称 + 填满）：纸放宽 760 → 880，高度撑到接近满屏，四周不再大片留空 */
-    #page-resume { max-width: 1080px; margin: 0 auto; }   /* Day 14 秋鹰师要求：880 → 1080 做宽（仍是「纸」，不撑满） */
-    #page-resume .resume-sheet { min-height: calc(100vh - 340px); }
+    /* 简历预览：Day 15 撤掉单独窄宽。旧值 1080 比别页窄一截，
+       点进来像换了个 App（「窄的」说的就是它）。
+       现在宽度交给册页框统一管 → 纸宽约 1200px，和其余四页同一左右边界。
+       同时那张「没数据也撑满一屏」的巨大空白纸收回来：先前的 min-height 是给
+       暗色玻璃时代「撑满屏才不显空」用的，纸变白变宽之后，它只剩下「一大片白」。 */
+    #page-resume { max-width: none; margin: 0; }
+    #page-resume .resume-sheet { min-height: 300px; }
   }
 
   /* ================================================================
@@ -895,238 +1656,127 @@
   #page-home, #page-expense { font-family: var(--serif); letter-spacing: .2px; }
 
   /* ================================================================
-     Day 14 方向 C（纯黑金线 · 秋鹰师 2026-09-28 拍板）
-     调子：**纯黑打底，金线是唯一亮色，朱砂只做跳色**。规矩（本轮四条全修）：
-       1) 一个底色一个强调色 —— 黑 #0a0a0a 系 + 金 #d4b57a，朱砂只点睛
-       2) 输入框不再刺眼白块 —— 压成同色系凹槽（比面板更深）
-       3) 全站一个圆角（--radius 统一，不再各说各话）
-       4) 文字对比度全部 ≥ WCAG 4.5
-       5) 疏密重排：卡内距 24→28，卡间距 16→20，区块间留白撑开
-     作用域全部 body:has(...) 限定：变量与背景只作用账簿面两页，简历面零波及。
-     ⚠️ 写死的颜色一律不给 —— 控件全走 CSS 变量，改根即全改（漏定义会静默继承 :root，Day 14 已踩两次）
-     ================================================================= */
-  /* 账簿面作用域变量：整体翻「纯黑底 + 金线亮字」，控件全走 CSS 变量，改根即全改 */
-  body:has(#page-home.is-active),
-  body:has(#page-expense.is-active) {
-    color-scheme: dark;
-    --text: #f2ead8;        /* 奶白：衬线正文字（纯黑底 16.2:1） */
-    --text-2: #bcae92;      /* 次级：金灰（纯黑底 8.6:1） */
-    --text-3: #9c8e72;      /* 辅助小字（纯黑底 5.9:1） */
-    --bg: #0d0d0d;          /* 凹面底：比面板更深 —— 三数块 / 输入槽 / 注释条 */
-    --card: #151515;        /* 卡片：近黑面板（比页底亮半档，有存在感又不发灰） */
-    --line: rgba(212, 181, 122, .28);   /* 烫金发丝线 */
-    --line-2: rgba(212, 181, 122, .14);
-    --brand: #e0664c;       /* 朱砂跳色（纯黑底 5.6:1，做点睛：题花线 / 栏线 / 错误提示） */
-    --brand-soft: rgba(224, 102, 76, .14);
-    --income: #d4b57a;      /* 收入 = 烫金（C 面「金线唯一亮色」的落地） */
-    --expense: #e0664c;     /* 支出 = 朱砂 */
-    --radius: 4px;          /* Day 14：全站一个圆角 —— 从 8px 收到 4px，硬朗、像金属，不再各说各话 */
-  }
-  /* 主按钮：朱砂亮底 + 纯黑深字（印刷印章的阳文），白字在朱砂上只有 3.4~3.8 不达标 */
-  body:has(#page-home.is-active) .btn-primary,
-  body:has(#page-expense.is-active) .btn-primary {
-    color: #0d0d0d;
-  }
-  body:has(#page-home.is-active) .btn-primary:hover,
-  body:has(#page-expense.is-active) .btn-primary:hover {
-    background: #e87a60; border-color: #e87a60;
-  }
-  /* 报头：纯黑导航条 + 烫金双线（粗金线 + 下方间隔细金线），灯下金边的规矩 */
-  body:has(#page-home.is-active) .navbar,
-  body:has(#page-expense.is-active) .navbar {
-    background: #101010;
-    border-bottom: 1.2px solid rgba(212, 181, 122, .55);
-    box-shadow: none;
-  }
-  body:has(#page-home.is-active) .navbar::after,
-  body:has(#page-expense.is-active) .navbar::after {
+     甲 · 一册两纸 —— 账簿面（底牌页 / 记一笔）
+     定调：账簿面 = 账簿纸。暖白微黄，栏线是墨色发丝，朱只做账务含义。
+     做法：**整层不重定义变量**。Day 14 之所以要 `body:has(...)` 覆盖一整套变量，
+           是因为那一版要把同一批控件翻成暗色；现在两面都是纸、都走 :root，
+           变量只在简历面（另一种纸）覆盖一次。
+     附带收益：Day 14 注释里自记的 5 个 bug，有 3 个的直接成因就是这层覆盖
+               （特异性反压 / 漏定义静默继承 / 宽屏 ID 选择器盖色）—— 整层撤掉，成因消失。
+     ================================================================ */
+  /* 报头（两面通用）：账簿纸底 + 一条墨发丝线压边 —— 老账本封皮那道压印线。
+     Day 14 那套「纯黑封皮 + 烫金字」属于黑金属版，整段撤掉。
+     .navbar 自身已有 position:sticky（定位元素），::after 能挂在它下方 5px 当第二道线，
+     两条线合起来就是账本封皮上的「文武线」。 */
+  .navbar::after {
     content: ""; position: absolute; left: 0; right: 0; bottom: -5px;
-    border-bottom: 1px solid rgba(212, 181, 122, .22);
+    border-bottom: 1px solid rgba(27, 25, 22, .16);
     pointer-events: none;
   }
-  /* 导航按钮：金字 + 下方金短横线选中态（烫金题签的当前页标记） */
-  body:has(#page-home.is-active) .nav-btn,
-  body:has(#page-expense.is-active) .nav-btn { border-radius: var(--radius); color: var(--text-2); }
-  body:has(#page-home.is-active) .nav-btn:hover,
-  body:has(#page-expense.is-active) .nav-btn:hover {
-    background: rgba(212, 181, 122, .08); color: var(--text);
-  }
-  body:has(#page-home.is-active) .nav-btn.is-active,
-  body:has(#page-expense.is-active) .nav-btn.is-active {
-    background: none; color: #d4b57a; font-weight: 600;
-    box-shadow: inset 0 -2px 0 rgba(212, 181, 122, .75);
-  }
-  body:has(#page-home.is-active) .brand,
-  body:has(#page-expense.is-active) .brand { color: var(--text); letter-spacing: 3px; }
-  body:has(#page-home.is-active) .brand-en,
-  body:has(#page-expense.is-active) .brand-en { color: var(--text-3); }
-  body:has(#page-home.is-active) .nav-module,
-  body:has(#page-expense.is-active) .nav-module {
-    border-radius: var(--radius); border-color: var(--line); background: none; color: var(--text-3);
-  }
-  /* 账簿面卡片：纯黑面板（圆角统一 + 金发丝边 + 深投影），Day 13 纸白渐变在两页一起盖掉。
-     Day 14 教训：只盖 #page-home 时记一笔页卡片仍是白渐变底 + 奶白字（几乎隐形），两页必须同盖 */
-  body:has(#page-home.is-active) .card,
-  body:has(#page-expense.is-active) .card {
-    background: var(--card);
-    background-image: none;   /* 盖掉写死的纸白→黑檀渐变（简写会把它留在 background-image 层） */
-    border-radius: var(--radius);
-    border-color: rgba(212, 181, 122, .22);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .5), 0 12px 30px rgba(0, 0, 0, .42);
+  /* 当前页标记：朱字 + 下方一道朱短横 —— 像账本里用朱笔圈出的那一栏。
+     （原先只在账簿面生效、简历面走粉底胶囊；两种纸统一成「朱笔圈栏」，导航条两面同款。） */
+  .nav-btn.is-active {
+    background: none; color: var(--brand); font-weight: 600;
+    /* 下划线交给 ::after 画（见下面动效块的「朱笔圈栏」）—— 写成 box-shadow 动不了 */
   }
   /* 戏眼「还能撑」：顶部一条朱砂题花线压阵（C 面的朱砂点睛），大数字奶白衬线。
      Day 14：左对齐 + 标签/数字/提示共用一条左栏线（金发丝），像账本里的一栏摘录，
      不再散成三行 —— 空态时也不会「上面挤一行、下面空一片」。 */
-  body:has(#page-home.is-active) .power {
+  /* 戏眼「还能撑」：纸上一栏「摘录」—— 顶部一道朱题花线压阵，左对齐，
+     标签 / 数字 / 提示共用一条左栏线，像账本里从栏中抄下来的一笔。
+     （题花线是全站少数几个「朱」该出现的位置之一：它是账务含义的重心。） */
+  .power {
     border-top: 2px solid var(--brand);
     border-left: 0;
     text-align: left; padding: 32px 30px 28px;
   }
-  body:has(#page-home.is-active) .power-label {
-    letter-spacing: 4px; color: var(--text-3);
-    padding-bottom: 10px;
-  }
-  body:has(#page-home.is-active) .power-value { letter-spacing: -.5px; font-weight: 600; }
-  /* 空态：虚线圆环改成金线圆（与纯黑金线同语言），尺寸撑住卡片重量 */
-  body:has(#page-home.is-active) .power-value.is-empty #power-num {
-    border-color: rgba(212, 181, 122, .45);
-    color: #d4b57a;
-  }
-  body:has(#page-home.is-active) .power-hint { color: var(--text-2); }
-  /* 存款警告胶囊：暗金琥珀（纯黑上的警告牌，不再是刺眼浅块） */
-  body:has(#page-home.is-active) .power-warn {
-    color: #e6cf9a; background: rgba(212, 181, 122, .12); border-color: rgba(212, 181, 122, .40);
-  }
-  body:has(#page-home.is-active) .power-toggle { border-radius: var(--radius); }
-  /* 大入口：金线按钮 —— 主（记一笔）金线金字，次（记一条）奶白发丝描边 */
-  body:has(#page-home.is-active) .big-btn {
-    border-radius: var(--radius); background: none;
-    border: 1px solid rgba(237, 228, 210, .28); box-shadow: none; color: var(--text);
+  .power-label { letter-spacing: 0; color: var(--text-3); padding-bottom: 10px; }
+  .power-value { letter-spacing: -.5px; font-weight: 600; }
+  .power-toggle { border-radius: var(--r-ctl); }
+  /* 两个大入口 = 账本封面上的两张题签。主入口（记一笔）用朱底朱字 —— 记账是这本簿子的正事；
+     记一条属于简历面，退成墨线素签。 */
+  .big-btn {
+    border-radius: var(--r-card); background: var(--card);
+    border: 1px solid var(--line); color: var(--text);
     padding: 20px 22px;   /* Day 14 疏密：内距撑开，两块入口不再挤成一条 */
   }
-  body:has(#page-home.is-active) .big-btn[data-goto="expense"] {
-    background: none;
-    border-color: rgba(212, 181, 122, .75); color: #e6cf9a;
+  .big-btn[data-goto="expense"] {
+    background: var(--brand-soft);
+    border-color: var(--brand); color: var(--brand);
   }
-  body:has(#page-home.is-active) .big-btn[data-goto="expense"] .btxt span { color: rgba(230, 207, 154, .60); }
-  body:has(#page-home.is-active) .big-btn:hover { border-color: rgba(212, 181, 122, .95); }
-  /* 三数金发丝表格：不分宽窄屏，一律用「上下一对金线 + 竖分隔」的表格语言（C 面骨架） */
-  body:has(#page-home.is-active) .stats,
-  body:has(#page-expense.is-active) .stats {
+  .big-btn[data-goto="expense"] .btxt span { color: var(--text-2); }
+  .big-btn:hover { border-color: var(--brand); }
+  /* 三数 = 账本的一栏表格：上下两道栏线 + 竖分隔，没有卡片底、没有圆角。
+     这是全站最像「账本内页」的一处，保留 —— Day 14 那套表格骨架本来就是对的纸语言，
+     当时只是被金线包着看不出来。 */
+  .stats {
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
     gap: 0;
   }
-  body:has(#page-home.is-active) .stat,
-  body:has(#page-expense.is-active) .stat {
+  .stat {
     background: none; border-radius: 0; border: 0;
     border-left: 1px solid var(--line); padding: 16px 10px;
   }
-  body:has(#page-home.is-active) .stat:first-child,
-  body:has(#page-expense.is-active) .stat:first-child { border-left: 0; }
+  .stat:first-child { border-left: 0; }
 
-  /* ---- 简历面：深底 + 蓝图网格（发丝级，5%）+ 色晕 ---- */
+  /* ---- 简历面：另一种纸 —— 打印纸（冷白、纯净、更硬）----
+     Day 14 的「深底 + 蓝图网格 + 三道色晕」整段撤掉：
+       网格是装饰不是信息（它不编码任何数据）；三道色晕存在的唯一理由是「让玻璃有东西可透」。
+       现在没有玻璃了，两个都失去理由 —— 装饰一旦没有功能，就是套路。
+     两面的区别改由**纸的色温**表达：账簿面暖（#f4efe4），简历面冷（#efece4）+ 卡面纯白。
+     这是全站**唯一**需要覆盖变量的地方。它与 Day 14 那层 body:has 覆盖有本质区别：
+     前者是「换一张纸」，后者是「把同一批控件翻成另一种主题」—— 后者才是 bug 的温床。 */
   body:has(#page-entry.is-active), body:has(#page-resume.is-active), body:has(#page-match.is-active) {
-    background-color: #100d0a;   /* Day 14：比账簿面（#0b0b0b）更深一档，玻璃要深底才透 */
-    background-image:
-      radial-gradient(640px 460px at 24% 30%, rgba(212, 181, 122, .14), rgba(212, 181, 122, 0) 68%),
-      radial-gradient(560px 420px at 78% 24%, rgba(217, 90, 65, .10), rgba(217, 90, 65, 0) 66%),
-      radial-gradient(700px 500px at 55% 95%, rgba(212, 181, 122, .07), rgba(212, 181, 122, 0) 62%),
-      repeating-linear-gradient(0deg, rgba(212, 181, 122, .05) 0 1px, rgba(212, 181, 122, 0) 1px 36px),
-      repeating-linear-gradient(90deg, rgba(212, 181, 122, .05) 0 1px, rgba(212, 181, 122, 0) 1px 36px),
-      linear-gradient(180deg, #141009, #0a0705);
-    color: #ede4d2;   /* 有文字靠继承不吃变量，默认字色也要翻亮（与账簿面同款奶白） */
+    background-color: var(--sheet);
+    background-image: linear-gradient(180deg, #f5f3ed, #e9e5db);   /* 冷白纸的极浅过渡，无图案 */
+    color: var(--text);
   }
-  /* 简历面内部变量整体翻暗色亮字（控件全走 CSS 变量，改根即全改）。
-     Day 14 黑檀玻璃舱：冷蓝系全部归队 —— 金灰文字、金发丝线、品牌色翻烫金；
-     朱砂只留给简历纸的品牌线（跳色），玻璃材质本身（白系半透明）不变 */
   #page-entry, #page-resume, #page-match {
-    color-scheme: dark;   /* 日期控件的原生日历翻暗色 */
-    --text: #ede4d2;
-    --text-2: #b5a88e;
-    --text-3: #96876c;
-    --line: rgba(212, 181, 122, .24);
-    --line-2: rgba(212, 181, 122, .16);
-    --card: rgba(255, 255, 255, .09);   /* 输入框跟随：磨砂小块，不再是死白（暗色玻璃提不透明度口径） */
-    --bg: rgba(255, 255, 255, .04);      /* .todo-note 提示框跟随 */
-    --brand: #d4b57a;
-    --brand-soft: rgba(212, 181, 122, .14);
-    --expense: #e0664c;   /* 必填星号 .req 用它；Day 14 漏定义时继承 :root 旧朱砂（深底 3.0 不达标），补上与账簿面同值 */
-    --income: #d4b57a;    /* 简历面暂无收支金额，防以后引用时漏翻 */
+    --page-face: var(--sheet);   /* 册页框的面：这一面是**冷白打印纸**（比账簿纸白、也更冷） */
+    --card: var(--sheet-card);   /* 卡面 = 纯白打印纸 */
+    --bg: #f5f3ed;               /* 凹面底（.todo-note / 输入槽）：比卡面沉一档 */
+    --line: #dcd8cc;             /* 冷纸上的栏线：比账簿面的暖栏线更冷、更淡 */
+    --line-2: #eae7de;
   }
-  /* 真玻璃卡片（Skill v2 按调研修正）：blur 26→14（研究口径：超 20px 发闷不透气），
-     卡面不透明度提高（暗色玻璃要 20-30% 才有存在感），亮边 .30→.38 —— 暗色下边框是第一视觉指示。
-     Day 14：亮边与渐变尾翻暖（金边、黑檀尾），冷蓝退场 */
+  /* 简历面的区块 = 一张纸卡片（这一面的产出物本来就是一叠纸）。
+     要把账簿面那套「栏目」（透明底 / 无圆角 / 文武线 / 零左右内距）整组还原回来。 */
   #page-entry .card, #page-resume .card, #page-match .card {
-    background: linear-gradient(165deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, .05) 40%, rgba(30, 22, 15, .55) 100%);
-    backdrop-filter: blur(14px) saturate(1.6);
-    -webkit-backdrop-filter: blur(14px) saturate(1.6);
-    border: 1px solid rgba(212, 181, 122, .40);
+    background: var(--sheet-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
     box-shadow:
-      0 12px 40px rgba(0, 0, 0, .5),
-      inset 0 1px 0 rgba(255, 255, 255, .30),
-      inset 0 -1px 0 rgba(255, 255, 255, .06),
-      inset 1px 0 0 rgba(255, 255, 255, .12);
+      inset 0 1px 0 rgba(255, 255, 255, .90),
+      0 1px 2px rgba(70, 60, 45, .05), 0 8px 20px rgba(70, 60, 45, .06);
+    padding: 28px;
+    margin-bottom: 20px;
   }
-  /* 浏览器不支持磨砂时降级成近实底面板，保证文字对比度不塌（调研口径：@supports 兜底） */
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    #page-entry .card, #page-resume .card, #page-match .card, #page-resume .resume-sheet {
-      background: rgba(28, 21, 15, .94);
-    }
-  }
-  /* 输入框 = 玻璃凹槽：同材质半透明 + 内顶高光，聚焦时一圈金光晕（「通电」感，与烫金报头同语言）。
-     用户点名批评的白块就是它 —— 现在和卡片长在一个材质里 */
-  #page-entry input[type="text"], #page-entry input[type="number"], #page-entry input[type="date"], #page-entry select,
-  #page-resume input[type="text"], #page-resume input[type="number"], #page-resume input[type="date"], #page-resume select,
-  #page-match input[type="text"], #page-match input[type="number"], #page-match input[type="date"], #page-match select, #page-match textarea {
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-color: rgba(212, 181, 122, .35);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 0 10px rgba(212, 181, 122, .12);
-  }
-  #page-entry input:focus, #page-entry select:focus,
-  #page-resume input:focus, #page-resume select:focus,
-  #page-match input:focus, #page-match select:focus, #page-match textarea:focus {
-    border-color: var(--brand);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16),
-                0 0 0 3px rgba(212, 181, 122, .22), 0 0 16px rgba(212, 181, 122, .30);
-  }
-  /* 量化结果标签：玻璃小牌 + 金光渗出（原来只是平贴一块色底） */
-  #page-entry .entry-result {
-    box-shadow: 0 0 12px rgba(212, 181, 122, .28), inset 0 1px 0 rgba(255, 255, 255, .18);
-  }
-  /* 主按钮（保存）：金底 + 黑檀深字 —— 烫金铭牌的阳文；白字在金底只有 2.0 不达标 */
-  #page-entry .btn-primary, #page-resume .btn-primary, #page-match .btn-primary {
-    color: #1a130c;
-  }
-  #page-entry .btn-primary:hover, #page-resume .btn-primary:hover, #page-match .btn-primary:hover {
-    background: #e2c48a; border-color: #e2c48a;
-  }
-  /* 简历纸（Day 13 二改，秋鹰师拍板「白纸和玻璃面不搭」）：屏幕上改成深色玻璃文档，
-     和这面的卡片同材质 —— 半透明磨砂 + 亮边 + 上缘高光。
-     Day 14 黑檀玻璃舱：纸底与内部变量翻暖（黑檀底、金灰字、金微线），
-     --brand 保持朱砂 #e8704f —— 简历纸上的品牌线是朱砂跳色，与账簿面的题花线同语言。
-     打印时 @media print 会把背景和变量全部翻回「白纸黑字 + 暖墨朱砂」，纸的产出物属性不受影响 */
+  #page-entry .card::before, #page-entry .card::after,
+  #page-resume .card::before, #page-resume .card::after,
+  #page-match .card::before, #page-match .card::after { display: none; }
+  /* Day 14 的 @supports「磨砂降级兜底」随玻璃一并撤掉 —— 不再使用 backdrop-filter，
+     也就没有降级问题。留此一行存档，防止以后有人以为是漏掉了。 */
+  /* 简历面的输入框回归统一写法（白纸底 + 冷栏线 + 朱色聚焦圈）。
+     Day 14 那套「玻璃凹槽 + 内顶高光 + 金光晕」整段撤掉 —— 用户当年点名批评的「白块」，
+     正是「暗底 + 半透明控件」这个组合逼出来的；白纸上根本不存在这个问题，所以不需要任何特判。 */
+  /* 量化结果标签：不再需要「玻璃小牌 + 金光渗出」。.entry-result 的朱浅底加文字已足够 ——
+     装饰去掉了，语义（这是量化成果）还在。 */
+  /* 简历纸 = 这一页的产出物，也就是**真正会打印出来的那张纸**。
+     屏幕上就让它保持白纸：不再有「深色玻璃文档」，也就不再需要 @media print 去把它翻回来。
+     这一处改动直接拆掉了 Day 14 三个打印 bug 的根因 ——
+     那三个 bug（黑底印出来 / 白底白字 / 标签印成空白框）全都来自「屏幕上不是纸、打印时硬翻成纸」。
+     现在屏幕和纸是同一张纸，屏幕样式再花也影响不到产出物。 */
   #page-resume .resume-sheet {
-    background: rgba(26, 20, 14, .68);
-    backdrop-filter: blur(14px) saturate(1.4);
-    -webkit-backdrop-filter: blur(14px) saturate(1.4);
-    color: var(--text, #ede4d2);
-    border: 1px solid rgba(212, 181, 122, .30);
-    box-shadow: 0 0 0 1px rgba(212, 181, 122, .08), 0 12px 40px rgba(0, 0, 0, .5),
-                inset 0 1px 0 rgba(255, 255, 255, .22);
-    --text: #ede4d2;
-    --text-2: #b5a88e;
-    --text-3: #96876c;
-    --line: rgba(212, 181, 122, .20);
-    --line-2: rgba(212, 181, 122, .15);
-    --brand: #e8704f;
-    --brand-soft: rgba(232, 112, 79, .16);
+    background: var(--sheet-card);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sheet);
+    box-shadow: 0 1px 2px rgba(70, 60, 45, .06), 0 10px 26px rgba(70, 60, 45, .08);
   }
 
   /* ---- 本月收支墨线（账本手绘风数据图，接真实账目；空月整块藏掉） ---- */
   .ink-trend { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
   .ink-trend .ink-cap {
-    font-size: 11px; letter-spacing: 2px; color: var(--text-3);
+    font-size: 11px; letter-spacing: 0; color: var(--text-3);
     margin: 0 0 6px; font-family: var(--serif);
   }
   .ink-trend svg { display: block; width: 100%; height: 56px; }
@@ -1134,23 +1784,21 @@
   /* ---- 岗位匹配页（Day 14 插入任务）：只加这页特有的两块，其余全部复用简历面的玻璃语言 ---- */
   /* JD 输入框：多行，跟同页单行输入框同一材质（凹槽 + 内顶高光），
      单独列一条是因为 textarea 不在上面那组 input 选择器里 */
+  /* JD 输入框：多行。Day 14 它是「玻璃凹槽」，现在与同页单行输入框同源（白纸底 + 冷栏线），
+     单独列一条只是因为 textarea 不在上面那组 input 选择器里 */
   #page-match .match-textarea {
     width: 100%; min-height: 120px; resize: vertical;
     font: inherit; line-height: 1.65;
-    padding: 11px 13px; border-radius: var(--radius);
+    padding: 11px 13px; border-radius: var(--r-ctl);
     background: var(--card); color: var(--text);
     border: 1px solid var(--line);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-color: rgba(212, 181, 122, .35);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 0 10px rgba(212, 181, 122, .12);
   }
-  /* 匹配结果：跟 AI 优化建议同语言（左金线 + 半透明底），只读文本块 */
+  /* 匹配结果：跟 AI 优化建议同语言（左朱线 + 凹面底），只读文本块 */
   #page-match .match-result {
     margin-top: 12px; padding: 14px 16px;
     border-left: 2px solid var(--brand);
-    background: rgba(255, 255, 255, .05);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--bg);
+    border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
     font-size: 13.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word;
   }
   #page-match .match-result.is-err { border-left-color: var(--expense); }
@@ -1179,17 +1827,10 @@
   <div class="navbar-inner">
     <div class="brand">简册<span class="brand-en">Ledger and Career</span></div>
     <nav class="nav-links">
-      <div class="nav-group">
-        <span class="nav-module">账簿面</span>
-        <button type="button" class="nav-btn is-active" data-page="home">底牌页</button>
-        <button type="button" class="nav-btn" data-page="expense">记一笔</button>
-      </div>
-      <div class="nav-group">
-        <span class="nav-module">简历面</span>
-        <button type="button" class="nav-btn" data-page="entry">记一条</button>
-        <button type="button" class="nav-btn" data-page="resume">简历预览</button>
-        <button type="button" class="nav-btn" data-page="match">岗位匹配</button>
-      </div>
+      <!-- 唯一入口：其他五页只能从主界面进（秋鹰师 2026-09-30 定）。
+           所以导航条不再列五个页名 —— 它现在只有一个功能：从任何一页回到主界面。
+           当前页在「主界面」上时它是朱色（aria-current），在其他页时是墨色（可点回程）。 -->
+      <button type="button" class="nav-btn is-active" data-page="start">主界面</button>
     </nav>
   </div>
 </header>
@@ -1201,14 +1842,148 @@
 
 <main class="wrap">
 
-  <!-- ================= 页面 1：底牌页（默认） ================= -->
-  <section id="page-home" class="page is-active">
+  <!-- ================= 页面 0：主界面（封面 + 牌桌 · 默认落地页） =================
+       这是这本簿子的「封面」，也是**唯一入口**：五个页面各做成一张牌，点哪张翻哪张。
+       （秋鹰师 2026-09-30 定：其他五页只能从这里进。）
+       造型分三层：
+         ① 封面抬头：大字书名 + 朱色藏书印 + 文武线（一粗一细压边）
+         ② 牌桌：一块有底色的面，牌躺在上面 —— 不是浮在空白里
+         ③ 五张**竖版**牌：真牌是竖的；横着排就成了一行横幅，没有牌的质感
+       卡片用 <button>：天生能 Tab 到、能回车触发，键盘支持不用另做一套。 -->
+  <section id="page-start" class="page is-active">
+
+    <div class="start-cover">
+      <div class="start-brand">
+        <span class="start-brand-cn">简册</span>
+        <span class="start-seal" aria-hidden="true">简</span>
+      </div>
+      <p class="start-brand-en">Ledger and Career</p>
+      <div class="start-rule" aria-hidden="true"></div>
+      <h1 class="start-title">翻哪一页</h1>
+      <p class="start-sub">一本账簿，一份简历。点开哪张牌，就进哪一页。</p>
+    </div>
+
+    <div class="pdeck">
+      <button type="button" class="pcard" data-goto="home" data-mod="账簿面">
+        <span class="pcard-inner">
+          <span class="pcard-face pcard-front">
+            <span class="pcard-mod">账簿面</span>
+            <span class="pcard-name">底牌页</span>
+            <span class="pcard-desc">还能撑几个月，一眼看到</span>
+          </span>
+          <span class="pcard-face pcard-back pcard-scene scene-ledger" aria-hidden="true">
+            <span class="scene-ledger-spine"></span>
+            <span class="scene-ledger-rule"></span>
+            <span class="scene-ledger-rule"></span>
+            <span class="scene-ledger-rule"></span>
+            <span class="scene-ledger-line"></span>
+            <span class="scene-ledger-line"></span>
+          </span>
+        </span>
+      </button>
+      <button type="button" class="pcard" data-goto="expense" data-mod="账簿面">
+        <span class="pcard-inner">
+          <span class="pcard-face pcard-front">
+            <span class="pcard-mod">账簿面</span>
+            <span class="pcard-name">记一笔</span>
+            <span class="pcard-desc">三秒记下今天的收支</span>
+          </span>
+          <span class="pcard-face pcard-back pcard-scene scene-pen" aria-hidden="true">
+            <svg class="scene-pen-svg" viewBox="0 0 100 100">
+              <line class="scene-pen-paper" x1="14" y1="14" x2="86" y2="14" />
+              <line class="scene-pen-paper" x1="14" y1="86" x2="86" y2="86" />
+              <path class="scene-pen-stroke" d="M18,76 Q40,52 52,58 T86,22" />
+              <circle class="scene-pen-tip" r="3.2" cx="0" cy="0">
+                <animateMotion dur="0.62s" begin="0.1s" fill="freeze"
+                               path="M18,76 Q40,52 52,58 T86,22"
+                               calcMode="spline" keyTimes="0;1" keySplines="0.4 0.1 0.3 1" />
+              </circle>
+            </svg>
+          </span>
+        </span>
+      </button>
+      <button type="button" class="pcard" data-goto="entry" data-mod="简历面">
+        <span class="pcard-inner">
+          <span class="pcard-face pcard-front">
+            <span class="pcard-mod">简历面</span>
+            <span class="pcard-name">记一条</span>
+            <span class="pcard-desc">记下今天做成了什么</span>
+          </span>
+          <span class="pcard-face pcard-back pcard-scene scene-print" aria-hidden="true">
+            <span class="scene-print-sheet">
+              <span class="scene-print-line"></span>
+              <span class="scene-print-line"></span>
+              <span class="scene-print-line"></span>
+              <span class="scene-print-line scene-print-line-short"></span>
+            </span>
+          </span>
+        </span>
+      </button>
+      <button type="button" class="pcard" data-goto="resume" data-mod="简历面">
+        <span class="pcard-inner">
+          <span class="pcard-face pcard-front">
+            <span class="pcard-mod">简历面</span>
+            <span class="pcard-name">简历预览</span>
+            <span class="pcard-desc">攒成一张能打印的简历</span>
+          </span>
+          <span class="pcard-face pcard-back pcard-scene scene-fold" aria-hidden="true">
+            <span class="scene-fold-half scene-fold-l"></span>
+            <span class="scene-fold-half scene-fold-r"></span>
+            <span class="scene-fold-seam"></span>
+          </span>
+        </span>
+      </button>
+      <button type="button" class="pcard" data-goto="match" data-mod="简历面">
+        <span class="pcard-inner">
+          <span class="pcard-face pcard-front">
+            <span class="pcard-mod">简历面</span>
+            <span class="pcard-name">岗位匹配</span>
+            <span class="pcard-desc">粘一段 JD，看合不合</span>
+          </span>
+          <span class="pcard-face pcard-back pcard-scene scene-radar" aria-hidden="true">
+            <svg class="scene-radar-svg" viewBox="-50 -50 100 100">
+              <circle class="scene-radar-ring" cx="0" cy="0" r="38" />
+              <line class="scene-radar-ray" x1="0" y1="0" x2="0" y2="-40" />
+              <line class="scene-radar-ray" x1="0" y1="0" x2="34.6" y2="-20" />
+              <line class="scene-radar-ray" x1="0" y1="0" x2="34.6" y2="20" />
+              <line class="scene-radar-ray" x1="0" y1="0" x2="0" y2="40" />
+              <line class="scene-radar-ray" x1="0" y1="0" x2="-34.6" y2="20" />
+              <line class="scene-radar-ray" x1="0" y1="0" x2="-34.6" y2="-20" />
+              <circle class="scene-radar-dot" cx="0" cy="-40" r="2.4" />
+              <circle class="scene-radar-dot" cx="34.6" cy="-20" r="2.4" />
+              <circle class="scene-radar-dot" cx="34.6" cy="20" r="2.4" />
+              <circle class="scene-radar-dot" cx="0" cy="40" r="2.4" />
+              <circle class="scene-radar-dot" cx="-34.6" cy="20" r="2.4" />
+              <circle class="scene-radar-dot" cx="-34.6" cy="-20" r="2.4" />
+            </svg>
+          </span>
+        </span>
+      </button>
+    </div>
+
+    <p class="pdeck-hint">五张牌，就是简册的全部页面。</p>
+
+  </section>
+
+  <!-- ================= 页面 1：底牌页 ================= -->
+  <section id="page-home" class="page">
+
+    <!-- 装订册装饰（Day 15 · C 选项）：账簿面 = 朱线装订 + 装订孔 + 朱蓝印章 + 折痕 -->
+    <div class="page-deco is-ledger" aria-hidden="true">
+      <span class="deco-binding"></span>
+      <span class="deco-seal">账</span>
+      <span class="deco-fold"></span>
+    </div>
 
     <div class="page-module">账簿面</div>
 
     <div class="card power">
       <div class="power-label">还能撑</div>
       <div class="power-value is-empty" id="power-value"><span id="power-num">¥</span><span class="power-unit" id="power-unit" hidden>个月</span></div>
+      <!-- 戏眼量柱：12 格 = 一年，够用的月份落墨、不足 3 个月翻朱告急。
+           纯读数装饰，数字已在上面的 #power-num，所以整块 aria-hidden，读屏不重复播报。 -->
+      <div class="runway-viz" id="runway-viz" hidden aria-hidden="true"><span class="runway-fill" id="runway-fill"></span></div>
+      <p class="runway-cap" id="runway-cap" hidden aria-hidden="true"></p>
       <div class="power-warn" id="power-warn" hidden>样本不足 3 个月</div>
       <!-- 数字旁边的小入口：点一下才展开算法（PRD 功能 3 用户动作 3），默认收起 -->
       <button type="button" class="power-toggle" id="power-detail-toggle" hidden
@@ -1238,26 +2013,15 @@
       <div class="ink-trend" id="ink-trend" hidden aria-hidden="true">
         <p class="ink-cap">本月收支墨线</p>
         <svg viewBox="0 0 300 64" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-          <path id="trend-income" d="" fill="none" stroke="#d4b57a" stroke-width="1.6"
+          <path id="trend-income" d="" fill="none" stroke="#24425e" stroke-width="1.6"
                 stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-          <path id="trend-expense" d="" fill="none" stroke="#d95a41" stroke-width="1.4"
+          <path id="trend-expense" d="" fill="none" stroke="#a7392a" stroke-width="1.4"
                 stroke-dasharray="3 3" opacity=".85" stroke-linejoin="round" stroke-linecap="round"
                 vector-effect="non-scaling-stroke"/>
-          <circle id="trend-dot-income" r="2.6" fill="#d4b57a"/>
-          <circle id="trend-dot-expense" r="2.2" fill="#d95a41"/>
+          <circle id="trend-dot-income" r="2.6" fill="#24425e"/>
+          <circle id="trend-dot-expense" r="2.2" fill="#a7392a"/>
         </svg>
       </div>
-    </div>
-
-    <div class="big-actions">
-      <button type="button" class="big-btn" data-goto="expense">
-        <svg class="bicon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H18a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6.5A1.5 1.5 0 0 1 5 19.5Z"/><path d="M5 17.5A1.5 1.5 0 0 1 6.5 16H19"/><path d="M9 7.5h6"/></svg>
-        <span class="btxt"><strong>记一笔</strong><span>三秒记下今天的收支</span></span>
-      </button>
-      <button type="button" class="big-btn" data-goto="entry">
-        <svg class="bicon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9Z"/><path d="M18.5 16.5v5M16 19h5"/></svg>
-        <span class="btxt"><strong>记一条</strong><span>记下今天做成了什么</span></span>
-      </button>
     </div>
 
     <div class="card">
@@ -1312,6 +2076,13 @@
 
   <!-- ================= 页面 2：记一笔 ================= -->
   <section id="page-expense" class="page">
+
+    <!-- 装订册装饰（Day 15 · C 选项）：账簿面 = 朱线装订 + 装订孔 + 朱蓝印章 + 折痕 -->
+    <div class="page-deco is-ledger" aria-hidden="true">
+      <span class="deco-binding"></span>
+      <span class="deco-seal">账</span>
+      <span class="deco-fold"></span>
+    </div>
 
     <div class="page-module">账簿面</div>
 
@@ -1430,6 +2201,13 @@
   <!-- ================= 页面 3：记一条 ================= -->
   <section id="page-entry" class="page">
 
+    <!-- 装订册装饰（Day 15 · C 选项）：简历面 = 灰线装订 + 极淡网格 + 描边印章 + 折痕 -->
+    <div class="page-deco is-resume" aria-hidden="true">
+      <span class="deco-binding"></span>
+      <span class="deco-seal">履</span>
+      <span class="deco-fold"></span>
+    </div>
+
     <div class="page-module">简历面</div>
 
     <div class="card">
@@ -1496,6 +2274,13 @@
 
   <!-- ================= 页面 4：简历预览 ================= -->
   <section id="page-resume" class="page">
+
+    <!-- 装订册装饰（Day 15 · C 选项）：简历面 = 灰线装订 + 极淡网格 + 描边印章 + 折痕 -->
+    <div class="page-deco is-resume" aria-hidden="true">
+      <span class="deco-binding"></span>
+      <span class="deco-seal">履</span>
+      <span class="deco-fold"></span>
+    </div>
 
     <div class="page-module">简历面</div>
 
@@ -1572,6 +2357,13 @@
        它只处理「用户自己粘贴进来的 JD 文字」+「用户自己填的求职偏好」。
        爬取他人个人信息 = 禁止；分析用户主动交出的文本 = 允许。两者是两回事。 -->
   <section id="page-match" class="page">
+
+    <!-- 装订册装饰（Day 15 · C 选项）：简历面 = 灰线装订 + 极淡网格 + 描边印章 + 折痕 -->
+    <div class="page-deco is-resume" aria-hidden="true">
+      <span class="deco-binding"></span>
+      <span class="deco-seal">履</span>
+      <span class="deco-fold"></span>
+    </div>
 
     <div class="page-module">简历面</div>
 
@@ -1863,12 +2655,14 @@
      ============================================================ */
 
   // 允许出现在地址栏的四个门牌号。不在这份名单里的地址，一律退回底牌页
-  const PAGE_NAMES = ['home', 'expense', 'entry', 'resume', 'match'];
+  // 门牌号清单。'start' = 主界面（卡牌台），也是**默认落地页** ——
+  // 打开简册第一眼看到的是它，五张牌各指一个页面（秋鹰师 2026-09-30 定）。
+  const PAGE_NAMES = ['start', 'home', 'expense', 'entry', 'resume', 'match'];
 
-  // 地址 → 页名：'#/expense' → 'expense'；'#expense'、'#/expense/' 也认；其余 → 'home'
+  // 地址 → 页名：'#/expense' → 'expense'；'#expense'、'#/expense/' 也认；其余 → 'start'（主界面）
   function pageFromHash(hash) {
     const raw = String(hash || '').replace(/^#\/?/, '').replace(/\/+$/, '').trim().toLowerCase();
-    return PAGE_NAMES.indexOf(raw) > -1 ? raw : 'home';
+    return PAGE_NAMES.indexOf(raw) > -1 ? raw : 'start';
   }
 
   // 页名 → 地址：'expense' → '#/expense'（底牌页也写成 #/home，四种地址形态一致好记）
@@ -1878,15 +2672,92 @@
   // 若目标门牌号和现在一样（在记一笔页又点了一次「记一笔」），
   // 地址没变也就没有 hashchange，这里补渲染一次，保证点了必有反馈。
   function goPage(name) {
-    const clean = PAGE_NAMES.indexOf(name) > -1 ? name : 'home';
+    const clean = PAGE_NAMES.indexOf(name) > -1 ? name : 'start';
     if (location.hash === hashForPage(clean)) { showPage(clean); return; }
     location.hash = hashForPage(clean);
   }
 
   // 只负责「把这一页显示出来」：换 class、标高亮、给屏幕阅读器报当前页。
   // 它不碰地址栏——地址的事归 goPage() 和 hashchange 管
+  /* ---- 卡牌翻转：只在「底牌页 ↔ 简历预览」这一对之间发生 ----
+     方向感：底牌页 → 简历预览 是「往后翻」，反过来是「往回翻」——
+     两边的入场方向相反，来回翻才像在翻同一本簿子，而不是同一个动画播两遍。 */
+  const FLIP_PAIRS = { home: 'resume', resume: 'home' };
+  let lastRenderedPage = null;   // 上一次真正落下的页面，用来判断「从哪翻到哪」
+  let flipping = false;
+  let flipToken = 0;
+
+  // 把没跑完的翻牌作废：连点两次导航时，绝不能让上一次动画的回调再切一次页
+  function abortFlip() {
+    flipToken++;
+    document.body.classList.remove('is-flipping');
+    document.body.style.removeProperty('--flip-sign');
+    $$('.page').forEach((p) => {
+      p.classList.remove('flip-out', 'flip-in');
+      p.style.transformOrigin = '';
+    });
+    flipping = false;
+  }
+
+  // 翻面：两个半场 —— 旧页转出去 → 换页 → 新页从另一侧转进来。
+  // 换页那一拍走的是原来的 applyPage，所以地址路由 / aria-current / 各页的进页副作用
+  //（渲染简历、检查云端通道、停掉后台生成）全都照旧：翻牌只换了「怎么换」，没换「换了什么」。
+  function playFlip(fromName, toName) {
+    const token = ++flipToken;
+    const fromEl = document.getElementById('page-' + fromName);
+    const toEl = document.getElementById('page-' + toName);
+    const sign = fromName === 'home' ? 1 : -1;      // 1 = 往后翻，-1 = 往回翻
+    document.body.style.setProperty('--flip-sign', sign);
+    document.body.classList.add('is-flipping');
+    // 转动轴放在「书脊」那一侧：往后翻轴在左，往回翻轴在右
+    fromEl.style.transformOrigin = sign > 0 ? 'left center' : 'right center';
+    toEl.style.transformOrigin = sign > 0 ? 'right center' : 'left center';
+    fromEl.classList.add('flip-out');
+    const onOut = () => {
+      fromEl.removeEventListener('animationend', onOut);
+      if (token !== flipToken) return;             // 已被后来的一次导航接管
+      fromEl.classList.remove('flip-out');
+      fromEl.style.transformOrigin = '';
+      applyPage(toName);                           // 换页发生在牌「侧过去」那一瞬，看不见跳变
+      toEl.classList.add('flip-in');
+      const onIn = () => {
+        toEl.removeEventListener('animationend', onIn);
+        if (token !== flipToken) return;
+        toEl.classList.remove('flip-in');
+        toEl.style.transformOrigin = '';
+        document.body.classList.remove('is-flipping');
+        document.body.style.removeProperty('--flip-sign');
+        flipping = false;
+      };
+      toEl.addEventListener('animationend', onIn);
+    };
+    fromEl.addEventListener('animationend', onOut);
+  }
+
+  // 切页统一入口：够条件就翻牌，否则直接落页
   function showPage(name) {
-    $$('.page').forEach((p) => p.classList.toggle('is-active', p.id === 'page-' + name));
+    const prev = lastRenderedPage;
+    if (flipping) abortFlip();                     // 上一次翻牌没跑完，先作废
+    // 首次进页（prev 为空）不翻；系统开了「减少动效」也不翻，直接落页
+    if (prev && prev !== name && FLIP_PAIRS[prev] === name && !prefersReduced) {
+      flipping = true;
+      lastRenderedPage = name;
+      playFlip(prev, name);
+      return;
+    }
+    lastRenderedPage = name;
+    applyPage(name);
+  }
+
+  // 把某一页真正「落下」：显隐 + 导航高亮 + 进页副作用
+  function applyPage(name) {
+    // Day 15：切页就是切页，不给页面挂任何动画（见 CSS 第 6 节的撤销说明）。
+    // 顺手清掉上一版留下的 .is-entering —— 老页面上可能还挂着这个类，
+    // 不清的话它是「动画已完成」状态，以后一旦有人再给它加动画会莫名其妙不播。
+    $$('.page').forEach((p) => {
+      p.classList.remove('is-entering');
+      p.classList.toggle('is-active', p.id === 'page-' + name);
+    });
     $$('.nav-btn').forEach((b) => {
       const on = b.dataset.page === name;
       b.classList.toggle('is-active', on);
@@ -1923,14 +2794,14 @@
   // 从地址进页：首次打开、后退键、手改地址，三条路都走这里
   function enterPageFromHash() {
     const raw = String(location.hash || '').replace(/^#\/?/, '').replace(/\/+$/, '').trim().toLowerCase();
-    const name = PAGE_NAMES.indexOf(raw) > -1 ? raw : 'home';
-    // 两种要顺手修地址的情况：①地址栏空着（首次打开）→ 补上 #/home
-    //                          ②写了个不认识的页名 → 改回 #/home，免得地址和页面对不上
+    const name = PAGE_NAMES.indexOf(raw) > -1 ? raw : 'start';
+    // 两种要顺手修地址的情况：①地址栏空着（首次打开）→ 补上 #/start（主界面）
+    //                          ②写了个不认识的页名 → 改回 #/start，免得地址和页面对不上
     // 用 replaceState 而不是改 hash：这样不会往后退键的历史里多塞一条，
     // 用户点一次「记一笔」再点后退，应该回到他来时那个页面，而不是原地踏步。
     if (name !== raw) {
-      // file:// 下个别浏览器不让改地址，改不动就算了，页面照常落在底牌页
-      try { history.replaceState(null, '', hashForPage('home')); } catch (err) { /* 忽略 */ }
+      // file:// 下个别浏览器不让改地址，改不动就算了，页面照常落在主界面
+      try { history.replaceState(null, '', hashForPage('start')); } catch (err) { /* 忽略 */ }
     }
     showPage(name);
   }
@@ -2033,6 +2904,39 @@
 
   // 「怎么算的」展开没展开（PRD 功能 3 用户动作 3）。默认收起，点一下才展开
   let powerDetailOpen = false;
+
+  /* ============================================================
+     动效（甲版）· 数字滚动
+     为什么值得做：这是全站最该被看见的变化 ——「我记了一笔，数字动了」。
+     直接跳到结果看不出「变了多少」，滚动能看出方向和幅度。
+     两条纪律：
+       ① 终点必须精确落在目标值上。滚动只是过程，绝不能改变最终数字。
+       ② 系统开了「减少动效」就完全不动，直接写终值。
+     ============================================================ */
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // 上一次显示过的数值（null 语义用 0 代替）：用来「从旧值滚到新值」。
+  // 初值给 0，于是首屏就是一次「从 0 滚上去」—— 正好落在开场的落笔序列里。
+  const lastShown = { income: 0, expense: 0, balance: 0, runway: 0 };
+  let tweenSeq = 0;
+  function tweenText(el, fromNum, toNum, fmt, ms) {
+    if (prefersReduced || !isFinite(fromNum) || !isFinite(toNum) || fromNum === toNum) {
+      el.textContent = fmt(toNum);              // 直接落值，一步到位
+      return;
+    }
+    // 同一元素上如果还有上一轮没跑完，用令牌把它作废 —— 否则两次渲染会互相抢着写
+    const token = String(++tweenSeq);
+    el.dataset.tweenToken = token;
+    const t0 = performance.now();
+    const step = (now) => {
+      if (el.dataset.tweenToken !== token) return;   // 已被更新的一次渲染接管，放弃本轮
+      const k = Math.min(1, (now - t0) / ms);
+      const e = 1 - Math.pow(1 - k, 3);              // easeOutCubic：先快后慢，像笔落下去
+      el.textContent = fmt(fromNum + (toNum - fromNum) * e);
+      if (k < 1) requestAnimationFrame(step);
+      else el.textContent = fmt(toNum);              // 最后一帧钉死在目标值，不留浮点尾巴
+    };
+    requestAnimationFrame(step);
+  }
 
   // 取某个月的记录：date 长这样 2026-09-22，取前 7 位就是 2026-09
   function expensesOfMonth(m) {
@@ -2414,20 +3318,29 @@
   function renderHome() {
     // ---- 本月三数（本月 = 电脑系统时间所在的自然月，PRD 5.3） ----
     const s = sumOfMonth(currentMonthStr());
-    const setStat = (sel, text, isEmpty) => {
+    // 空态：直接写「待记录」，并把滚动起点归零（下次有数了要能从 0 滚上去）
+    const setEmpty = (sel, key) => {
       const el = $(sel);
-      el.textContent = text;
-      el.classList.toggle('is-empty', !!isEmpty);
+      el.textContent = '待记录';
+      el.classList.add('is-empty');
+      lastShown[key] = 0;
+    };
+    // 有数：从上次显示过的值滚到新值（首屏即 0 → 目标，正好落在落笔序列里）
+    const setStatNum = (sel, key, val, fmt) => {
+      const el = $(sel);
+      el.classList.remove('is-empty');
+      tweenText(el, lastShown[key], val, fmt, 520);
+      lastShown[key] = val;
     };
     if (s.count === 0) {
       // 这月一条记录都没有：显示「待记录」，不拿 ¥0.00 冒充「有数据」（Day 10 空态重设计）
-      setStat('#home-income', '待记录', true);
-      setStat('#home-expense', '待记录', true);
-      setStat('#home-balance', '待记录', true);
+      setEmpty('#home-income', 'income');
+      setEmpty('#home-expense', 'expense');
+      setEmpty('#home-balance', 'balance');
     } else {
-      setStat('#home-income', money(s.income), false);
-      setStat('#home-expense', money(s.expense), false);
-      setStat('#home-balance', balanceText(s.income - s.expense), false);
+      setStatNum('#home-income', 'income', s.income, money);
+      setStatNum('#home-expense', 'expense', s.expense, money);
+      setStatNum('#home-balance', 'balance', s.income - s.expense, balanceText);
     }
 
     updateInkTrend();   // 本月收支墨线跟着三数一起重画（本月没账它自己会藏）
@@ -2441,6 +3354,10 @@
     const detailEl = $('#power-detail');
     const toggleEl = $('#power-detail-toggle');
     const warnEl = $('#power-warn');
+    // 戏眼量柱（甲版）：把「还剩几个月」变成一根能读出长度的刻度柱
+    const vizEl = $('#runway-viz');
+    const fillEl = $('#runway-fill');
+    const capEl = $('#runway-cap');
 
     hintEl.textContent = r.hint || '';
     hintEl.hidden = !r.hint;
@@ -2454,12 +3371,41 @@
 
     if (r.state === 'ok') {
       valueEl.classList.remove('is-empty');
-      numEl.textContent = '≈ ' + r.value.toFixed(1);   // 保留一位小数（PRD 第五节）
+      // 数字跟量柱一起滚（保留一位小数，PRD 第五节）
+      tweenText(numEl, lastShown.runway, r.value, (v) => '≈ ' + v.toFixed(1), 620);
+      lastShown.runway = r.value;
       unitEl.hidden = false;
     } else {
       valueEl.classList.add('is-empty');
       numEl.textContent = '¥';                 // 空态占位：配合 CSS 画成虚线圆环（Day 10 重设计）
       unitEl.hidden = true;                            // 空态只显示占位圆环，不留「个月」
+      lastShown.runway = 0;
+    }
+
+    // ---- 戏眼量柱（甲版）：12 格 = 一年 ----
+    // 只有算得出数字时才画。空态 / 引导态没有量可画 —— 硬画一根空柱只会变成纯装饰，
+    // 那正是这一版要清掉的东西（装饰必须有功能）。
+    const vizWasHidden = vizEl.hidden;
+    vizEl.hidden = r.state !== 'ok';
+    capEl.hidden = r.state !== 'ok';
+    if (r.state === 'ok') {
+      const months = Math.max(0, r.value);
+      // 宽度 = 月数 / 12，满 12 格到顶；超过一年不再拉长（柱要有长度上限才读得出比例）
+      const w = (Math.min(1, months / 12) * 100).toFixed(1) + '%';
+      // 刚从 hidden 出来时浏览器不会跑 transition（没有「上一个值」可比）——
+      // 先落 0、隔一帧再落目标，柱子才会「长出来」。这就是落笔序列里长出来的那根柱。
+      if (vizWasHidden) {
+        fillEl.style.width = '0%';
+        requestAnimationFrame(() => { fillEl.style.width = w; });
+      } else {
+        fillEl.style.width = w;
+      }
+      vizEl.classList.toggle('is-short', months < 3);   // 不足 3 个月翻朱告急
+      capEl.textContent = months >= 12
+        ? '每格 1 个月 · 已够撑一年以上'
+        : '每格 1 个月 · 距一年还差 ' + (12 - months).toFixed(1) + ' 个月';
+    } else {
+      fillEl.style.width = '0%';
     }
   }
 
@@ -2849,6 +3795,13 @@
       aiBtn.className = 'resume-ai';
       aiBtn.setAttribute('data-id', r.id);
       aiBtn.textContent = 'AI 优化';
+      // 通道没接通就直接禁用（秋鹰师 2026-09-30 拍板）。
+      // 之前不禁用：点下去只会再查一次连接、然后什么都不发生，看着像「点了没反应」。
+      // 禁用态 + title 说明原因，比静默无响应诚实。
+      if (!aiConnected) {
+        aiBtn.disabled = true;
+        aiBtn.title = '云端通道没接通，先点上面的「检查连接」';
+      }
       main.appendChild(aiBtn);
 
       item.appendChild(when);
@@ -3479,6 +4432,84 @@
      11. 初始化
      ============================================================ */
 
+  /* 首次进站的「落笔序列」—— 全站唯一的非用户触发动效。
+     把所有区块的栏线依次画出来（每块错开 70ms），像有人拿笔一格一格把栏线划出来。
+     三条约束：① 只跑一次，跑完立刻摘掉 body.intro，之后永不重复
+               ② 减少动效时完全不跑
+               ③ 纯装饰层动效，不参与布局；摘掉 class 之后页面与静态版本完全一致 */
+  function playIntro() {
+    if (prefersReduced) return;
+    const cards = $$('.page.is-active .pcard').concat($$('.page.is-active .card'));
+    if (!cards.length) return;
+    cards.forEach((c, i) => c.style.setProperty('--intro-delay', (i * 70) + 'ms'));
+    document.body.classList.add('intro');
+    // 500ms 动画 + 最后一块的延迟，留出余量再摘；顺手清掉写在行内的延迟值
+    setTimeout(() => {
+      document.body.classList.remove('intro');
+      cards.forEach((c) => c.style.removeProperty('--intro-delay'));
+    }, 1400);
+  }
+
+  /* 主界面（卡牌台）：点一张牌 → 整张翻 180° → 翻完播个场景（约 900ms）
+     → 场景演完才进那一页。
+     为什么不在点上就立刻跳：牌「翻开」+ 牌心场景本身就是给用户的反馈，
+     立刻跳走只剩一次闪断，等于白做这个效果。
+     ⚠️ Day 15 定稿（秋鹰师「去掉那个页面进出的动画」）：
+        页面本身一个动画都不做（见 CSS 第 6 节的撤销说明），
+        这里只负责「牌翻完 + 场景演完」这一件事，演完直接换页，
+        新页瞬间到位，没有任何 .page 上的 transform / animation。
+        所以下面这个等待时长必须 **≥ 翻牌时长 + 场景动画总时长**，
+        否则牌只转一半 / 场景没演完就被切走。
+     两个防御：
+       ① 减少动效（prefersReduced）时直接进页 —— 不去等一个不会发生的动画
+       ② is-open 期间不再响应点击 —— 连点两下不会连跳两次
+     翻完立刻把牌合上：那一刻页面已经切走、看不见，下次回来才是正面。
+     场景穿越的 5 个牌心剧本（详见 .pcard-scene 那块 CSS）：
+       #/home   · 账本翻开     （栏线 + 中缝 + 文本线）
+       #/expense· 笔划过纸面   （纸边 + 朱色笔尖沿弧线划过 + 划痕渐出）
+       #/entry  · 打印纸落下   （白纸从上方飘落，落地弹一下 + 三条朱线渐现）
+       #/resume · 纸面展开     （左右两半从中心向两侧摊开，中缝亮线）
+       #/match  · 雷达图辐射   （中心环 + 6 条线射出 + 6 个尖端圆点逐一亮起）*/
+  const PCARD_FLIP_MS = 200;    // 与 .pcard-inner 的 transition: transform .2s 对齐
+  const PCARD_SCENE_MS = 900;   // 最长场景 ≈880ms（radar dot 第 6），留 20ms 余量
+
+  function wirePageCards() {
+    $$('#page-start .pcard').forEach((card) => {
+      // 指针在牌上移动 → 牌朝指针那一侧偏一点（各约 ±8°）。
+      // 只写两个 CSS 变量、不直接改 transform：合成顺序留在 CSS 里，JS 只管「偏多少」，
+      // 两边不抢同一个 transform（抢了就会互相盖掉，这是 3D 卡片最常见的坑）。
+      // 减少动效时整段不挂 —— 牌静静躺着，点击照样能进页。
+      if (!prefersReduced) {
+        card.addEventListener('mousemove', (e) => {
+          const r = card.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          const dx = (e.clientX - r.left) / r.width - 0.5;    // -0.5 ~ 0.5
+          const dy = (e.clientY - r.top) / r.height - 0.5;
+          card.style.setProperty('--tilt-y', (dx * 15).toFixed(2) + 'deg');
+          card.style.setProperty('--tilt-x', (-dy * 12).toFixed(2) + 'deg');
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.setProperty('--tilt-y', '0deg');
+          card.style.setProperty('--tilt-x', '0deg');
+        });
+      }
+
+      card.addEventListener('click', () => {
+        const target = card.dataset.goto;
+        if (!target) return;
+        if (prefersReduced || card.classList.contains('is-open')) {
+          if (prefersReduced) goPage(target);
+          return;
+        }
+        card.classList.add('is-open');
+        setTimeout(() => {
+          goPage(target);
+          card.classList.remove('is-open');   // 合上：此时页面已切走，看不见这次回翻
+        }, PCARD_FLIP_MS + PCARD_SCENE_MS);
+      });
+    });
+  }
+
   function init() {
     const today = todayStr();
 
@@ -3518,6 +4549,10 @@
     fillProfileForm();
     renderHome();
 
+    // 11.3c2 开场「落笔序列」：延到本轮同步初始化全部跑完再播 ——
+    //        这样「当前页」已经定下来了，动画画的是用户真正看到的那一页
+    setTimeout(playIntro, 0);
+
     // 11.3d 「怎么算的」：点一下展开算法说明，再点收起（第 5 步；PRD 功能 3 用户动作 3）
     //       状态存在 powerDetailOpen 里，改它之后统一走 renderHome，不另写一套显隐逻辑
     $('#power-detail-toggle').addEventListener('click', () => {
@@ -3529,6 +4564,9 @@
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => goPage(b.dataset.page));
     });
+
+    // 11.4b 主界面的卡牌：点一张牌翻面再进页（与导航条走同一个 goPage，路由只有一条）
+    wirePageCards();
 
     // 11.5 底牌页两个大按钮（同上，统一走地址）
     $$('[data-goto]').forEach((b) => {
@@ -4008,6 +5046,17 @@
   // 连接检查：进简历页自动跑一次，成功后再进就不重复请求（省流量）。
   // 用户点「重新检查连接」可强制再跑。
   let aiConnected = false;   // 成功过没有
+  // 通道状态一变，所有「AI 优化」按钮跟着变（秋鹰师 2026-09-30 拍板：不通就禁用）。
+  // 为什么必须有这个统一开关：按钮是 renderResume 每次重建的，
+  // 只在一个地方设 disabled 会被下一次重建冲掉 —— 状态归状态、渲染归渲染，两边都要读同一个 aiConnected。
+  function setAiButtonsEnabled(on, why) {
+    $$('.resume-ai').forEach((b) => {
+      b.disabled = !on;
+      if (on) b.removeAttribute('title');
+      else b.setAttribute('title', why || '云端通道没接通，先点上面的「检查连接」');
+    });
+  }
+
   let aiChecking = false;    // 正在跑没有（防连点）
 
   // 防连点锁：checkAIConnection 是 async，两道锁都要防「抛错后永远解不开」。
@@ -4047,12 +5096,14 @@
       // 具体挑哪个交给下面的下拉框，那里才有价格和速度提示。
       box.textContent = '通道已接通，云端可用大模型 ' + usable.length + ' 个。';
       fillModelSelect(models);      // 把列表填进下拉框，顺手选中一个能用的
+      setAiButtonsEnabled(true);    // 通了就把「AI 优化」放开
       btn.textContent = '重新检查连接';
     } catch (err) {
       box.className = 'ai-status is-err';
       box.textContent = (err && err.message === 'sdk-load-failed')
         ? '没能加载云端组件：多半是断网了，或者网络挡了这个地址。'
         : aiErrorText(err);
+      setAiButtonsEnabled(false);   // 不通就禁掉，不让用户点进一个注定没反应的按钮
       btn.textContent = '重试';
     } finally {
       aiChecking = false;
