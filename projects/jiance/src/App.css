@@ -1,0 +1,12 @@
+/* 简册 · App 骨架样式 */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.pages {
+  flex: 1;
+  position: relative;
+}

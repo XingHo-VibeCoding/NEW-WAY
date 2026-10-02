@@ -1,0 +1,212 @@
+/* 简册 · 记一条 1:1 简化版（Day 16 v1.12）
+   表单 + 经历列表（endDate 空=进行中 排最前）。
+   完整视觉（编辑 / 排序规则选项 / AI 优化单条）→ Day 18。 */
+
+.entry {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.entry .card {
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.entry .page-module {
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.entry .card-title {
+  font-family: var(--serif, serif);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.entry .card-sub {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin: 0 0 16px;
+}
+
+/* 表单（共用 Expense 的 form-row / form-key / req 等） */
+.entry-form .form-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.entry-form .form-key {
+  font-size: 13px;
+  color: var(--ink-dim);
+  letter-spacing: 0.06em;
+}
+
+.entry-form .req {
+  color: var(--brand, #c0392b);
+  margin-left: 4px;
+}
+
+.entry-form input {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.entry-form input:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+.field-err {
+  margin: 8px 0 0;
+  color: var(--brand, #c0392b);
+  font-size: 13px;
+}
+
+.primary-btn {
+  appearance: none;
+  background: var(--line);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 180ms ease-out;
+}
+.primary-btn:hover {
+  opacity: 0.92;
+}
+
+.form-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 列表 */
+.empty-hint {
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 13px;
+  padding: 32px 0;
+}
+
+.entry-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry-row {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  align-items: start;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px dashed var(--line-soft);
+}
+
+.entry-row:last-child {
+  border-bottom: none;
+}
+
+.entry-row.is-current .entry-date:last-child {
+  color: var(--line);
+  font-weight: 600;
+}
+
+.entry-period {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--serif, serif);
+  font-size: 13px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+
+.entry-tilde {
+  color: var(--ink-dim);
+  opacity: 0.5;
+}
+
+.entry-main {
+  min-width: 0;
+}
+
+.entry-meta {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+}
+
+.entry-role {
+  color: var(--ink);
+}
+
+.entry-sep {
+  color: var(--ink-dim);
+  opacity: 0.5;
+}
+
+.entry-content {
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+
+.entry-result {
+  font-size: 13px;
+  color: var(--line);
+  margin-top: 4px;
+}
+
+.row-del {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  align-self: start;
+  transition: color 180ms ease-out, border-color 180ms ease-out;
+}
+
+.row-del:hover {
+  color: var(--brand, #c0392b);
+  border-color: var(--brand, #c0392b);
+}
+
+/* 窄屏 */
+@media (max-width: 640px) {
+  .entry-row {
+    grid-template-columns: 1fr;
+  }
+  .row-del {
+    justify-self: end;
+  }
+}

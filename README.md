@@ -13,7 +13,7 @@
 
 ## 六个视图（主界面 + 5 个功能页，2026-09-30 新增主界面）
 
-启动方式：双击根目录 `index.html`，浏览器打开即用。**默认落地页是主界面**（`#/start`），要进任何一个功能页，从主界面点对应牌。
+启动方式：项目结构在 `projects/jiance/`（v1.12 起 React + Vite）。本地开发 `npm run dev`；生产部署 `npm run build` → 把 `projects/jiance/dist/` 整个目录传到 CloudBase 静态托管。**默认落地页是主界面**（`#/start`），要进任何一个功能页，从主界面点对应牌。
 
 | 面 | 页面 | 门牌号 | 干什么 |
 |---|---|---|---|
@@ -37,13 +37,18 @@
 ## 目录结构
 
 ```
-index.html          简册主文件（唯一例外：留在根目录）
 README.md           本文件
-PRD.md              产品需求文档（v1.11）
-TECH_DESIGN.md      技术设计文档
+PRD.md              产品需求文档（v1.12）
+TECH_DESIGN.md      技术设计文档（v1.12）
 research.md         需求研究
 AGENTS.md           协作规则（含项目专属规则与红线）
-projects/           练习与归档（一个功能一个文件夹）
+projects/           练习与归档（一个特性一个文件夹）
+  ├── jiance/        **简册本体**（v1.12 起 React + Vite）
+  │   ├── src/         React 源码（pages / components / hooks / styles）
+  │   ├── dist/        构建产物（部署上传；不进仓库）
+  │   ├── cloudbase/   CloudBase 后端预制件（DEPLOY.md / api-contract.md / functions/）
+  │   ├── package.json   依赖清单
+  │   └── vite.config.js Vite 构建配置
   ├── 底牌页/        最早的单页练习
   ├── resume-builder/   简历技能包归档
   ├── job-matcher/      岗位匹配技能包归档（含本机适配说明）

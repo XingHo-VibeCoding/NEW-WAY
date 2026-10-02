@@ -1,0 +1,147 @@
+/* 简册 · 装订册三件套（CSS · 与原 index.html 等价 · Day 16 v1.12 补全）
+
+   两面各自一套：
+   - 账簿面（.is-ledger）：朱色装订线 + 装订孔 + 朱蓝实底"账"印章 + 竖条纹账本线 + 明显折痕
+   - 简历面（.is-resume）：灰细装订线 + 点阵网格 + 灰描边"履"印章 + 更克制折痕
+
+   @media print 必须全部撕干净 —— 打印件只剩白纸黑字。
+   这是 PRD 验收硬指标，不守住就算 bug。 */
+
+.page-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* 装饰之上的内容要浮高 z-index */
+.page > .card,
+.page > .page-module,
+.page > .placeholder {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- 暗纹水印 ---- */
+.page-deco.is-ledger::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent 31px,
+    rgba(201, 161, 74, 0.045) 31px,
+    rgba(201, 161, 74, 0.045) 32px
+  );
+}
+.page-deco.is-resume::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle,
+    rgba(201, 161, 74, 0.06) 1px,
+    transparent 1px
+  );
+  background-size: 14px 14px;
+}
+
+/* ---- 装订线 ---- */
+.deco-binding {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: 1.5px;
+  background: linear-gradient(
+    to bottom,
+    var(--brand) 0%,
+    var(--brand) 60%,
+    transparent 100%
+  );
+}
+.page-deco.is-resume .deco-binding {
+  background: linear-gradient(
+    to bottom,
+    rgba(201, 161, 74, 0.32) 0%,
+    rgba(201, 161, 74, 0.32) 70%,
+    transparent 100%
+  );
+  width: 1px;
+}
+/* 装订孔（账簿面独有）*/
+.page-deco.is-ledger .deco-binding::before {
+  content: "";
+  position: absolute;
+  top: 10%;
+  left: -2.5px;
+  width: 6px;
+  height: 6px;
+  background: rgba(201, 161, 74, 0.25);
+  border-radius: 50%;
+  box-shadow:
+    0 28px 0 rgba(201, 161, 74, 0.25),
+    0 56px 0 rgba(201, 161, 74, 0.25),
+    0 84px 0 rgba(201, 161, 74, 0.25),
+    0 112px 0 rgba(201, 161, 74, 0.25),
+    0 140px 0 rgba(201, 161, 74, 0.25);
+}
+
+/* ---- 边角图章 ---- */
+.deco-seal {
+  position: absolute;
+  right: 18px;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-family: var(--serif, serif);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 3px;
+  transform: rotate(-7deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  opacity: 0.88;
+  letter-spacing: 0;
+}
+.page-deco.is-ledger .deco-seal {
+  color: #fff;
+  background: var(--brand);
+}
+.page-deco.is-resume .deco-seal {
+  color: rgba(243, 231, 200, 0.65);
+  background: transparent;
+  border: 1.5px solid rgba(201, 161, 74, 0.45);
+  box-shadow: none;
+  transform: rotate(4deg);
+}
+
+/* ---- 折痕 ---- */
+.deco-fold {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  border-top: 1px solid rgba(201, 161, 74, 0.12);
+  border-bottom: 1px solid rgba(201, 161, 74, 0.05);
+}
+.page-deco.is-resume .deco-fold {
+  opacity: 0.55;
+}
+
+/* ---- @media print：撕干净 ---- */
+@media print {
+  .page-deco,
+  .page-deco::before,
+  .deco-binding,
+  .deco-binding::before,
+  .deco-seal,
+  .deco-fold {
+    display: none !important;
+  }
+}

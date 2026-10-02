@@ -1,6 +1,7 @@
 # 简册 · 技术设计文档（TECH_DESIGN.md）
 
-> 版本：v1.11 ｜ 日期：2026-09-30（Day 15 插入任务同步）
+> 版本：v1.12 ｜ 日期：2026-10-01（Day 15 重大路线调整：React + Vite + CloudBase 后端）
+> v1.11（2026-09-30）→ v1.12（2026-10-01）核心变化 = ① 单文件改 React + Vite 项目（`projects/jiance/`） ② 上 CloudBase 后端（1 个探路石接口 `/api/health`） ③ 主页（卡牌台）骨架 1:1 实现，5 个功能页 1:1 复刻推 Day 16-20
 > 修订记录：v1.0 初稿 → v1.1 按秋鹰师拍板修订（新增 `updatedAt` 字段、经历记录改为起止时间、新增导出/导入数据功能、确认单文件结构、确认改写 `index.html`、数据流图入库）→ v1.2 收尾同步（备份文件定为**明文不加密**；3 处差异已同步进 PRD，PRD 升 v1.2）→ v1.3 与 PRD v1.3 对齐：**删掉经历记录的 `tags` 字段**（5.2 字段表）；导出 / 导入口径复核确认仍为「**本地手动** `.json` 文件」，不含云备份与自动定时导出（无改动）→ v1.4 与 PRD v1.4 对齐：**「月」拆成两个口径**（记一笔页合计跟随列表月份 = 当月；底牌页三数按当前自然月 = 本月），本文档正文无实质改动，仅登记同步 → v1.5 与 PRD v1.5 对齐：个人参数**新增 `name` / `contact` 两个选填文本字段**（5.3 字段表），供简历预览页当抬头用；5.5 备份格式表注明 `profile` 里包含它们 → v1.6 与 PRD v1.6 对齐：补两条导入边界口径 —— **导入后流水列表跳到「备份里最新一条记录所在的月份」**（不跳回当前月）、**空备份是合法输入**（10.4 新增一张口径表，5.5 注明四格都允许为空）→ v1.7 与 PRD v1.7 对齐：个人参数**新增 `targetRole`（目标职位）一个选填文本字段**（5.3 字段表、5.5 备份格式表的 `profile` 说明）→ v1.8 与 PRD v1.8 对齐：10.3「手机上看」一行更新为实际状态（**电脑优先 + 手机可用**，响应式断点 900 / 640 / 380，数据仍不跨设备）→ v1.9 与 PRD v1.9 对齐：Day 10 晚间改版 —— 外链口径从「零外链」放宽为「**唯一例外：联网加载思源宋体**（`fonts.loli.net` 镜像，按需分包，`display=swap` 断网退回系统宋体）」（第 2 节第 4 条「断网可用」同步更新措辞）；账簿面背景改用 **feTurbulence 程序化噪声纹理**（SVG data URI 内嵌，仍零图片文件）；新增「本月收支墨线」装饰性数据图（读真实账目，空月整块隐藏，`aria-hidden` 纯装饰不改口径）→ v1.10 与 PRD v1.10 对齐：Day 14 插入任务 —— ①**新增云端大模型通道**（第 6 节新增 6.3，外链例外二：SDK 懒加载）②**第 5 格数据 `jiance.v1.matches` + 草稿键 `jiance.v1.matchDraft`**（5.4 存储设计、5.5 备份格式同步；10.1 迁移原则注明）③**第 5 个视图 `#/match`**（4.2 页面清单）④**个人信息红线与 AI 功能口径**（第 8 节环境变量新增 8.5：前端只放 `publishableKey`）→ **v1.11 与 PRD v1.11 对齐：Day 15 插入任务**——①**新增主界面视图 `#/start`**（4.2 页面清单 5 → 6）；②**默认落地页从 `#/home` 改为 `#/start`**（影响 4.2 实现细节 + 第 6 节路由兜底值）；③**主界面是进入其他页的唯一入口**（导航条收窄到只剩一个「主界面」按钮，底牌页的「记一笔 / 记一条」两个大按钮已收掉）；④**新增「场景穿越」效果**（5 张牌心各有自己的小戏剧——账本翻开 / 笔划过纸面 / 打印纸落下 / 纸面展开 / 雷达图辐射；牌翻 200ms + 场景演约 900ms 后才进页，新页瞬间到位、零动效——守住了 Day 15「页面本身不做任何动效」的纪律）；⑤**新增「装订册手作感」装饰**（5 个功能页各加三件套：装订线 / 暗纹水印 / 边角图章 / 折痕；账簿面用朱 + 竖条纹 + 朱蓝"账"印，简历面用灰 + 点阵网格 + 描边"履"印；**`@media print` 全撕干净**，打印件只剩白纸黑字）。
 > 上游文档：`PRD.md`（Day 4 需求，现已 v1.10）、`research.md`（Day 3 研究）
 > 本文回答：「用哪些零件拼、数据从哪来、到哪去、出错了怎么办」
@@ -133,55 +134,80 @@ flowchart TD
 
 ## 四、项目结构
 
-### 4.1 现在（Day 14 的实际状态）
+### 4.1 现在（Day 15 的实际状态 · v1.12）
 
-> 这一节随实现推进更新；原文是 Day 5 的版本，已同步为当前状态。
+> 这一节随实现推进更新；原文是 Day 5 的版本，已同步为当前状态。**v1.12 重大路线调整**：从单文件 `index.html` 改为 React + Vite。
 
 ```
 D:\梦空间\
-├─ AGENTS.md            我的规则文件（Day 1）
-├─ README.md            项目简介（Day 2；v1.11 已补「六个视图 / 主界面是唯一入口 / 场景穿越 / 装订册手作感」）
-├─ research.md          需求研究（Day 3）
-├─ PRD.md               产品需求（Day 4 → 现 v1.10）
-├─ TECH_DESIGN.md       技术设计（Day 5 → 现 v1.10，本文档）
-├─ index.html           **简册本体**：单文件承载六个视图（v1.11 起含主界面 #/start，Day 7 起逐日实现）
+├─ AGENTS.md            我的规则文件（Day 1 → 现 v1.12，附三新增 React/Vite 术语）
+├─ README.md            项目简介（Day 2 → 现 v1.12）
+├─ research.md          需求研究（Day 3 → 现 v1.12）
+├─ PRD.md               产品需求（Day 4 → 现 v1.12）
+├─ TECH_DESIGN.md       技术设计（Day 5 → 现 v1.12，本文档）
 ├─ .gitignore           不进仓库的名单
 ├─ notes\               学习笔记
 ├─ projects\            练习与技能文件（一个功能一个文件夹）
+│   ├─ jiance\          **简册本体**（v1.12 起）— React + Vite 项目
+│   │   ├─ package.json   依赖清单 + npm 命令
+│   │   ├─ vite.config.js Vite 构建配置
+│   │   ├─ index.html     React 入口 HTML（与旧版同名但**目录不同**）
+│   │   ├─ src\           React 源码
+│   │   │   ├─ main.jsx     React 启动点 + HashRouter
+│   │   │   ├─ App.jsx     路由表
+│   │   │   ├─ pages\       6 个页面（Start/Home/Expense/Entry/Resume/Match）
+│   │   │   ├─ components\  通用组件（Nav 等）
+│   │   │   ├─ hooks\       自定义 hook（localStorage 适配等）
+│   │   │   └─ styles\      CSS（按页面拆分）
+│   │   ├─ dist\          `npm run build` 产物（部署用，不进仓库）
+│   │   ├─ node_modules\  npm 安装的依赖（不进仓库）
+│   │   └─ cloudbase\     CloudBase 后端预制件（DEPLOY.md / api-contract.md / functions/）
 │   ├─ job-matcher\     岗位匹配技能包（SKILL + 参考文档 + 本机适配说明）
 │   └─ ...              其余练习
 └─ .workbuddy\          本地工作记录（已加入 .gitignore，不上传）
 ```
 
-**归位规则**（AGENTS.md 附三第 1 条）：根目录只放说明文档，**唯一例外是 `index.html`**（简册本体）；其余代码、技能、练习一律进 `projects\`。
+**归位规则**（AGENTS.md 附三第 1 条）：根目录只放说明文档；**代码 / 静态页面一律进 `projects\`**。`projects/jiance/` 是 v1.12 起简册本体的根目录。
 
-### 4.2 产品形态：**确定为单个 `index.html`**
+### 4.2 产品形态：**v1.12 改为 React + Vite**
 
-（2026-09-20 秋鹰师拍板：不拆分，用单文件。）
+（2026-10-01 Day 15 重大路线调整；原 2026-09-20 拍板的"单文件"作废。）
 
-**只有一个文件需要关心：`index.html`。**
+**为什么改**：
+- **React 的核心好处**（零件复用 / 改一处全变 / 生态丰富 / 多人协作）对简册**几乎都用不上**——简册零依赖、单人、Day 13 之前的手写 JS 已经实现了"响应式联动"。改 React **不是能力升级，是范式重写**。
+- **改的真实原因**：为第 3 周接 CloudBase 后端 + 长期维护打基础。React 的组件化让"逐页 1:1 复刻" + "装订册三件套" + "场景穿越戏剧"更容易工程化。
+- **代价**：单文件版的"双击就能开"没了——需要 `npm install` + `npm run dev` 才能本地跑，部署用 `npm run build` 输出 `dist/`。Day 1 拍板的"零外部依赖"原则由"严格零外部依赖"放宽为"业务零外部依赖 / 工具零依赖放开"——react / react-dom / react-router-dom 是工具，不算业务依赖。
 
-- 双击它 → 浏览器打开 → 就是简册
-- 不需要安装任何东西、不需要启动服务、不需要敲命令行
-- HTML（骨架）、CSS（装修）、JavaScript（大脑）都写在这一个文件里
+**v1.12 单文件 → React 改造没做完的事**（推到 Day 16-20）：
+1. 5 个功能页完整 1:1 复刻（账簿面朱砂栏线 / 简历面真玻璃 / 双面对称布局 / print 还原白纸黑字）
+2. 装订册三件套（装订线 + 暗纹水印 + 边角图章 + 折痕 + @media print 撕干净）
+3. 场景穿越动画（5 张牌各自的 900ms 小戏剧）
+4. AI 通道迁移（WorkBuddy 网关 → 集成到 React 项目 `src/services/llm.js`）
+5. 联动板块①（底牌三数 + 简历抬头 + 匹配重跑）
+6. 自检脚本（Temp/png_scan.js 重写适配 React）
 
-**Day 2 的占位页怎么处理**：直接**改写** `index.html`，把占位内容替换成产品页面，**不新建文件**。（2026-09-20 秋鹰师拍板。）
+**周六 Q&D（v1.12 已实现）**：
+- 主页（卡牌台）骨架 1:1 — 5 张牌沿浅弧排列 + 鼠标跟随倾斜 + 点击翻牌跳转
+- 5 个占位页（明确标注推到哪天复刻）
+- Nav 收窄到只剩"主界面"按钮（AGENTS 附三第 2 条"主界面是唯一入口"纪律）
+- `npm run build` 通过（dist 263 KB JS + 3 KB CSS）
 
-**六个视图与门牌号**（v1.11 更新；Day 13 起用地址路由）：
+**六个视图与门牌号**（v1.11 起；v1.12 用 React Router 改造）：
 
-| 面 | 页面 | 门牌号 | 实现方式 |
+| 面 | 页面 | 门牌号 | 实现方式（v1.12） |
 |---|---|---|---|
-| — | **主界面** | `#/start` | `<section id="page-start">`，**v1.11 新增 + 改为默认落地页**（原 `#/home`） |
-| 账簿面 | 底牌页 | `#/home` | `<section id="page-home">` |
-| 账簿面 | 记一笔 | `#/expense` | `<section id="page-expense">` |
-| 简历面 | 记一条 | `#/entry` | `<section id="page-entry">` |
-| 简历面 | 简历预览 | `#/resume` | `<section id="page-resume">` |
-| 简历面 | 岗位匹配 | `#/match` | `<section id="page-match">`（v1.10 新增） |
+| — | **主界面** | `#/start` | `<Route path="/start" element={<Start/>} />`，**v1.11 起为默认落地页** |
+| 账簿面 | 底牌页 | `#/home` | `<Route path="/home" element={<Home/>} />` |
+| 账簿面 | 记一笔 | `#/expense` | `<Route path="/expense" element={<Expense/>} />` |
+| 简历面 | 记一条 | `#/entry` | `<Route path="/entry" element={<Entry/>} />` |
+| 简历面 | 简历预览 | `#/resume` | `<Route path="/resume" element={<Resume/>} />` |
+| 简历面 | 岗位匹配 | `#/match` | `<Route path="/match" element={<Match/>} />`（v1.10 新增） |
 
-**路由实现**：`PAGE_NAMES` 数组（白名单 = 六个：`start` / `home` / `expense` / `entry` / `resume` / `match`）+ `pageFromHash()`（地址→页名）+ `goPage()`（点导航先改地址）+ `hashchange` 监听（地址变→落页）。不在白名单的地址一律退回 `#/start`（v1.11 起，原为 `#/home`）。**不引前端路由库** —— 六个视图、零依赖的单文件，几十行就够。
+**路由实现**（v1.12）：用 **`react-router-dom` 的 `HashRouter`**（不用 BrowserRouter —— 不需要服务器配 nginx 兜底）。`src/main.jsx` 包一层 `<HashRouter>`，`src/App.jsx` 写 `<Routes>` + 6 个 `<Route>`。不在白名单的地址由 React Router 自动处理（404）。
 
-**场景穿越**（v1.11 新增）：主界面的 5 张牌心各有自己的小戏剧——`#/home` 是账本翻开、`#/expense` 是笔划过纸面、`#/entry` 是打印纸落下、`#/resume` 是纸面展开、`#/match` 是雷达图辐射。时序：牌翻 180°（200ms）→ 场景演约 900ms（11 个新增 `@keyframes`）→ 切页（新页瞬间到位、零动效——守住 Day 15「页面本身不动效」的纪律）。**装订册手作感**（v1.11 新增）：5 个功能页各加装订线 + 暗纹 + 边角图章 + 折痕，账簿面 vs 简历面各自一套配色；`@media print` 全部 `display: none`，打印件只剩白纸黑字。
+**场景穿越**（v1.11 拍板，v1.12 推迟）：主界面的 5 张牌心各有自己的小戏剧——`#/home` 是账本翻开、`#/expense` 是笔划过纸面、`#/entry` 是打印纸落下、`#/resume` 是纸面展开、`#/match` 是雷达图辐射。时序：牌翻 180°（200ms）→ 场景演约 900ms（11 个新增 `@keyframes`）→ 切页（新页瞬间到位、零动效——守住 Day 15「页面本身不动效」的纪律）。**v1.12 仅实现"牌翻 180° + 跳转"，戏剧与层数：推 Day 16-20**。
 
+**装订册手作感**（v1.11 拍板，v1.12 推迟）：5 个功能页各加装订线 + 暗纹 + 边角图章 + 折痕，账簿面 vs 简历面各自一套配色；`@media print` 全部 `display: none`，打印件只剩白纸黑字。**v1.12 主页（卡牌台）不装订**——装订只属于 5 个功能页。推 Day 16-20。
 
 ### 4.3 什么时候该拆（预警线，不是现在做）
 
@@ -302,9 +328,9 @@ D:\梦空间\
 
 ## 六、API 列表
 
-### 6.1 本期：没有网络接口，只有浏览器内置 API
+### 6.1 现在（v1.12）：**1 个 HTTP 接口 + 浏览器内置 API**
 
-**本期不存在任何 HTTP 接口**（没有 `GET /api/...` 这种东西），因为根本没有后端。
+**v1.12 起本项目已有 1 个 HTTP 接口**（`GET /api/health`，Day 15 部署到 CloudBase，作为后续业务接口的"探路石"）。**业务接口（4 表 / 15 个）全部推到 Day 16-20**，本节登记位置以 `projects/jiance/cloudbase/api-contract.md` 为准。
 
 但前端自己要用到浏览器提供的这些现成工具，它们就是本期的「API」：
 
@@ -323,19 +349,23 @@ D:\梦空间\
 
 「可选」的含义：不做也能用（用户可以用浏览器菜单或快捷键打印），做了体验更好。
 
-### 6.2 将来上后端时，接口会长这样（设计参考，本期不实现）
+### 6.2 业务接口契约（v1.12 Day 15 登记 · Day 16-20 实现）
 
-| 本期动作 | 将来对应的接口 | 说明 |
-|---|---|---|
-| 新增一笔收支 | `POST /api/expenses` | 提交一条新记录 |
-| 读某月流水 | `GET /api/expenses?month=2026-09` | 按月份查 |
-| 改 / 删一笔 | `PUT /api/expenses/:id`、`DELETE /api/expenses/:id` | 按 id 操作 |
-| 新增 / 改 / 删经历 | `POST` / `PUT` / `DELETE /api/entries` | 同理 |
-| 读 / 存个人参数 | `GET` / `PUT /api/profile` | 同理 |
-| 备份 / 恢复（本期是文件） | `GET` / `POST /api/backup` | 上了后端后可以改成云备份 |
-| 登录（本期完全没有） | `POST /api/auth/login` | 上了后端才会出现 |
+> **唯一权威**：`projects/jiance/cloudbase/api-contract.md`（v1.0，Day 15 新增）。
+> 本节只放概要；任何与 api-contract.md 不一致之处**以该文件为准**。
 
-**本表是「将来会有什么」的预告，不是本期要做的功能。**
+**概览**：4 张表 / 15 个接口——`expenses`（流水）/ `entries`（经历）/ `profile`（个人参数）/ `matches`（匹配快照）。`matches` 不提供 PUT（快照只增不改）。Day 15 只实现 `GET /api/health`，其余接口 Day 16-20 实现。
+
+**接口清单速查**：
+
+| 表 | 接口 |
+|---|---|
+| `expenses` | `GET /api/expenses`、`GET /api/expenses/summary`、`POST /api/expenses`、`PUT /api/expenses/:id`、`DELETE /api/expenses/:id` |
+| `entries` | `GET /api/entries`、`POST /api/entries`、`PUT /api/entries/:id`、`DELETE /api/entries/:id` |
+| `profile` | `GET /api/profile`、`PUT /api/profile` |
+| `matches` | `GET /api/matches`、`POST /api/matches`、`DELETE /api/matches/:id`（**无 PUT**） |
+
+**Day 15 已实现**：`GET /api/health` → `{"ok":true,"service":"Ledger and Career"}`，**集成响应**写法（return `{ statusCode, headers, body }`），部署到 CloudBase 函数 `health`（事件型，不是 HTTP 云函数 —— 详见 `projects/jiance/cloudbase/DEPLOY.md`）。
 
 ### 6.3 云端大模型通道（v1.10 新增，**本期已实现**）
 
@@ -430,13 +460,14 @@ D:\梦空间\
 
 想象你要出门办事，先在口袋里揣一张纸条，写着「要去哪、密码是多少」。程序也一样：有些配置不适合直接写在代码里（尤其是密码），就放在外面，运行时再拿进来。**这个东西叫环境变量，它属于「有服务器」的世界。**
 
-### 8.3 本期为什么不需要
+### 8.3 现在为什么有变化（v1.12 起）
 
 | 原因 | 说明 |
 |---|---|
-| 没有后端 | 没有服务器，就没地方放配置 |
-| 没有任何密钥 | 不连数据库、不调第三方接口，没有密码要藏 |
-| 没有构建步骤 | 不打包、不编译，也就没有「打包时读配置」这一步 |
+| 已上 CloudBase 后端（v1.12 Day 15）| HTTP 函数 `/api/health` 已部署；环境变量（环境 ID / 域名）从 CloudBase 控制台拿，**不进代码、不进仓库** |
+| 业务数据仍不连数据库 | 抽屉数据（流水 / 经历 / 匹配）继续用 localStorage；数据库 Day 16-20 才建 |
+| 已不连第三方接口（除 WorkBuddy 网关）| AI 通道 Day 14 走的是 WorkBuddy 网关（`{应用域名}/.cloud/llm/*`），免密钥、publishableKey；长期密钥留 WorkBuddy 服务端 |
+| 有构建步骤 | v1.12 起 `npm run build` 是部署前必经的一步；构建期不读 `.env`（前端能放的只有 `endpoint` + `publishableKey`，本来就不是秘密）|
 
 ### 8.4 但这条红线现在就立好（给将来）
 

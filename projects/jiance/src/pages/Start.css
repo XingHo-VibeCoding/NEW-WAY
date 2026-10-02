@@ -1,0 +1,118 @@
+/* 简册 · 主界面（卡牌台）
+   骨架 1:1：5 张牌沿浅弧排列，鼠标跟随倾斜。
+   场景戏剧 / 装订册 → Day 16-20。 */
+
+.start {
+  min-height: calc(100vh - 56px);
+  display: grid;
+  place-items: center;
+  padding: 32px 24px;
+  background:
+    radial-gradient(
+      1200px 600px at 50% 30%,
+      rgba(201, 161, 74, 0.06),
+      transparent 60%
+    ),
+    var(--bg);
+}
+
+.start-cover {
+  width: min(960px, 100%);
+  text-align: center;
+}
+
+.start-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.start-title {
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.start-hint {
+  color: var(--ink-dim);
+  margin: 0 0 48px;
+  font-size: 14px;
+}
+
+/* 浅弧牌桌 */
+.start-arc {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  padding: 32px 16px 48px;
+  perspective: 1200px;
+  transform: rotateX(var(--tilt-y)) rotateY(var(--tilt-x));
+  transition: transform 240ms ease-out;
+}
+
+/* 一张牌
+   ⚠️ 必须带 .start-arc 前缀：其他页面也用 .card（Home / Expense / Entry / Match 的卡片），
+   写成全局 .card 会把牌桌那套 flex 居中泄漏过去，把卡片内容挤成一列居中。 */
+.start-arc .card {
+  --i: 0;
+  position: relative;
+  appearance: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--ink);
+  padding: 24px 16px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: var(--shadow);
+  transform: translateY(calc(var(--i) * 6px - 12px));
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    background 180ms ease-out;
+}
+
+.start-arc .card:hover {
+  transform: translateY(-6px);
+  border-color: var(--line);
+  background:
+    linear-gradient(180deg, rgba(201, 161, 74, 0.08), rgba(255, 255, 255, 0)),
+    var(--bg-2);
+}
+
+.start-arc .card-tag {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+}
+
+.start-arc .card-label {
+  font-size: 18px;
+  letter-spacing: 0.08em;
+}
+
+.start-foot {
+  margin-top: 24px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 720px) {
+  .start-arc {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

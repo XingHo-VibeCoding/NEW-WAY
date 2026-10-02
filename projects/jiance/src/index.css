@@ -1,0 +1,104 @@
+/* 简册 · 全局样式（Day 15 骨架版）
+   复刻原始黑檀金线 dark theme。
+   完整视觉细节（双面 UI / 装订册 / 场景穿越）推到 Day 16-20。 */
+
+:root {
+  --bg: #0c0a08;
+  --bg-2: #15110d;
+  --ink: #f3e7c8;
+  --ink-dim: #b9a878;
+  --line: #c9a14a;
+  --line-soft: rgba(201, 161, 74, 0.18);
+  /* 朱：支出 / 必填 / 删除 hover / 账簿面装订线与印章底。
+     原版取 #a7392a（印刷朱），深底上改用同一支朱的提亮档，保证对比度。
+     ⚠️ 必须定义：BindingDecor 的账簿面装订线与「账」印章底用的是不带兜底的
+     var(--brand)，漏定义会整条渲染成透明（线看不见、白字印章也看不见）。 */
+  --brand: #c0392b;
+  --radius: 12px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --transition: 200ms ease-out;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--line);
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* 每个页面自己就是装订册装饰（.page-deco 是 position:absolute; inset:0）的定位父级。
+   原版单文件里这条包含块是 main.wrap 的 perspective 顺手建立的；React 版结构换了，
+   不写这条装饰会一路逃到视口上 —— 装订线贴屏幕最左边、印章落到整页右下角。 */
+.page {
+  position: relative;
+}
+
+/* Day 15 骨架 · 5 个占位页共用 */
+.placeholder {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 96px 24px;
+  text-align: center;
+}
+
+.placeholder h2 {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.placeholder p {
+  color: var(--ink-dim);
+  margin: 6px 0;
+}
+
+.placeholder-note {
+  margin-top: 16px !important;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--line);
+  border-top: 1px solid var(--line-soft);
+  padding-top: 16px;
+  display: inline-block;
+}

@@ -1,0 +1,29 @@
+/* 简册 · 顶部导航（Day 15 纪律：只留一个「主界面」按钮） */
+
+.nav {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg-2);
+}
+
+.nav-btn {
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 12px;
+  transition: color 180ms ease-out, border-color 180ms ease-out;
+}
+
+.nav-btn:hover {
+  color: var(--ink);
+}
+
+.nav-btn.is-active {
+  color: var(--line);
+  border-color: var(--line-soft);
+}

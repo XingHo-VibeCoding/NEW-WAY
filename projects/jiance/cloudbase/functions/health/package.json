@@ -1,0 +1,7 @@
+{
+  "name": "health",
+  "version": "1.0.0",
+  "description": "简册 · GET /api/health 健康检查（零依赖）",
+  "main": "index.js",
+  "private": true
+}
