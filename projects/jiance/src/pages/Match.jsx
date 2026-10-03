@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
+import Icon from '../components/Icon.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import './Match.css'
 
@@ -164,7 +165,10 @@ export default function Match() {
 
       {/* 卡 1：岗位信息 */}
       <form className="card" onSubmit={onRun}>
-        <h2 className="card-title">岗位匹配</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="target" size={22} />
+          岗位匹配
+        </h2>
         <p className="card-sub">
           把岗位 JD 粘进来，AI 拿它跟你「记一条」攒下的经历比一比，算出匹配度和开场白
         </p>
@@ -281,7 +285,10 @@ export default function Match() {
 
       {/* 卡 2：匹配分析 */}
       <div className="card">
-        <h2 className="card-title">匹配分析</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="radar" size={22} />
+          匹配分析
+        </h2>
         <p className="card-sub">
           按技能口径六维打分：技术栈 30% · 经验 25% · 行业 15% · 学历 10% · 薪资 10% · 证书 10%
         </p>
@@ -338,7 +345,10 @@ export default function Match() {
 
       {/* 卡 3：匹配记录 */}
       <div className="card">
-        <h2 className="card-title">匹配记录</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="list" size={22} />
+          匹配记录
+        </h2>
         <p className="card-sub">每匹配一次存一条，只存在你这台电脑上</p>
 
         {matches.length === 0 ? (

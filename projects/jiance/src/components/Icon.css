@@ -1,0 +1,89 @@
+/* 简册 · 图标样式（配套 Icon.jsx）
+   ⚠️ 这个文件必须被 Icon.jsx import —— 缺了图标会撑破卡片布局。 */
+
+.icon {
+  display: block;
+  flex: none; /* 别让 SVG 在 flex 容器里被压扁 */
+  color: inherit;
+}
+
+/* 卡片标题前的图标：与标题同行、垂直居中 */
+.card-title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-title-with-icon .icon {
+  color: var(--line);
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+
+/* 大数字卡（底牌页「还能撑」）顶部图标 */
+.power-mark {
+  display: flex;
+  justify-content: center;
+  color: var(--line);
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+/* 三个数字块上的小图标 */
+.stat-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-head .icon {
+  color: var(--line);
+  opacity: 0.9;
+  width: 26px;
+  height: 26px;
+}
+
+/* 牌面图标（主界面 5 张牌） */
+.card-mark {
+  display: flex;
+  justify-content: center;
+  color: var(--line);
+  opacity: 0.9;
+  margin-bottom: 2px;
+}
+
+.start-arc .card:hover .card-mark {
+  opacity: 1;
+}
+
+/* 经历条目 / 流水条目 左侧的小标记 */
+.row-mark {
+  display: flex;
+  align-items: center;
+  color: var(--line);
+  opacity: 0.75;
+}
+
+/* 简历抬头的花押 / 头像位 */
+.resume-mark {
+  display: flex;
+  justify-content: center;
+  color: var(--line);
+  opacity: 0.9;
+  margin-bottom: 12px;
+}
+
+/* 章节标题前的小标记 */
+.section-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon {
+    transition: none !important;
+  }
+}

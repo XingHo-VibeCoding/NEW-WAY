@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SceneTransition from '../components/SceneTransition.jsx'
+import Icon from '../components/Icon.jsx'
 import './Start.css'
 
 /**
@@ -8,16 +9,20 @@ import './Start.css'
  *
  * 已实现：
  *   - 5 张牌沿浅弧排列 + 鼠标跟随倾斜
+ *   - 每张牌一个线条图标（点牌前就看出那张是干什么的）
  *   - 点击牌 → 显示场景动画 ~900ms → 跳页（守"新页零动效"纪律）
  *
  * 仍推 Day 17+：牌的入场发牌序列（按栏线落笔顺序入场）
+ *
+ * ⚠️ CARDS 的**顺序**不是随便排的：Start.css 用 nth-child(-n+2) 给前两张
+ * 账簿面材质、nth-child(n+3) 给后三张简历面材质。增删或调序会让材质错位。
  */
 const CARDS = [
-  { id: 'home', label: '底牌页', tag: '账簿面', target: '/home' },
-  { id: 'expense', label: '记一笔', tag: '账簿面', target: '/expense' },
-  { id: 'entry', label: '记一条', tag: '简历面', target: '/entry' },
-  { id: 'resume', label: '简历预览', tag: '简历面', target: '/resume' },
-  { id: 'match', label: '岗位匹配', tag: '简历面', target: '/match' },
+  { id: 'home', label: '底牌页', tag: '账簿面', target: '/home', icon: 'ledger' },
+  { id: 'expense', label: '记一笔', tag: '账簿面', target: '/expense', icon: 'abacus' },
+  { id: 'entry', label: '记一条', tag: '简历面', target: '/entry', icon: 'file' },
+  { id: 'resume', label: '简历预览', tag: '简历面', target: '/resume', icon: 'resume' },
+  { id: 'match', label: '岗位匹配', tag: '简历面', target: '/match', icon: 'target' },
 ]
 
 /** scene 演完后跳哪页（900ms） */
@@ -83,6 +88,9 @@ export default function Start() {
               style={{ '--i': i }}
               onClick={() => onCardClick(card)}
             >
+              <span className="card-mark">
+                <Icon name={card.icon} size={40} label={`${card.label}图标`} />
+              </span>
               <span className="card-tag">{card.tag}</span>
               <span className="card-label">{card.label}</span>
             </button>

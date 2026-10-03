@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
+import Icon from '../components/Icon.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import './Entry.css'
 
@@ -115,7 +116,10 @@ export default function Entry() {
 
       {/* 表单 */}
       <form className="card entry-form" onSubmit={onSave}>
-        <h2 className="card-title">记一条</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="file" size={22} />
+          记一条
+        </h2>
         <p className="card-sub">
           一条做成的就是一段 + 一份成果（量化更好）。结束日期留空 = 还在做。
         </p>
@@ -186,7 +190,10 @@ export default function Entry() {
 
       {/* 列表 */}
       <div className="card entry-list">
-        <h2 className="card-title">经历（按"结束日期"晚 → 早，空 = 还在做排最前）</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="list" size={22} />
+          经历（按"结束日期"晚 → 早，空 = 还在做排最前）
+        </h2>
         {sorted.length === 0 ? (
           <p className="empty-hint">还没经历，靠左表单加一条</p>
         ) : (

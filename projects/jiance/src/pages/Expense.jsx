@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
+import Icon from '../components/Icon.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import './Expense.css'
 
@@ -169,7 +170,10 @@ export default function Expense() {
 
       {/* 表单 */}
       <form className="card expense-form" onSubmit={onSave}>
-        <h2 className="card-title">记一笔</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="abacus" size={22} />
+          记一笔
+        </h2>
         <p className="card-sub">金额为正数，收入 / 支出靠类型区分，不靠正负号</p>
         <div className="form-row">
           <label className="form-key">日期<span className="req">*</span></label>
@@ -242,7 +246,10 @@ export default function Expense() {
 
       {/* 列表 */}
       <div className="card expense-list">
-        <h2 className="card-title">流水</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="list" size={22} />
+          流水
+        </h2>
         <div className="list-toolbar">
           <label className="toolbar-row">
             <span className="toolbar-key">月份</span>

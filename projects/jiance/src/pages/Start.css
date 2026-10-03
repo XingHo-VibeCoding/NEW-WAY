@@ -3,26 +3,39 @@
    场景戏剧 / 装订册 → Day 16-20。 */
 
 .start {
-  min-height: calc(100vh - 56px);
+  /* 关键：不撑满视口高。
+     原写法 min-height:calc(100vh - 56px) + align-content:center 会让整块内容
+     在屏幕里垂直居中 —— 视口越高，上面空得越多（1300px 高的屏上牌台浮在正中）。
+     现在改成「顶部留一块固定余量 + 内容自然往下排」，牌台位置固定，
+     视口再高也只是底部多留白，不会把牌推到中间。
+     窄屏时 padding 收紧，别让牌挤成一坨。 */
   display: grid;
-  place-items: center;
-  padding: 32px 24px;
+  justify-items: center;
+  align-content: start;
+  padding: clamp(24px, 6vh, 72px) 24px 64px;
   background:
     radial-gradient(
-      1200px 600px at 50% 30%,
-      rgba(201, 161, 74, 0.06),
-      transparent 60%
+      1200px 600px at 50% 20%,
+      rgba(201, 161, 74, 0.09),
+      transparent 62%
+    ),
+    repeating-linear-gradient(
+      92deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 1px,
+      transparent 1px,
+      transparent 8px
     ),
     var(--bg);
 }
 
 .start-cover {
-  width: min(960px, 100%);
+  width: min(1320px, 100%);
   text-align: center;
 }
 
 .start-eyebrow {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.4em;
   color: var(--ink-dim);
   text-transform: uppercase;
@@ -30,7 +43,7 @@
 }
 
 .start-title {
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(34px, 4.6vw, 56px);
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--ink);
@@ -40,7 +53,7 @@
 .start-hint {
   color: var(--ink-dim);
   margin: 0 0 48px;
-  font-size: 14px;
+  font-size: var(--fs-md);
 }
 
 /* 浅弧牌桌 */
@@ -50,33 +63,34 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-  padding: 32px 16px 48px;
+  gap: 20px;
+  padding: 40px 16px 56px;
   perspective: 1200px;
   transform: rotateX(var(--tilt-y)) rotateY(var(--tilt-x));
   transition: transform 240ms ease-out;
+  width: min(1320px, 100%);
 }
 
 /* 一张牌
    ⚠️ 必须带 .start-arc 前缀：其他页面也用 .card（Home / Expense / Entry / Match 的卡片），
-   写成全局 .card 会把牌桌那套 flex 居中泄漏过去，把卡片内容挤成一列居中。 */
+   写成全局 .card 会把牌桌那套 flex 居中泄漏过去，把卡片内容挤成一列居中。
+
+   底色/边框不在这里定：账簿面与简历面材质不同，交给下面 nth-child 分别给，
+   这里只管排版与动效。 */
 .start-arc .card {
   --i: 0;
   position: relative;
   appearance: none;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
-    var(--bg-2);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   color: var(--ink);
-  padding: 24px 16px;
-  min-height: 140px;
+  padding: 46px 24px;
+  min-height: 248px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   box-shadow: var(--shadow);
   transform: translateY(calc(var(--i) * 6px - 12px));
   transition:
@@ -85,29 +99,58 @@
     background 180ms ease-out;
 }
 
+/* 牌面分两面材质：前两张（账簿面）深褐纸，后三张（简历面）冷玻璃。
+   nth-child 对应 Start.jsx 里 CARDS 的顺序：home/expense → ledger，
+   entry/resume/match → resume。别改 CARDS 顺序，否则材质会错位。 */
+.start-arc .card:nth-child(-n + 2) {
+  background:
+    linear-gradient(180deg, var(--kraft-edge), transparent 40%),
+    var(--kraft);
+  border-color: var(--kraft-line);
+}
+.start-arc .card:nth-child(n + 3) {
+  background: var(--glass);
+  border-color: var(--glass-line);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+@supports not (backdrop-filter: blur(4px)) {
+  .start-arc .card:nth-child(n + 3) {
+    background: #17130f;
+  }
+}
+
+/* hover：只动边框与位移，绝不重设 background ——
+   一旦在这里写死 background，会把上面 nth-child 给的两种材质冲掉，
+   账簿面/简历面在悬停时又变回同一种灰。 */
 .start-arc .card:hover {
   transform: translateY(-6px);
   border-color: var(--line);
-  background:
-    linear-gradient(180deg, rgba(201, 161, 74, 0.08), rgba(255, 255, 255, 0)),
-    var(--bg-2);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--glass-edge),
+    0 12px 32px rgba(0, 0, 0, 0.55);
+}
+.start-arc .card:nth-child(-n + 2):hover {
+  box-shadow: var(--kraft-shadow), 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 
 .start-arc .card-tag {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.2em;
   color: var(--ink-dim);
 }
 
 .start-arc .card-label {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   letter-spacing: 0.08em;
 }
 
 .start-foot {
   margin-top: 24px;
   color: var(--ink-dim);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
 }
 

@@ -3,22 +3,27 @@
    完整视觉（戏眼量柱 / 算法展开 / 跳转 / 墨线图 / 联动）→ Day 17。 */
 
 .home {
-  max-width: 880px;
+  max-width: var(--page-w);
   margin: 0 auto;
   padding: 32px 24px 64px;
 }
 
+/* 卡片底 / 边框 / 圆角 / 内距 / 阴影：已上提到 index.css 的
+   「双面材质 · 共用底座」，本页 .page-ledger 自动生效。
+   这里只留账簿面**特有**的东西（纸面高光、栏目内的分栏块）。 */
 .home .card {
-  background: var(--bg-2);
-  border: 1px solid var(--line-soft);
+  background:
+    linear-gradient(180deg, var(--kraft-edge), transparent 40%),
+    var(--kraft);
+  border: 1px solid var(--kraft-line);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: var(--card-pad);
   margin-bottom: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--kraft-shadow);
 }
 
 .home .page-module {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.4em;
   color: var(--ink-dim);
   text-transform: uppercase;
@@ -31,13 +36,13 @@
   padding: 32px 24px 24px;
 }
 .home .power-label {
-  font-size: 14px;
+  font-size: var(--fs-md);
   color: var(--ink-dim);
   letter-spacing: 0.08em;
 }
 .home .power-value {
   font-family: var(--serif, serif);
-  font-size: 52px;
+  font-size: clamp(44px, 5vw, 64px);
   font-weight: 600;
   letter-spacing: -0.5px;
   line-height: 1.2;
@@ -46,17 +51,17 @@
   font-variant-numeric: tabular-nums;
 }
 .home .power-value .power-unit {
-  font-size: 20px;
+  font-size: var(--fs-xl);
   margin-left: 4px;
   color: var(--ink-dim);
 }
 .home .power-value.is-empty {
   color: var(--ink-dim);
-  font-size: 36px;
+  font-size: clamp(30px, 3.4vw, 42px);
 }
 .home .power-hint {
   margin: 12px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   letter-spacing: 0.04em;
 }
@@ -75,13 +80,13 @@
   text-align: center;
 }
 .home .stat-label {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   letter-spacing: 0.08em;
 }
 .home .stat-value {
   font-family: var(--serif, serif);
-  font-size: 22px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--ink);
   margin-top: 6px;
@@ -89,21 +94,21 @@
 }
 .home .stat-value.is-empty {
   color: var(--ink-dim);
-  font-size: 14px;
+  font-size: var(--fs-md);
   font-style: italic;
 }
 
 /* 卡片标题 */
 .home .card-title {
   font-family: var(--serif, serif);
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   letter-spacing: 0.04em;
   margin: 0 0 4px;
   color: var(--ink);
 }
 .home .card-sub {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   margin: 0 0 16px;
 }
@@ -121,7 +126,7 @@
   gap: 12px;
 }
 .home .profile-key {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--ink-dim);
   letter-spacing: 0.06em;
 }
@@ -140,7 +145,7 @@
   border-color: transparent;
 }
 .home .profile-unit {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
 }
 

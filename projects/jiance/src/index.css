@@ -17,6 +17,59 @@
   --radius: 12px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   --transition: 200ms ease-out;
+
+  /* ================================================================
+     双面材质变量（v1.12 · 视觉重建 v2 落地）
+     ---------------------------------------------------------------
+     为什么要两套：`.page-ledger`（底牌页 / 记一笔）与 `.page-resume`
+     （记一条 / 简历预览 / 岗位匹配）两个标记早就挂在各页 section 上，
+     但 Day 16 骨架期 4 个 .card 定义全部硬编码 var(--bg-2)，
+     导致两面卡片长得一模一样 —— 双面 UI 的人格没落地。
+     现在把材质抽成变量，各页 CSS 引用自己那一套。
+     详见 index.css 下方「双面材质」段与各页 .card 定义。
+
+     账簿面走「深褐近黑」而不是浅米纸：整站基调是黑檀金线 dark theme
+     （见 AGENTS.md 附三），换浅色等于推翻主色调。只换色相、不换亮度，
+     代价最小，且能与简历面拉开冷暖。*/
+  /* ---- 账簿面 · 深褐木色（暖）---- */
+  --kraft: #2a2118;                /* 卡片底：带暖调的深褐，替掉死黑 #15110d */
+  --kraft-2: #241c14;              /* 略深，用于卡片内嵌套块 */
+  --kraft-line: rgba(201, 161, 74, 0.22);  /* 边框：比线-soft 稍实，纸要有边 */
+  --kraft-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --kraft-edge: rgba(233, 214, 168, 0.06); /* 顶部一道暖高光，模拟纸面受光 */
+
+  /* ---- 简历面 · 真玻璃（冷）----
+     ⚠️ 玻璃要「透得出东西」才看得见。背后只有纯黑时，模糊一张黑纸等于
+     没模糊，只剩 0.03 那点白 —— 看着跟哑光卡片没区别。
+     所以玻璃本身要够亮（0.06），且简历面背景必须有可透的纹理
+     （见下方 .page-resume 的径向光晕 + 点阵），模糊才有东西可揉。*/
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-2: rgba(255, 255, 255, 0.085);
+  --glass-line: rgba(201, 161, 74, 0.28);
+  --glass-blur: blur(18px) saturate(1.25);
+  --glass-edge: rgba(255, 255, 255, 0.13); /* 亮边：玻璃的关键特征 */
+  --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+  /* ================================================================
+     全站字号基准（v1.12 · 「页面比例搞大点」第二轮，再加一档）
+     ---------------------------------------------------------------
+     为什么用基准变量而不是逐个改 70 处 font-size：
+     各页 CSS 里散着 70 多个 px 数字，硬改漏一处就字号不齐。
+     改成「全站只认这 8 档」，各页引用基准 = 以后调大小只改这 8 个数。
+     ⚠️ 调字号请只改这一段，不要回头改各页 CSS —— 那样又回到 70 处分散。
+     ================================================================ */
+  --fs-xs: 15px;   /* 辅助字（opt/req/单位/图注） */
+  --fs-sm: 17px;   /* 次要说明 */
+  --fs-md: 18px;   /* 正文 */
+  --fs-lg: 22px;   /* 小标题 / 章节头 */
+  --fs-xl: 26px;   /* 卡片标题 */
+  --fs-2xl: 38px;
+  --fs-3xl: 50px;
+
+  /* 版面基准：容器加宽 + 卡片内距加大（配合字号一起放大，
+     否则字大了内距还是 24px 会显得挤）*/
+  --page-w: 1200px;     /* 功能页容器（原 880 → 1080 → 1200）*/
+  --card-pad: 40px;     /* 卡片内距（原 24 → 32 → 40）*/
 }
 
 * {
@@ -72,6 +125,203 @@ button {
   position: relative;
 }
 
+/* ================================================================
+   双面材质 · 共用底座
+   ---------------------------------------------------------------
+   各页 .card 各自引用 --kraft-* 或 --glass-*，这里只放两面共用的
+   骨架属性（圆角 / 内距 / 阴影 / 边框位），避免再抄 4 遍。
+   ⚠️ 这不是「收那 4 份重复」——秋鹰师明确拒绝了合并 .card。
+   这里新增的是**一层共用底座**，各页 .card 仍保留自己的声明，
+   只是从 var(--radius)/var(--shadow) 换成 var(--kraft-radius) 这类
+   带面属性的版本，两面因此可以各自不同。
+   ================================================================ */
+
+/* 账簿面卡片：深褐木纸。顶边一道暖高光 = 纸面朝上受光。 */
+.page-ledger .card,
+.page-ledger .resume-paper {
+  background:
+    linear-gradient(180deg, var(--kraft-edge), transparent 40%),
+    var(--kraft);
+  border: 1px solid var(--kraft-line);
+  border-radius: var(--radius);
+  padding: var(--card-pad);
+  margin-bottom: 16px;
+  box-shadow: var(--kraft-shadow);
+  color: var(--ink);
+}
+
+/* 简历面卡片：真玻璃。半透明 + 背后模糊 + 一道亮边。 */
+.page-resume .card {
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  padding: var(--card-pad);
+  margin-bottom: 16px;
+  box-shadow: var(--glass-shadow);
+  color: var(--ink);
+  /* 亮边：用 inset 阴影模拟受光的玻璃棱，1px 不占布局 */
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+}
+
+/* 浏览器不支持 backdrop-filter 时（Firefox 旧版），
+   玻璃会退化成纯半透明 = 内容直接透过来糊成一团。
+   @supports 不支持时把底色换成不透明，牺牲玻璃感换取可读性。 */
+@supports not (backdrop-filter: blur(4px)) {
+  .page-resume .card {
+    background: #17130f;
+  }
+}
+
+/* 账簿面背景：深褐木色。牛皮纸要「实」——不透，靠纸面自身纹理
+   （纤维横纹 + 顶部微光）出层次。跟简历面刻意相反。
+   纸面靠 --kraft 自身色，不靠背后。 */
+/* ================================================================
+   双面背景 · 给玻璃提供可透的内容
+   ---------------------------------------------------------------
+   ⚠️ 关键坑：背景**不能**挂在 .page-ledger / .page-resume 上 ——
+   这两个类同时又被各页的 max-width:var(--page-w)（1200px）限宽，
+   背景只会铺在 1200px 内、两侧露出 body 的纯黑，屏幕上是一条硬边。
+   .pages 是全宽容器（App.css 里 flex:1），背景挂它上面才铺得满。
+   用 :has() 按当前页面的面切换；不支持 :has() 的浏览器退回到基础暗色。
+   ================================================================ */
+.pages {
+  background: var(--bg);
+}
+
+/* 简历面：玻璃要有东西可透才像玻璃 —— 两层暖光晕 + 一层斜纹，
+   全被 backdrop-filter 揉开，卡片立刻有厚度。 */
+.pages:has(.page-resume) {
+  background:
+    radial-gradient(
+      900px 520px at 18% 8%,
+      rgba(201, 161, 74, 0.13),
+      transparent 62%
+    ),
+    radial-gradient(
+      700px 480px at 88% 92%,
+      rgba(201, 161, 74, 0.08),
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      58deg,
+      rgba(255, 255, 255, 0.022) 0px,
+      rgba(255, 255, 255, 0.022) 1px,
+      transparent 1px,
+      transparent 9px
+    ),
+    var(--bg);
+}
+
+/* 账簿面：牛皮纸要「实」——不透，靠纸面自身纤维纹 + 顶部微光出层次。
+   跟简历面刻意相反。 */
+.pages:has(.page-ledger) {
+  background:
+    repeating-linear-gradient(
+      92deg,
+      rgba(255, 255, 255, 0.016) 0px,
+      rgba(255, 255, 255, 0.016) 1px,
+      transparent 1px,
+      transparent 7px
+    ),
+    radial-gradient(
+      1000px 600px at 50% 0%,
+      rgba(233, 214, 168, 0.05),
+      transparent 65%
+    ),
+    var(--bg);
+}
+
+/* ================================================================
+   卡片背景花纹 · 两面各一套
+   ---------------------------------------------------------------
+   用 ::before 而不是 background-image，因为卡片已经有背景色/玻璃底，
+   再叠 background-image 会把 --glass 的半透明顶掉、玻璃感消失。
+   ::before 铺在卡片内容之下（z-index 0），内容浮一层。
+   ⚠️ 卡片加了 overflow:hidden，否则花纹会溢出圆角外。
+   ⚠️ 指针事件穿透：装饰不该挡住点击（卡片本身是 <form>/<button>）。
+   ================================================================ */
+
+/* 账簿面 · 纸纤维横纹（细、密、暖） */
+.page-ledger .card,
+.page-ledger .resume-paper {
+  position: relative;
+  overflow: hidden;
+}
+.page-ledger .card::before,
+.page-ledger .resume-paper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(233, 214, 168, 0.035) 0px,
+      rgba(233, 214, 168, 0.035) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    radial-gradient(
+      420px 300px at 88% -6%,
+      rgba(233, 214, 168, 0.06),
+      transparent 60%
+    );
+}
+
+/* 简历面 · 几何斜格（冷、疏、亮） */
+.page-resume .card,
+.page-resume .resume-paper {
+  position: relative;
+  overflow: hidden;
+}
+.page-resume .card::before,
+.page-resume .resume-paper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.02) 0px,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 14px
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      transparent 38%
+    );
+}
+
+/* 卡片内容浮在花纹之上 */
+.page-ledger .card > *,
+.page-resume .card > *,
+.page-ledger .resume-paper > *,
+.page-resume .resume-paper > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 花纹不能带进打印：已由 @media print 的 background-image:none 覆盖，
+   但 ::before 是伪元素，得显式关掉，否则白纸上会印出一层网纹。 */
+@media print {
+  .page-ledger .card::before,
+  .page-ledger .resume-paper::before,
+  .page-resume .card::before,
+  .page-resume .resume-paper::before {
+    display: none !important;
+  }
+}
+
+/* 页面容器自身不设背景（宽度受限会漏两侧），只负责居中与内距 */
+.page-ledger,
+.page-resume {
+  min-height: 100%;
+}
+
+
 /* Day 15 骨架 · 5 个占位页共用 */
 .placeholder {
   max-width: 720px;
@@ -101,4 +351,228 @@ button {
   border-top: 1px solid var(--line-soft);
   padding-top: 16px;
   display: inline-block;
+}
+/* ================================================================
+   @media print · 全站唯一总闸（v1.12 打印件治理）
+   ================================================================
+   ⚠️ **为什么要集中在这里，不能散在各页 CSS**：
+   CSS 是按 import 顺序加载的。原先撕除规则只写在 `Resume.css` 里，
+   于是「打印底牌页 / 记一笔 / 岗位匹配时会不会带上屏幕装饰」，
+   取决于那次打印**恰好加载了哪个页面的 CSS** —— 换个页面就是另一套结果，
+   极难排查。
+   现在全站撕除规则统一放在 index.css（全站必加载），各页 CSS 不再重复写。
+   各页若还有「本页特有」的打印诉求，另起 @media print 追加即可，
+   不要动这一段。
+
+   目标（PRD 验收硬指标）：**打印件 = 白纸 + 黑字，什么装饰都没有。**
+   --------------------------------------------------------------- */
+@media print {
+  /* ---- 1. 装订册三件套（线 / 暗纹 / 印章 / 折痕）---- */
+  .page-deco,
+  .page-deco::before,
+  .deco-binding,
+  .deco-binding::before,
+  .deco-seal,
+  .deco-fold {
+    display: none !important;
+  }
+
+  /* ---- 2. 场景穿越牌心（只该出现在屏幕上的一瞬）---- */
+  .scene {
+    display: none !important;
+  }
+
+  /* ---- 2b. 导航条
+         ⚠️ .nav 的 background 来自 `background: var(--bg-2)`，
+         上一条的 background:#fff 已能覆盖它；但 border-bottom 会印出一条横线，
+         且按钮本身无意义（打印件不需要「回主界面」）。整个撤掉最干净。---- */
+  .nav {
+    display: none !important;
+  }
+
+  /* ---- 3. 双面背景纹理（光晕 / 斜纹 / 纤维）
+         ⚠️ .pages 挂的是 :has() 背景，background 简写覆盖不掉它，
+         必须显式 background-image:none。---- */
+  body,
+  .app,
+  .pages,
+  .page,
+  .page-ledger,
+  .page-resume,
+  .home,
+  .expense,
+  .entry,
+  .match,
+  .resume,
+  .start,
+  .page-module {
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  /* ---- 3b. 表单控件：屏幕上深底浅字，打印要白底黑框
+         ⚠️ 表单控件是浏览器原生渲染，background 简写不一定生效，
+         必须 color-scheme + appearance 一起改。---- */
+  input,
+  select,
+  textarea,
+  button {
+    background: #fff !important;
+    color: #000 !important;
+    border: 1px solid #999 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color-scheme: light !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+  /* placeholder 的颜色也要压（否则是浅灰，打印几乎看不见）*/
+  input::placeholder,
+  textarea::placeholder {
+    color: #666 !important;
+    opacity: 1 !important;
+  }
+  /* 打印时把下拉箭头、日期选择器图标去掉 */
+  input[type='date'],
+  input[type='number'],
+  select {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  /* ---- 3c. 提示 / 说明类底色块（todo-note / match-result / empty-hint）
+         这些块在屏幕上靠米色/朱色底区分，打印时一律白底，只留左边框。---- */
+  .todo-note,
+  .match-result,
+  .stat,
+  .primary-btn,
+  .ghost-btn,
+  .seg,
+  .seg button,
+  .item-result,
+  .req,
+  .opt {
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  .primary-btn,
+  .ghost-btn {
+    border: 1px solid #999 !important;
+  }
+
+  /* ---- 4. 卡片背景花纹（伪元素，background-image:none 管不到）---- */
+  .page-ledger .card::before,
+  .page-ledger .resume-paper::before,
+  .page-resume .card::before,
+  .page-resume .resume-paper::before {
+    display: none !important;
+  }
+
+  /* ---- 5. 所有卡片：玻璃要压成不透明白 ----
+         ⚠️ backdrop-filter 必须显式关。部分 PDF 导出会忽略 unknown 属性，
+         留着半透明的 --glass 底会印成灰底。---- */
+  .page-ledger .card,
+  .page-resume .card,
+  .page-ledger .resume-paper,
+  .page-resume .resume-paper,
+  .start-arc .card {
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* ---- 6. 装饰性图标：打印件不需要图形标记 ----
+         有语义的图标（role="img"）不撕，靠 7 的文字规则兜住。---- */
+  .card-mark,
+  .power-mark,
+  .resume-mark,
+  .stat-head .icon,
+  .card-title-with-icon .icon,
+  .section-mark .icon,
+  .row-mark {
+    display: none !important;
+  }
+
+  /* ---- 7. 文字统一黑
+         ⚠️ 凡是「屏幕上用颜色表意」的地方都要列进来，
+         漏一个就会在白纸上留一块彩色。已漏过的：resume-role（金）、
+         page-module（金）、item-result（金）、opt/req（弱色）、
+         todo-note / ai-status / empty-hint / list-toolbar。---- */
+  .card-title,
+  .section-head,
+  .card-sub,
+  .resume-name,
+  .resume-role,
+  .resume-sub,
+  .item-role,
+  .item-content,
+  .item-period,
+  .item-meta,
+  .item-result,
+  .item-org,
+  .empty-hint,
+  .stat-label,
+  .stat-value,
+  .power-label,
+  .power-hint,
+  .form-key,
+  .expense-row,
+  .entry-row,
+  .resume-row,
+  .page-module,
+  .todo-note,
+  .ai-status,
+  .list-toolbar,
+  .opt,
+  .req,
+  .expense .profile-unit,
+  .match-result {
+    color: #000 !important;
+  }
+
+  /* 分隔线：屏幕上靠颜色区分，打印里只留灰线 */
+  .resume-header,
+  .section-head,
+  .resume-item,
+  .entry-row,
+  .expense-row {
+    border-color: #999 !important;
+  }
+
+  /* ---- 7b. 兜底：所有嵌套元素一律黑
+         ⚠️ 为什么必须有这条：像 `.match .todo-note b { color: var(--ink) }`
+         这种「给内部加粗字单独上色」的规则，特异性 (0,2,1) 高于上面按类名
+         列出来的 (0,1,0)，不兜住就会在白纸上留下彩色字。
+         打印件不需要颜色语义，通配压成黑最省事也最不会漏。---- */
+  .page-ledger *,
+  .page-resume *,
+  .page * {
+    color: #000 !important;
+    text-shadow: none !important;
+  }
+  /* 分隔线一律灰 */
+  .page-ledger *,
+  .page-resume *,
+  .page * {
+    border-color: #999 !important;
+  }
+
+  /* ---- 8. 避免打印分页把一条内容割成两半 ---- */
+  .resume-item,
+  .expense-row,
+  .entry-row,
+  .card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 }

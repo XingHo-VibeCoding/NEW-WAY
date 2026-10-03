@@ -3,22 +3,26 @@
    完整视觉（编辑 / 6s 删除撤销 / 复制内容到工作流）→ Day 17-18。 */
 
 .expense {
-  max-width: 880px;
+  max-width: var(--page-w);
   margin: 0 auto;
   padding: 32px 24px 64px;
 }
 
+/* 账簿面卡片底：深褐木纸。材质骨架已上提到 index.css 双面材质段，
+   这里保留显式声明以便单页调试时看得到全貌。 */
 .expense .card {
-  background: var(--bg-2);
-  border: 1px solid var(--line-soft);
+  background:
+    linear-gradient(180deg, var(--kraft-edge), transparent 40%),
+    var(--kraft);
+  border: 1px solid var(--kraft-line);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: var(--card-pad);
   margin-bottom: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--kraft-shadow);
 }
 
 .expense .page-module {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.4em;
   color: var(--ink-dim);
   text-transform: uppercase;
@@ -27,14 +31,14 @@
 
 .expense .card-title {
   font-family: var(--serif, serif);
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   margin: 0 0 4px;
   color: var(--ink);
 }
 
 .expense .card-sub {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   margin: 0 0 16px;
 }
@@ -49,7 +53,7 @@
 }
 
 .expense-form .form-key {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--ink-dim);
   letter-spacing: 0.06em;
 }
@@ -78,7 +82,7 @@
 }
 
 .expense-form .profile-unit {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
 }
 
@@ -119,7 +123,7 @@
 .field-err {
   margin: 8px 0 0;
   color: var(--brand, #c0392b);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 /* 主按钮 */
@@ -162,7 +166,7 @@
 }
 
 .toolbar-key {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   letter-spacing: 0.06em;
 }
@@ -193,7 +197,7 @@
 }
 
 .expense .stat-label {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   letter-spacing: 0.08em;
 }
@@ -211,7 +215,7 @@
 .empty-hint {
   text-align: center;
   color: var(--ink-dim);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   padding: 32px 0;
 }
 
@@ -245,13 +249,13 @@
 
 .row-date {
   font-family: var(--serif, serif);
-  font-size: 14px;
+  font-size: var(--fs-md);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
 .row-cat {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   letter-spacing: 0.06em;
   padding: 2px 8px;
@@ -260,7 +264,7 @@
 }
 
 .row-note {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--ink-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -269,7 +273,7 @@
 
 .row-amount {
   font-family: var(--serif, serif);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -287,7 +291,7 @@
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   color: var(--ink-dim);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   padding: 4px 10px;
   cursor: pointer;
   transition: color 180ms ease-out, border-color 180ms ease-out;

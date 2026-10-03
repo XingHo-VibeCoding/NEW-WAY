@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
+import Icon from '../components/Icon.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import './Resume.css'
 
@@ -93,6 +94,9 @@ export default function Resume() {
 
       <div className="resume-paper">
         <header className="resume-header">
+          <div className="resume-mark">
+            <Icon name="seal" size={44} label="简历标记" />
+          </div>
           <h1 className="resume-name">{name}</h1>
           <div className="resume-sub">
             {targetRole && <span className="resume-role">{targetRole}</span>}
@@ -102,7 +106,10 @@ export default function Resume() {
         </header>
 
         <section className="resume-section">
-          <h2 className="section-head">经历</h2>
+          <h2 className="section-head section-mark">
+            <Icon name="section" size={20} />
+            经历
+          </h2>
           {sorted.length === 0 ? (
             <p className="empty-hint">还没经历，去「记一条」加几条再来</p>
           ) : (

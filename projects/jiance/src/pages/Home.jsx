@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
+import Icon from '../components/Icon.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import './Home.css'
 
@@ -112,6 +113,9 @@ export default function Home() {
       <div className="page-module">账簿面</div>
 
       <div className="card power">
+        <div className="power-mark">
+          <Icon name="calendar" size={34} label="本月示意" />
+        </div>
         <div className="power-label">还能撑 ≈</div>
         {months !== null ? (
           <div className="power-value">
@@ -132,23 +136,35 @@ export default function Home() {
       </div>
 
       <div className="card">
-        <h2 className="card-title">本月</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="calendar" size={22} />
+          本月
+        </h2>
         <p className="card-sub">本月 = 电脑系统时间所在的自然月</p>
         <div className="stats">
           <div className="stat" aria-label={`本月收入 ${income} 元`}>
-            <div className="stat-label">本月收入</div>
+            <div className="stat-head">
+              <Icon name="coin" size={20} />
+              <div className="stat-label">本月收入</div>
+            </div>
             <div className={`stat-value ${income === 0 ? 'is-empty' : ''}`}>
               {income > 0 ? `¥${income.toLocaleString()}` : '待记录'}
             </div>
           </div>
           <div className="stat" aria-label={`本月支出 ${expense} 元`}>
-            <div className="stat-label">本月支出</div>
+            <div className="stat-head">
+              <Icon name="chopsticks" size={20} />
+              <div className="stat-label">本月支出</div>
+            </div>
             <div className={`stat-value ${expense === 0 ? 'is-empty' : ''}`}>
               {expense > 0 ? `¥${expense.toLocaleString()}` : '待记录'}
             </div>
           </div>
           <div className="stat" aria-label={`本月结余 ${balance} 元`}>
-            <div className="stat-label">本月结余</div>
+            <div className="stat-head">
+              <Icon name="ledger" size={20} />
+              <div className="stat-label">本月结余</div>
+            </div>
             <div className={`stat-value ${balance === 0 ? 'is-empty' : ''}`}>
               {balance !== 0 ? `¥${balance.toLocaleString()}` : '—'}
             </div>
@@ -157,7 +173,10 @@ export default function Home() {
       </div>
 
       <div className="card">
-        <h2 className="card-title">个人参数</h2>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="pouch" size={22} />
+          个人参数
+        </h2>
         <p className="card-sub">
           存款决定「能撑几个月」，姓名 / 联系方式会显示在简历抬头（选填）。
         </p>

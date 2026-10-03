@@ -3,29 +3,37 @@
    完整视觉（真玻璃 blur + 描边印章 + AI 助手卡）→ Day 19。 */
 
 .resume {
-  max-width: 960px;
+  max-width: var(--page-w);
   margin: 0 auto;
   padding: 32px 24px 64px;
 }
 
 .resume .page-module {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.4em;
   color: var(--ink-dim);
   text-transform: uppercase;
   margin-bottom: 16px;
 }
 
-/* 简历纸：880px 撑满居中（v1.11 拍板） */
+/* 简历纸：撑满居中 + 真玻璃（属简历面，与记一条 / 岗位匹配同材质）。
+   ⚠️ @media print 块里有对应撕法（白底黑字、无圆角无阴影）——改这里必须同步改那里。 */
 .resume-paper {
-  max-width: 880px;
+  max-width: var(--page-w);
   margin: 0 auto;
-  background: var(--bg-2);
-  border: 1px solid var(--line-soft);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
   border-radius: var(--radius);
-  padding: 56px 64px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  padding: 48px 72px 56px;
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--ink);
+}
+@supports not (backdrop-filter: blur(4px)) {
+  .resume-paper {
+    background: #17130f;
+  }
 }
 
 /* 抬头 */
@@ -38,7 +46,7 @@
 
 .resume-name {
   font-family: var(--serif, serif);
-  font-size: 36px;
+  font-size: var(--fs-3xl);
   font-weight: 600;
   letter-spacing: 0.06em;
   margin: 0 0 8px;
@@ -46,7 +54,7 @@
 }
 
 .resume-sub {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--ink-dim);
   letter-spacing: 0.06em;
 }
@@ -72,7 +80,7 @@
 
 .section-head {
   font-family: var(--serif, serif);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   letter-spacing: 0.12em;
   color: var(--ink);
@@ -101,7 +109,7 @@
 
 .item-period {
   font-family: var(--serif, serif);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -111,7 +119,7 @@
 }
 
 .item-meta {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-dim);
   margin-bottom: 4px;
   letter-spacing: 0.04em;
@@ -128,14 +136,14 @@
 }
 
 .item-content {
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   color: var(--ink);
   margin-bottom: 4px;
 }
 
 .item-result {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--line);
   margin-top: 4px;
 }
@@ -143,7 +151,7 @@
 .empty-hint {
   text-align: center;
   color: var(--ink-dim);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   padding: 32px 0;
 }
 
@@ -153,7 +161,7 @@
     padding: 32px 20px;
   }
   .resume-name {
-    font-size: 28px;
+    font-size: 30px;
   }
   .resume-item {
     grid-template-columns: 1fr;
@@ -165,65 +173,21 @@
    @media print —— PRD 验收硬指标：打印件只剩白纸黑字
    纸面外的屏幕装饰必须清干净，否则白纸上会出现印章/暗纹/装订线
    ================================================================ */
+/* ================================================================
+   @media print —— 本页只留「简历纸特有」的一条
+   ================================================================
+   全站撕除规则（装订册 / 双面背景 / 花纹 / 玻璃 / 图标 / 文字转黑）
+   已集中到 index.css 的「全站唯一总闸」，那边必加载，这里不再重复。
+
+   为什么原来这整块要搬走：原来撕除规则只写在 Resume.css，
+   于是「打印别的页会不会带装饰」取决于那次恰好加载了哪个 CSS ——
+   换个页面就是另一套结果。规则集中才不会漏。
+
+   保留的这一条是简历纸独有的：白底上的 24px 内距（比屏幕的 48px 紧，
+   白纸打印要省纸）。总闸里 .resume-paper 的 padding 没写死，留给本页。
+   ================================================================ */
 @media print {
-  /* 装饰撕干净（page-deco / 装订线 / 暗纹 / 折痕 全部不显示） */
-  .page-deco,
-  .page-deco::before,
-  .deco-binding,
-  .deco-binding::before,
-  .deco-seal,
-  .deco-fold {
-    display: none !important;
-  }
-
-  /* 屏幕背景全撕 */
-  body,
-  .app,
-  .resume,
-  .resume .page-module {
-    background: #fff !important;
-    color: #000 !important;
-    box-shadow: none !important;
-  }
-
-  /* 纸面回白底黑字 */
   .resume-paper {
-    background: #fff !important;
-    color: #000 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    max-width: 100% !important;
     padding: 24px !important;
-    margin: 0 !important;
-  }
-
-  .resume-name,
-  .item-role,
-  .item-content,
-  .item-period {
-    color: #000 !important;
-  }
-
-  .resume-role,
-  .item-result {
-    color: #444 !important;
-  }
-
-  .resume-sub,
-  .item-meta,
-  .empty-hint {
-    color: #666 !important;
-  }
-
-  .resume-header,
-  .resume-item,
-  .section-head {
-    border-color: #999 !important;
-  }
-
-  /* 避免打印时 page break 把单条割开 */
-  .resume-item {
-    page-break-inside: avoid;
   }
 }

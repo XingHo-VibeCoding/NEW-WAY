@@ -9,13 +9,13 @@
 }
 
 .nav-btn {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   letter-spacing: 0.08em;
   color: var(--ink-dim);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 6px 12px;
+  padding: 8px 16px;
   transition: color 180ms ease-out, border-color 180ms ease-out;
 }
 
