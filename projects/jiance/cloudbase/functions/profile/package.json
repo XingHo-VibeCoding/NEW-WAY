@@ -1,0 +1,11 @@
+{
+  "name": "profile",
+  "version": "1.1.0",
+  "description": "简册 · GET /api/profile 读个人参数（Day 17；改走 CloudBase PostgreSQL HTTP API，零依赖）",
+  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
