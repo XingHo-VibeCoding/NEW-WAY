@@ -4,13 +4,30 @@
    简册 · 云函数 expenses
    ------------------------------------------------------------
    文件：functions/expenses/index.js
-   功能：GET /api/expenses —— 收支流水「列表读取」
-   归属：Day 17（第 3 周第一个业务读接口）
-   依据：api-contract.md 第五节第 2 条（成功 200 / 错误 400 / 405 / 503 的全部形状）
+   功能：GET  /api/expenses —— 收支流水「列表读取」（Day 17 上线）
+        POST /api/expenses —— 收支流水「记一笔」  （Day 18 新增）
+   归属：Day 17 建读路径 / Day 18 加写路径
+   依据：api-contract.md 第五节第 2 条（GET：200 / 400 / 405 / 503 的全部形状）
+        + 第五节第 4 条（POST：201 / 400 / 405）
         + 第二节通用约定（字段名不改编、日期是文本、金额是正数、type 是中文）
 
-   今天范围：只做「读」。不实现 POST / PUT / DELETE（写入留 Day 18）。
-           契约第五节第 4/5/6 条是写接口，今天一行都不写。
+   今天范围：**只加 POST；读路径除两处已批准的 bug 修复外不动。**
+           PUT / DELETE（契约第五节第 5/6 条）今天仍然不做，
+           用了照样回 405 —— 没做的接口宁可回「不支持」，也不能假装支持。
+
+   ⚠️ 关于「读路径不变」这句话怎么保证（秋鹰师 Day 18 硬要求）：
+     GET 分支的入参解析、同样的两条校验、同样的拼 URL、同样的排序、
+     同样的 200/400/405/503、同样的错误体形状、同样的 503 文案，
+     全部与 Day 17 上线时相同。改动只有这几处，**逐条列明**：
+       ① main() 顶部的方法分流（GET 走老路，POST 走新函数，其余 405）
+       ② 405 那句文案 + 回显 method 前加白名单（P2，Day 18 修 bug）
+       ③ 新增的第 3 段之二 / 4 段之二 / 6 段之二 / 7 段之二四段
+       ④ sendGet 的 clearTimeout 位置（P3，Day 17 遗留，QA 批准顺手修）
+     Day 18 本地自测里有一组「GET 回归」断言（117 条中的 F 组27 条），
+     其中 16 组是拿 git 里Day 17 版**同参数逐字节比对响应体**；
+     G5 则是源码级比对，**把批准改的 ②④ 两处抠掉之后**再比其余部分 ——
+     所以「除这两处外一字未改」是测出来的，不是嘴上说的。
+     五个 bug 的完整留档见文件末尾「Day 18 QA 复验后修的 5 个 bug」。
 
    它的位置：课程打卡案例里的 GET /api/favorites 那种「列表读取」。
            Day 16 把表建好了、Day 15 把通道打通了，今天第一次真正
@@ -162,6 +179,22 @@ function json(statusCode, payload) {
  */
 function ok(data) {
   return json(200, { ok: true, data: data });
+}
+
+/**
+ * 组装「新建成功」响应。Day 18 新增。
+ *
+ * ⚠️ 为什么不能直接用 ok()：ok() 把状态码写死成 200，
+ *    而契约第五节第 4 条要求「记一笔」回 **201**。
+ *    状态码是这份契约里**前端会读**的东西（前端据此判断「是新增成功
+ *    还是只是读到了东西」），所以 201 必须真的发出去，不能拿 200 糊弄。
+ *    壳的形状（ok / data / error 三字段）与 ok() 完全一致，
+ *    前端那套 `if (res.ok)` 判断一行都不用改。
+ *
+ * @param {*} data 刚写进去、已翻译成前端形状的那一条记录
+ */
+function created(data) {
+  return json(201, { ok: true, data: data });
 }
 
 /**
@@ -534,76 +567,114 @@ async function sendGet(url) {
 
   // AbortController + setTimeout = 手动实现超时。
   // fetch 自己不会超时，不设的话请求可能永远挂着（第 0 段的 REQUEST_TIMEOUT_MS）。
-  // 关键：finally 里必须 clearTimeout，否则定时器会一直占着事件循环，
-  // 云函数结束后不退出。
+  //
+  // ⚠️⚠️ Day 18 顺手修的 Day 17 遗留：clearTimeout 的**位置**原来放错了。
+  //
+  // 【原来的写法与它错在哪】
+  //     let resp;
+  //     try { resp = await fetch(...); }
+  //     catch (err) { return {...}; }
+  //     finally { clearTimeout(timer); }   ← 在这里就清了
+  //     ...
+  //     data = await resp.json();          ← 读正文在 finally **之后**
+  //
+  //   fetch() 只在**收到响应头**时就 resolve。正文是之后流式来的，
+  //   所以「拿到响应头」和「读完正文」是两件事。
+  //   定时器在 finally 里被清掉 → 从那一刻起**再没有任何东西能打断读正文**。
+  //   网关只回了头、正文卡住（半开连接、代理缓冲丢包、数据库锁住不返回）时：
+  //     · fetch 已 resolve，不会有 AbortError；
+  //     · resp.json() 永远不 settle；
+  //     · 定时器已经清了，没人来打断。
+  //   → **函数永久挂死，一个响应都不返回**。
+  //   QA 实测复现过：网关只发响应头然后卡住，2 秒内既没回 200 也没回 503。
+  //
+  // 【为什么说这是 Day 17 的遗留、不是 Day 18 引入的】
+  //   Day 18 的 sendWrite 是照着 sendGet 抄的，两边是同一个模式。
+  //   Day 17 上线的读路径当时就有这个问题（只是没人触发过）。
+  //   所以它**不是本次回归**，但既然已经看见了就一起修——
+  //   而且修读路径的理由比修写路径还硬：写路径挂死只是「用户的账没记上」，
+  //   读路径挂死是**列表转圈永远转不出来**，用户连已有的账都看不到。
+  //
+  // 【修法：把 clearTimeout 挪到覆盖「取响应头 + 读正文」整体的外层 finally】
+  //   这样定时器在正文读完（或读失败）之前一直活着，
+  //   卡住时 controller.abort() 会把挂着的 resp.json() 打断，
+  //   它抛 AbortError → 被下面的 catch 接住 → 走「读不出来」那一支 → 503。
+  //   **超时从「只管响应头」升级成「管整个往返」。**
+  //   ⚠️ 代价：终于不用手写「每个 return 前记得清定时器」了 ——
+  //      写成外层 finally 之后，清定时器这件事**不可能被漏掉**。
   const controller = new AbortController();
   const timer = setTimeout(function () {
     controller.abort();
   }, REQUEST_TIMEOUT_MS);
 
-  let resp;
   try {
-    resp = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Accept': 'application/json'
-      },
-      signal: controller.signal
-    });
-  } catch (err) {
-    // 网络层失败：DNS 解析不了、连不上、超时被 abort、被出网策略拦……
-    // 全在这一支。err.message 里有我们需要的关键信息
-    // （比如 getaddrinfo ENOTFOUND / ECONNREFUSED），
-    // 但它**可能带域名和 IP**，所以只交原文给调用方，由调用方脱敏后再输出。
-    return {
-      reached: false,
-      status: null,
-      json: undefined,
-      errorName: err && err.name ? err.name : 'Error',
-      errorMessage: describeErrorDeeply(err),
-      elapsedMs: Date.now() - startedAt
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+    let resp;
+    try {
+      resp = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+    } catch (err) {
+      // 网络层失败：DNS 解析不了、连不上、超时被 abort、被出网策略拦……
+      // 全在这一支。err.message 里有我们需要的关键信息
+      // （比如 getaddrinfo ENOTFOUND / ECONNREFUSED），
+      // 但它**可能带域名和 IP**，所以只交原文给调用方，由调用方脱敏后再输出。
+      return {
+        reached: false,
+        status: null,
+        json: undefined,
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: describeErrorDeeply(err),
+        elapsedMs: Date.now() - startedAt
+      };
+    }
 
-  // 收到响应了。**刻意不读、也不返回响应体**（非 2xx 时）——
-  // 原因见下面 httpGetJson 里那段说明：网关的报错正文里可能带表结构、
-  // 列名、内部标识，甚至认证细节，泄露出去等于把数据库结构公开。
-  if (!resp.ok) {
+    // 收到响应了。**刻意不读、也不返回响应体**（非 2xx 时）——
+    // 原因见下面 httpGetJson 里那段说明：网关的报错正文里可能带表结构、
+    // 列名、内部标识，甚至认证细节，泄露出去等于把数据库结构公开。
+    if (!resp.ok) {
+      return {
+        reached: true,
+        status: resp.status,
+        json: undefined,
+        errorName: null,
+        errorMessage: '',
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
+    let data;
+    try {
+      // ⚠️ 这一行现在**受定时器保护**（Day 18 修，见上面那段说明）。
+      //   正文卡住时 controller.abort() 会把它打断，这里走 catch → 503。
+      data = await resp.json();
+    } catch (err) {
+      return {
+        reached: true,
+        status: resp.status,
+        json: undefined,
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: describeErrorDeeply(err),
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
     return {
       reached: true,
       status: resp.status,
-      json: undefined,
+      json: data,
       errorName: null,
       errorMessage: '',
       elapsedMs: Date.now() - startedAt
     };
+  } finally {
+    // 只有到这里（正文读完 / 出错 / 返回）才清定时器。
+    clearTimeout(timer);
   }
-
-  let data;
-  try {
-    data = await resp.json();
-  } catch (err) {
-    return {
-      reached: true,
-      status: resp.status,
-      json: undefined,
-      errorName: err && err.name ? err.name : 'Error',
-      errorMessage: describeErrorDeeply(err),
-      elapsedMs: Date.now() - startedAt
-    };
-  }
-
-  return {
-    reached: true,
-    status: resp.status,
-    json: data,
-    errorName: null,
-    errorMessage: '',
-    elapsedMs: Date.now() - startedAt
-  };
 }
 
 /**
@@ -655,7 +726,399 @@ async function httpGetJson(url) {
 }
 
 /* ============================================================
-   第 4 段 · 参数校验
+   第 3 段之二 · 写入用的 HTTP 层（POST）—— Day 18 新增
+   ------------------------------------------------------------
+   这一段是第 3 段（sendGet / httpGetJson）在**写入方向上的对应物**。
+   为什么另起一段，而不是把 sendGet 改成 sendRequest(url, method, body)：
+   读和写要的东西**根本不同**，硬合并成一个函数只会得到一个到处是
+   if (method === 'POST') 的四不像。分开写，每一段都一眼看得懂。
+
+     读（GET）要的：拿到数组 / 拿不到就抛，状态码塞 dbStatus
+     写（POST）要的：201 + 回来的完整对象 / 主键撞了要说「已经记过了」
+
+   ⚠️ 写入的官方姿势（官方文档 docs.cloudbase.net/http-api/pgdb/insert-records）：
+
+       POST https://{envId}.api.tcloudbasegateway.com/v1/rdb/rest/expenses
+       Authorization: Bearer <token>
+       Content-Type: application/json
+       Prefer: return=representation
+       Body: {单个 JSON 对象}
+
+     · 成功 201，响应体是**数组** `[{...}]`；响应头 content-range 带一个 `*` 和 1
+       （形如「*&#47;1」）表示影响了 1 行
+       ⚠️ 写文档时注意：那个「*&#47;1」在 JS 注释里必须转义成实体，
+          直接写 `*` 加斜杠会**提前结束块注释**，整个文件当场语法错误。
+     · `Prefer: return=representation` **必须带**：不带的话网关只回 201 一个空壳，
+       我们拿不回刚写进去的那条记录，而 201 的契约要求「返回新建的完整对象」。
+       这一行不是可选项，去掉了 201 就没有 body 可返。
+   ============================================================ */
+
+/** 写入超时。跟读同一个值（REQUEST_TIMEOUT_MS），不另立规矩 —— 同一个网关，写没理由比读更耐心。 */
+const WRITE_TIMEOUT_MS = 8000;
+
+/**
+ * 判断一段网关报错正文里有没有「唯一约束冲突」的痕迹。
+ *
+ * ⚠️⚠️ 这个函数是本文件里**唯一**允许读网关报错正文的地方，必须说清楚为什么：
+ *
+ *   Day 17 立的铁律是「绝不回传网关响应体正文」（正文里可能带表结构、列名）。
+ *   「回传」和「读」不是一回事：
+ *     · 我们**读**它，只是为了判断这一句 400 到底是不是「这个 id 已经存在」；
+ *     · 判定完立刻丢弃——不返回、不日志、不拼进任何对外字段。
+ *   也就是说：**内容一次都不外泄，只有一个 true / false 出门。**
+ *
+ *   为什么非要判断：PostgREST 语义下唯一冲突是 409，但网关不一定照办，
+ *   见过把同一个错误包成 400 回来的。只认 409 的话，第二种情况会掉进
+ *   「数据库连不上」的 503 里 —— 用户明明是重复提交，却被告知稍后重试，
+ *   于是又点一次，**重复记账照旧发生**，防重形同虚设。
+ *
+ * 【⚠️⚠️ 这个坑是怎么被发现的 —— Day 18 修 bug 记录，读代码前先看】
+ *   Day 18 第一版的关键词表是 6 个词：
+ *     ['23505', 'duplicate key', 'unique constraint', 'already exists', '唯一约束', '重复键']
+ *   QA 用**逐个造假正文**的办法测，**6 个词每一个都造成假阳性**。
+ *   最致命的一条：网关回 `500` + 正文
+ *       {"code":"42P07","message":"relation \"expenses\" already exists"}
+ *   —— 42P07 是 PostgreSQL 的 duplicate_table（表已存在），
+ *   和「这一行 id 重复」**完全是两回事**，但 `already exists` 命中了，
+ *   于是这个 500 被翻译成 **409「这笔已经记过了，没有重复添加」**。
+ *
+ *   后果链条很可怕：数据库挂了 / 表被误删 / 权限掉了
+ *     → 用户界面显示「已经记过了」
+ *     → 前端按 code: duplicate_submission 分支弹提示并**刷新列表**
+ *     → 用户以为记成功了，实际库里一行都没有。
+ *   这是「静默丢数据 + 错误告知」，是最难排查的一类故障，
+ *   而且恰好打在这个接口对外的核心承诺（防重复提交）上。
+ *
+ * 【两条修法，缺一不可】
+ *   ① 关键词收窄到**只有两种精确认识**（见下面 keys），宽泛词全部删掉。
+ *   ② 加**状态码门槛**（见 isUniqueConflictStatus）——
+ *      500 及以上一定是服务端自己的问题，不是用户重复提交。
+ *
+ * @param {string} text 网关报错正文原文
+ * @returns {boolean} 命中唯一冲突的精确认征就返回 true
+ */
+function looksLikeUniqueViolation(text) {
+  if (typeof text !== 'string' || text === '') {
+    return false;
+  }
+  const lower = text.toLowerCase();
+  /* ⚠️ 关键词表只留「精确认识」，一个宽泛词都不加。
+     逐条说明为什么留、为什么不留（这些都是 Day 18 实际踩过的）：
+
+       '23505'  ✅ 留 —— PostgreSQL 的 unique_violation **SQLSTATE**，
+                   是机器对机器的精确编码，不存在第二种含义。
+                   唯一的残余风险是「5xx 正文里也含 23505」，
+                   那一风险由状态码门槛（isUniqueConflictStatus）挡住。
+
+       'duplicate key value violates unique constraint'  ✅ 留 ——
+                   PostgreSQL 唯一冲突的**标准完整句**。整句匹配，不匹配其中一段。
+
+       'duplicate key'                      ❌ 删 —— 它是上面那句的**前缀**，
+                   单独用它会把 "duplicate key value violates exclusion constraint"
+                   （排他约束，另一种错误）也当成主键冲突。
+       'unique constraint'                  ❌ 删 —— 它出现在**建表报错**里
+                   （「there is no unique constraint for given relation」），
+                   建表失败和插入重了是两件事。
+       'already exists'                     ❌ 删 —— 就是 42P07 那个坑。
+                   「表已存在」和「这一行 id 已存在」只差一个主语。
+       '唯一约束' / '重复键'                  ❌ 删 —— 中文关键词是**猜**网关的
+                   中文措辞，猜错了就是误判，猜漏了是漏判。
+                   两个方向都错，那就不猜：网关回英文原文（SQLSTATE 与
+                   message 都来自 PostgreSQL），只认英文原文。
+     */
+  const keys = ['23505', 'duplicate key value violates unique constraint'];
+  for (let i = 0; i < keys.length; i++) {
+    if (lower.indexOf(keys[i]) !== -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 这个状态码**允许**被翻译成 409「已经记过了」。
+ *
+ * ⚠️ 为什么要单独一个函数、为什么这道门槛是关键的（Day 18 实测踩出来的）：
+ *   「正文命中唯一冲突特征」和「这次失败真的是用户重复提交」**不是同一件事**。
+ *   状态码是网关给出的、对本次失败性质的**第一手判断**，比正文里的一句话可靠。
+ *
+ *   · 409 —— PostgREST 对唯一冲突的标准答案。直接采信，不需要看正文。
+ *   · 400 —— 请求本身有问题。可能是 id 重复，也可能是别的 CHECK 没通过
+ *     （金额越界、分类与 type 错配…）。所以**还要正文命中精确特征**才认。
+ *   · 422 —— 与 400 同类的语义错误网关（有些网关把 400 换成 422），同理。
+ *   · 5xx / 其它（401 令牌、403 权限、404 表不存在、502/503 网关自己挂了…）
+ *     —— **一律不算重复提交**。
+ *
+ *   500 及以上为什么一定要排除干净：
+ *     那些是「服务端自己出事了」（表不存在、连接断掉、约束执行器崩了）。
+ *     哪怕正文里**真的**出现了 23505（约束执行器自己崩了也可能带上），
+ *     也不该告诉用户「已经记过了」—— 用户会以为不用再记，
+ *     而实际上这笔账根本没进库。**宁可多报一次 503 让用户重试，也不能谎报成功。**
+ *
+ * @param {number} status 网关回的 HTTP 状态码
+ * @returns {boolean} 这个状态码允许走唯一冲突判定就返回 true
+ */
+function isUniqueConflictStatus(status) {
+  // 只放行这三个。注意 500/502/503 **刻意不在列** —— 理由见上面注释。
+  return status === 409 || status === 400 || status === 422;
+}
+
+/**
+ * 发一次 POST，**只如实描述结果，不做判断**（与 sendGet 同一套纪律）。
+ *
+ * ⚠️ 与 sendGet 的两处**故意不同**，都跟「写」这件事有关：
+ *
+ *   ① 非 2xx 时**读了**响应体（sendGet 刻意不读）。
+ *      唯一理由：主键冲突有可能被网关包成 400（见 looksLikeUniqueViolation）。
+ *      读回来只喂给那个判断函数，返回值里只留一个 duplicate 布尔值，
+ *      **正文本身不出现在这个返回对象里**。
+ *
+ *   ② 成功时把响应体留在 json 里（sendGet 成功时才留，非 2xx 从不留）。
+ *      因为 201 必须把刚写进去的那条记录回给前端，正文就是那条记录。
+ *
+ * @param {string} url   完整 URL（由 restUrl 拼好）
+ * @param {object} row   要写入的**数据库列名**对象
+ * @returns {Promise<object>} 永远 resolve，不 reject：
+ *   { reached, status, json, duplicate, errorName, errorMessage, elapsedMs }
+ */
+async function sendWrite(url, row) {
+  const startedAt = Date.now();
+
+  let token;
+  try {
+    token = await resolveToken();
+  } catch (err) {
+    return {
+      reached: false,
+      status: err && err.dbStatus ? err.dbStatus : null,
+      json: undefined,
+      duplicate: false,
+      errorName: err && err.name ? err.name : 'Error',
+      errorMessage: describeErrorDeeply(err),
+      elapsedMs: Date.now() - startedAt
+    };
+  }
+
+  /* ⚠️⚠️ Day 18 修：clearTimeout 的位置（与 sendGet 同一个坑，一起修）。
+     原来定时器在 fetch 的 finally 里就清了，而读正文（resp.text() / resp.json()）
+     在它之后 —— 网关只回响应头、正文卡住时没有任何东西能打断读正文，
+     函数**永久挂死不返回**。
+     写路径上这个后果比读路径更严重：用户点了「保存」，界面一直转圈，
+     账**没记上**、用户**不知道**，他很可能会再点一次 —— 于是又是一次无防重的提交。
+     （没带 clientToken 时真的会记两笔。）
+     修法与 sendGet 一致：clearTimeout 挪到覆盖「取头 + 读正文」的外层 finally。
+     完整踩坑记录见 sendGet() 里那段注释。 */
+  const controller = new AbortController();
+  const timer = setTimeout(function () {
+    controller.abort();
+  }, WRITE_TIMEOUT_MS);
+
+  try {
+    let resp;
+    try {
+      resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          // 这一行是 201 能返回完整对象的**唯一**原因，别删。理由见本段开头。
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(row),
+        signal: controller.signal
+      });
+    } catch (err) {
+      return {
+        reached: false,
+        status: null,
+        json: undefined,
+        duplicate: false,
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: describeErrorDeeply(err),
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
+    if (!resp.ok) {
+      /* --------------------------------------------------------
+         失败分支：**读**正文，只为了判断「是不是唯一约束冲突」。
+         读到的这段文字在这一行之后就不再被任何人看到——
+         判定完就随函数返回丢弃，不入日志、不入响应、不入任何字段。
+         真正的对外信息只有：状态码（进 err.dbStatus）+ duplicate 布尔值。
+
+         ⚠️⚠️ Day 18 修 bug：这里原来是
+            `resp.status === 409 || looksLikeUniqueViolation(bodyText)`，
+            漏了**状态码门槛**，导致网关回 5xx 时也会走正文判定，
+            把「表已存在 / 数据库故障」误报成「这笔已经记过了」。
+            假阳性的完整后果链条见 looksLikeUniqueViolation() 的注释。
+            现在改成：**先过状态码门槛，再看正文**。
+         -------------------------------------------------------- */
+      let bodyText = '';
+      // ⚠️ 只有状态码允许时才读正文。5xx 一律**连读都不读** ——
+      //   不是为了省那点内存，是因为读了就有诱惑去用它，
+      //   而 5xx 的正文永远不该参与「是不是重复提交」的判断。
+      //   （读它本身不会泄露：正文从不外泄。但不读能从根本上杜绝误判。）
+      if (isUniqueConflictStatus(resp.status)) {
+        try {
+          // ⚠️ 这一行现在**受定时器保护**（Day 18 修，见上面那段注释）。
+          bodyText = await resp.text();
+        } catch (err) {
+          // 正文读不出来（连接被掐、断流、超时被 abort）不算失败：
+          // 状态码已经拿到了，duplicate 猜 false 即可，剩下的交给 503。
+          // ⚠️ 这里**刻意不把 AbortError 升级成「算唯一冲突」**——
+          //   超时意味着「我们不知道发生了什么」，而「不知道」绝不能翻译成
+          //   「已经记过了」这种会让用户以为成功的结论。
+          bodyText = '';
+        }
+      }
+
+      return {
+        reached: true,
+        status: resp.status,
+        json: undefined,
+        // 409 是 PostgREST 的标准答案，直接采信；400 / 422 还要正文命中精确特征。
+        // 其它状态码（401/403/404/5xx…）在这里**一定**是 false。
+        duplicate: resp.status === 409 || looksLikeUniqueViolation(bodyText),
+        errorName: null,
+        errorMessage: '',
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
+    let data;
+    try {
+      // ⚠️ 这一行现在**受定时器保护**（Day 18 修）。
+      data = await resp.json();
+    } catch (err) {
+      return {
+        reached: true,
+        status: resp.status,
+        json: undefined,
+        duplicate: false,
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: describeErrorDeeply(err),
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
+    return {
+      reached: true,
+      status: resp.status,
+      json: data,
+      duplicate: false,
+      errorName: null,
+      errorMessage: '',
+      elapsedMs: Date.now() - startedAt
+    };
+  } finally {
+    // 只有到这里（正文读完 / 出错 / 返回）才清定时器 —— 见上面那段说明。
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 发一次 POST，把写进去的那条记录取回来。
+ *
+ * 失败时抛出的错误对象上带：
+ *   · `dbStatus`   —— 网关状态码（供日志与分档用）
+ *   · `duplicate`  —— true 表示「这个 id 已经有了」，调用方据此回 409
+ *
+ * ⚠️ 错误对象上**只有这两个字段**，没有响应体、没有 message 原文 ——
+ *    铁律（不回传网关正文）在这一层就落实，不靠调用方自觉。
+ *
+ * @param {string} url 由 restUrl() 拼好的完整 URL
+ * @param {object} row 数据库列名对象
+ * @returns {Promise<object>} 刚写进去的那一行（数据库列名）
+ */
+async function httpWriteJson(url, row) {
+  const res = await sendWrite(url, row);
+
+  if (!res.reached) {
+    /* 与 httpGetJson 同一套纪律：只把状态码带出去，正文一个字不回传。
+       401 令牌无效 / 403 权限不足（**写接口最可能**：令牌角色没有 INSERT 权限）
+       / 404 表不存在 / 400 请求有问题（除主键冲突外） / 超时 —— 都归到 503。 */
+    const err = new Error('rdb rest write failed');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  if (res.duplicate) {
+    /* 防重复提交命中：同一个 clientToken 第二次提交，撞主键。
+       这不是「数据库坏了」，是一个**正常的业务结果**，所以单独一个错误类型，
+       不和 503 混在一起。message 固定，不带任何来自网关的内容。 */
+    const err = new Error('duplicate submission');
+    err.dbStatus = res.status;
+    err.duplicate = true;
+    throw err;
+  }
+
+  // 走到这里说明 resp.ok（2xx）。但还要查形状：
+  // 官方文档说成功回数组，数组第一项才是刚写进去的那条记录。
+  // 万一网关回了对象 / 空数组 / 一段不是 JSON 的文字，带错进 main 会炸出
+  // 「undefined is not a function」那种看不懂的错，不如在这儿就抛清楚。
+  const data = res.json;
+  if (res.errorName !== null || !Array.isArray(data) || data.length === 0) {
+    const err = new Error('unexpected write response shape');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  /* ------------------------------------------------------------
+   ⚠️⚠️ Day 18 修 bug（出口字段校验）—— 这个坑是怎么被发现的：
+
+   原来只查到上面那三行就 return data[0]。
+   QA 用「网关回 201 但正文残缺」的方式测，发现两种漏法：
+
+     ① 回 `[{ "id":"ex_x", "amount":"1.00", "note":null }]`（只有 3 个字段）
+        → 代码回 **201**，body 只有 3 个字段，缺 date / type / category /
+          createdAt / updatedAt。前端拿到 undefined 会渲染成空值。
+
+     ② 回 `[123]` / `["abc"]` / `[[]]` / `[true]`
+        → 全部回 201，body 是 `{"amount":null,"note":""}`。
+
+   ② 比 ① 严重得多：**这一笔是真的写进库了**，但回给前端的是一份残缺对象。
+   前端把它追加到列表里，用户看到「undefined 元」，
+   而实际上数据库里有这笔账 —— 界面和数据库**永久对不上**，
+   用户越用越糊涂，却查不出任何错误信息（我们回的是 201「成功」）。
+
+   所以这里补一道**出口校验**：201 的契约要求「返回新建的完整对象」
+   （契约第五节第 4 条，8 个字段），少一个都不算成功。
+
+   ⚠️ 两个容易写错的点：
+     · 校验必须按**数据库列名**（created_at / updated_at，下划线）对，
+       **不是**驼峰 —— 这里是网关回的原始行，驼峰转换发生在后面的
+       toFrontend() 里。拿驼峰去对会「明明齐全也判成缺失」。
+     · 元素必须是**对象**且非 null。`[123]` 在下面第一关就被拦住；
+       `[null]` 也被同一关拦住（typeof null 是 'object' 但不是真对象，
+       所以额外判了 !== null）。
+   ------------------------------------------------------------ */
+  const written = data[0];
+  if (written === null || typeof written !== 'object' || Array.isArray(written)) {
+    const err = new Error('unexpected write response item');
+    err.dbStatus = res.status;
+    throw err;
+  }
+  // 8 个必填列，缺任何一个都不给过。
+  // 用「列名在不在」而不是「值对不对」：值的类型/格式由 toFrontend() 与
+  // 数字库自己的约束负责管，这里只管「字段齐不齐」这一件事。
+  const REQUIRED_COLUMNS = [
+    'id', 'date', 'amount', 'type', 'category', 'note', 'created_at', 'updated_at'
+  ];
+  for (let i = 0; i < REQUIRED_COLUMNS.length; i++) {
+    // hasOwnProperty 而不是 `in`：防原型链上的 inherited 属性冒充字段。
+    if (!Object.prototype.hasOwnProperty.call(written, REQUIRED_COLUMNS[i])) {
+      const err = new Error('incomplete write response');
+      err.dbStatus = res.status;
+      throw err;
+    }
+  }
+
+  return written;
+}
+
+/* ============================================================
+   第 4 段 · 参数校验（读接口）
    ============================================================ */
 
 /** type 的合法取值。只有这两个，别的全部 400（契约第二节 + 第五节第 2 条）。 */
@@ -704,6 +1167,365 @@ function parseLimit(raw) {
     return DEFAULT_LIMIT;
   }
   return Math.min(n, MAX_LIMIT);
+}
+
+/* ============================================================
+   第 4 段之二 · 写入参数校验（Day 18 新增）
+   ------------------------------------------------------------
+   读接口的校验（第 4 段）和写接口的校验（这一段）是**两套**，故意不合并：
+   读的 month 是一个筛选条件，宽松一点退回默认值还能继续服务；
+   写的一笔账是**要落库的正经数据**，填错就是错，必须当场 400 拦住。
+   「读可以宽容、写必须严格」是这一段存在的全部理由。
+
+   ⚠️ 为什么要自己校验一遍，不靠数据库的 CHECK 兜着（schema.sql 明明有）：
+     CHECK 只能拦住「明显错」的（负金额、错日期格式、分类与 type 错配），
+     而且**它拦不住时已经进库流程了**，网关会回一句 400，
+     我们还得从那句 400 里反推「是哪一列错了」——而正文不能回传（Day 17 铁律）。
+     在门口自己校验，好处有三个：
+       ① 能精确告诉前端**哪个输入框**标红（error.field 就是给前端用的）
+       ② 一条 400 就带一个准确的 field，不用猜
+       ③ 数据库那一层仍然保留 —— 这里是第二道防线，不是替换掉它
+   ============================================================ */
+
+/**
+ * date 的格式：4 位年 - 2 位月 - 2 位日。
+ *
+ * 和 MONTH_PATTERN 同一个道理，这里再补一条**读接口没说的**理由：
+ * 月份合法不代表日子合法。'2026-02-31'、'2026-13-05'能过正则，
+ * 但它们不是日历上存在的一天，存进去之后按月统计会算出一个
+ * 用户自己都对不上的数。schema.sql 的 CHECK 只管 `\d{2}-\d{2}` 的形状，
+ * 管不到「2 月有没有 31 号」，所以这一层必须多问一句。
+ */
+const DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/**
+ * 每个 type 允许的分类（照契约第五节第 4 条，与 schema.sql 的 CHECK 一字不差）。
+ *
+ * 用对象而不是两个数组：写入时要**按 type 取那一份**，
+ * 写成 `CATEGORIES[type]` 一行就够，天然不会出现「校验了收入的分类、
+ * 写进支出的记录」这种错位。
+ */
+const CATEGORIES_BY_TYPE = {
+  '支出': ['餐饮', '交通', '房租', '购物', '医疗', '娱乐', '其他'],
+  '收入': ['工资', '兼职', '理财收益', '其他']
+};
+
+/** note 的最大长度。schema.sql 里是 varchar(50)，这里是同一条规则的代码侧。 */
+const MAX_NOTE_LENGTH = 50;
+
+/**
+ * 金额最多两位小数。
+ *
+ * 为什么卡两位：数据库列是 numeric(12,2)。超过两位的话，
+ * 存进去会被**静默四舍五入**（0.005 → 0.01），用户填 12.345 记下来是 12.35，
+ * 界面显示的和记下来的对不上，账就越记越糊涂。宁可当场 400 让他改。
+ */
+const MAX_AMOUNT_DECIMALS = 2;
+
+/**
+ * 金额上限：9999999999.99
+ *
+ * ⚠️⚠️ 这个坑是怎么被发现的（Day 18 修bug 记录）：
+ *   原来只校验了「大于 0」和「最多两位小数」，**没管上界**。
+ *   QA 传 `10000000000`（1e10）试出来是放行的，然后：
+ *     代码放行 → 真库执行 INSERT → 数据库列是 numeric(12,2)，
+ *     装不下 → PostgreSQL 回 `numeric field overflow`
+ *     → 网关包成 400 → 我们的 catch 把它归成 **503
+ *     「数据库暂时连不上，稍后重试」**。
+ *
+ *   为什么这个结果特别坏：这是一个**永久性错误**（金额填大了，
+ *   改小就好），却报成「稍后重试」。用户点一万次也永远不会成功，
+ *   只会一直看到「数据库连不上」—— 最后多半以为记账功能坏了而放弃。
+ *   **把「你填错了」报成「稍后重试」，是在浪费用户的时间。**
+ *
+ *   9999999999.99 这个值不是我拍的，是**照抄数据库的定义**：
+ *   schema.sql 第 84 行 `amount numeric(12,2)`。
+ *   numeric(12,2) = 12 位有效数字、其中 2 位在小数点后，
+ *   所以整数部分最多 10 位 → 最大 9999999999.99。
+ *   **代码里的上界必须 ≤ 数据库列的上界**，否则就又变成让数据库来报错。
+ *   ⚠️ 将来 schema.sql 改了这里也要跟着改，改的时候记得两边一起改。
+ *
+ *   📌 契约第二节目前只写「数字，正数，最多两位小数」，**没有写上界** ——
+ *      补进契约需要秋鹰师拍板，见文件末尾对照注释里的说明。
+ */
+const MAX_AMOUNT = 9999999999.99;
+
+/**
+ * clientToken 的白名单格式。
+ *
+ * ⚠️ 这一段是**主键防注入的第一层**，理由和 restUrl() 里的两层防线同源：
+ *   clientToken 会被编进主键（id = 'ex_' + clientToken），主键是要落库的字符串。
+ *   白名单只放「字母、数字、下划线、连字符」，长度 8~40：
+ *     · 放行这四种，是因为它们在 URL、JSON、主键里都**不需要转义**，
+ *       不会因为某个字符的含义在两层之间不一样而变形；
+ *     · 卡上界 40，是防「前端传一个几 KB 的字符串当令牌」把主键撑成长文本；
+ *     · 卡下界 8，是防「传一个 1 个字符的 a」——那种令牌区分不开两次提交，
+ *       防重等于没有，还不如老实退回服务端自增（见 buildId）。
+ *   两层防线的分工和 restUrl() 一样：**这一层表达意图，数据库约束兜底安全**。
+ */
+const CLIENT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,40}$/;
+
+/** 流水 id 的固定前缀（契约第二节：id 文本，前缀区分表，流水是 ex_）。 */
+const ID_PREFIX_EXPENSE = 'ex_';
+
+/**
+ * 生成这一笔的主键。
+ *
+ * ⚠️⚠️ 这是**防重复提交**（秋鹰师 Day 18 亲自拍板 A 方案）的全部实现，
+ *    逻辑很短，但每一步都有代价，说清楚免得以后有人「优化」掉：
+ *
+ * 【要防的问题】
+ *   网络卡住时用户以为没点上，手快点两下「保存」。
+ *   两次 POST 的内容一模一样，数据库里就多出一笔重复账目。
+ *   月度合计多算一笔，月底对账对不上，而且**用户完全看不出来**。
+ *
+ * 【A 方案：把客户端的一次性令牌编进主键】
+ *   id = 'ex_' + clientToken。同一个令牌提交两次 → 主键一样 → 数据库拒绝。
+ *   拒绝就是好事：它把「两次插入」在数据库层面压成了一次，不靠任何人的手速。
+ *
+ * 【为什么用主键而不是「先查一次有没有」】
+ *   「先 SELECT 看存不存在，不存在再 INSERT」在并发下有窗口期：
+ *   两个请求同时 SELECT 都没查到，然后同时 INSERT —— 照样重复。
+ *   主键唯一性是数据库**保证**的，不存在这个窗口。
+ *   也就是说：防重的可靠性来自数据库的唯一约束，不是我们代码里的时序运气。
+ *
+ * 【⚠️ 没有令牌就没有防重（这句话必须写在这里，别让人误以为永远防得住）】
+ *   令牌是**客户端生成的**，所以服务端拿不到就是拿不到，无法凭空造出来：
+ *     · 令牌合法 → 用它当 id 的后半段 → **防重生效**
+ *     · 令牌缺失或空串 → 退回服务端自增 → **这一次没有防重能力**，
+ *       用户手快点两下就会记两笔。这不是 bug，是令牌机制的固有边界，
+ *       唯一的解法是前端每次点提交都带上 clientToken。
+ *       所以下面那条 console.warn 不是「随便打个日志」，它是**防重失效的告警**：
+ *       线上日志里如果频繁出现它，说明前端某个版本没在传令牌，该去查前端了。
+ *     · 令牌格式不合法 → 走 400（见 validateExpenseInput），不静默降级。
+ *       静默降级最坏：用户以为防住了（其实没防住），下次重复了他还纳闷。
+ *
+ * 【自增部分为什么这么拼】
+ *   时间戳（毫秒）+ 8 位随机，两者都从 crypto.randomBytes 取。
+ *   为什么要随机：同一毫秒里发两次请求是**会发生的**（前端连点、用户狂点）。
+ *   只用时间戳的话那两次会算出同一个 id，第二次被当成重复提交误伤。
+ *   为什么要 crypto 而不是 Math.random：主键唯一性靠的就是这几位的不可预测性。
+ *   Math.random 是伪随机、可被预测；虽然这里被猜中的后果很轻
+ *   （顶多撞掉自己一笔记录），但云函数里用 crypto.randomBytes
+ *   是 Node 自带的、不加任何依赖，没有理由不用。
+ *   取不到就退回 Date.now + Math.random：宁可在极端情况下降低一点强度，
+ *   也不能让「发一笔账」这个最基本的功能挂掉。
+ *
+ * @param {string|null} token 已通过白名单校验的 clientToken；null 表示没传
+ * @returns {string} 可直接落库的主键，形如 ex_a1b2c3d4e5f6 或 ex_1789…_1a2b3c4d
+ */
+function buildId(token) {
+  if (token !== null) {
+    /* ⚠️ Day 18 修 bug（双前缀）—— 这个坑是怎么被发现的：
+       前端很自然地会传 `clientToken: "ex_myToken0001"`（把 id 的前缀一起带上）。
+       CLIENT_TOKEN_PATTERN 放行 ex_（字母、下划线都在白名单里），所以校验通过，
+       于是 id 拼成 `ex_ex_myToken0001` —— **前缀出现两次**。
+       为什么这不只是「难看」：schema.sql 对 id 列**没有 CHECK 约束**
+       （Day 18 建表时只给 date / amount / type·category / 两个时间戳加了 CHECK），
+       所以这个脏 id 会**原样落库**，将来任何按 `id like 'ex_%'` 找流水的地方
+       都会拿到它，而它其实也是一条合法记录 —— 不一致会一路带下去。
+       修法：令牌已经自带前缀就不重复加。
+         · 命中就**原样返回 token**（它自己就是完整 id 了）
+         · 没命中才补前缀
+       ⚠️ 刻意用「以 ex_ 开头」判断而不是「去掉开头的 ex_」再补 ——
+          后者会把前端传的 ex_ex_foo 变成 ex_foo，悄悄改掉了对方的值；
+          前者一个字节都不动它，只在缺前缀时补齐，行为可预期。
+       ⚠️ 这里只判大小写**敏感**的前缀：契约第二节写死前缀是小写 ex_，
+          传 Ex_ 开头的应当视为「不同前缀」照常补 ex_，
+          否则大小写混用会让「同一令牌」出现两种 id，防重就漏了。 */
+    if (token.indexOf(ID_PREFIX_EXPENSE) === 0) {
+      return token;
+    }
+    return ID_PREFIX_EXPENSE + token;
+  }
+
+  // ⚠️ 走到这里就是「没有防重能力」的那一次。如实告警，不假装防住了。
+  console.warn('[expenses] 本次请求没带 clientToken，本次提交没有防重复保护'
+    + '（原因：前端没传，或传了空值）');
+
+  const stamp = String(Date.now());
+  let tail;
+  try {
+    // Node 18 自带 crypto，**不需要在 package.json 里加任何依赖**。
+    tail = require('crypto').randomBytes(4).toString('hex');
+  } catch (err) {
+    // 极端环境兜底：强度略降，但功能不能挂。
+    tail = Math.random().toString(36).slice(2, 10);
+  }
+  return ID_PREFIX_EXPENSE + stamp + '_' + tail;
+}
+
+/**
+ * 校验一笔要写入的账。
+ *
+ * ⚠️ 设计上刻意做成**「要么全对、要么返回一个 field」**：
+ *   只回第一个错，不一次列出一堆。前端拿到 field 就只标红那一个框，
+ *   用户改完再提交。如果一次报五个错，前端要么全标红（满屏红框吓人），
+ *   要么自己排优先级（那就等于把校验规则又抄了一遍到前端，早晚会不同步）。
+ *
+ * @param {object} body 已解析成对象的请求体
+ * @returns {{ok:true, value:object}|{ok:false, field:string, message:string}}
+ *   value 里是**已经转成数据库列名**的对象，可以直接拿去写库。
+ */
+function validateExpenseInput(body) {
+  /* ---- 请求体本身 ---- */
+  // 不是对象（含 null、数组、字符串）都算错。
+  // 这里给 field: 'body' 而不是某一个具体字段：错的是「整个请求体」，
+  // 挂到 date 头上会让前端去标红日期框，用户完全看不懂哪里错了。
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, field: 'body', message: '请求体格式不对，需要一个 JSON 对象' };
+  }
+
+  /* ---- date ---- */
+  const rawDate = body.date;
+  if (typeof rawDate !== 'string' || !DATE_PATTERN.test(rawDate)) {
+    return { ok: false, field: 'date', message: '日期格式必须是 YYYY-MM-DD，例如 2026-09-30' };
+  }
+  // 形状过了还要问「这天真的存在吗」。'2026-02-31' 能过上面的正则，
+  // 但 2 月没有 31 号。放进数据库会静静躺着一笔查不出账目语义的记录。
+  // 用 Date 反查一次：把年份月份喂回去，看日号有没有被顺延成 3 月 3 号。
+  const y = Number(rawDate.slice(0, 4));
+  const m = Number(rawDate.slice(5, 7));
+  const d = Number(rawDate.slice(8, 10));
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
+    return { ok: false, field: 'date', message: '日期不存在，请检查月份和日号' };
+  }
+
+  /* ---- amount ---- */
+  const rawAmount = body.amount;
+  if (typeof rawAmount !== 'number' || !Number.isFinite(rawAmount)) {
+    return { ok: false, field: 'amount', message: '金额必须是大于 0 的数字' };
+  }
+  if (rawAmount <= 0) {
+    // 契约第二节写死「金额是数字，**正数**」——
+    // 收入支出靠 type 区分，不靠正负号，所以 0 和负数都是填错。
+    return { ok: false, field: 'amount', message: '金额必须大于 0（收入和支出靠「收入/支出」区分，不靠正负号）' };
+  }
+  // 小数位判定：「乘 100 之后是不是整数」。
+  //
+  // ⚠️⚠️ Day 18 修 bug（这个坑是**我自己写的断言 J1 抓出来的**，
+  //    不是 QA 报的 —— 加了上界之后，边界值 9999999999.99 被自己的校验误伤了）：
+  //
+  //   原来的写法是：
+  //     const scaled = Math.round(rawAmount * 100 * 1e8) / 1e8;   ← 以为是在「抹掉浮点噪声」
+  //     if (Math.abs(scaled - Math.round(scaled)) > 1e-8) → 拦
+  //   对 38.555、8.7 这些普通金额确实好使。但 9999999999.99 算出来是：
+  //     9999999999.99 * 100 = 999999999999        （正好）
+  //     再 * 1e8          = 9.99999999999e19     （⚠️ 已经超过 double 的有效位）
+  //     Math.round(...)   = 99999999999900000
+  //     / 1e8             = 999999999998.9999    （⚠️ 精度反而被弄坏了）
+  //     与整数差 0.000122 > 1e-8 → **合法的边界值被判成三位小数，400**
+  //   也就是说：我为了修「上界」而写的测试，暴露了「小数位」这段的量级缺陷。
+  //   **一个上界值都不让填，比没有上界更糟** —— 用户填到最大额度时被拒绝，
+  //   而错误提示还说「金额最多两位小数」，完全指错方向。
+  //
+  // 【现在为什么这样写】
+  //   容差按**量级**给，而不是给一个固定小数：tol = |scaled| * 2 * Number.EPSILON。
+  //   Number.EPSILON = 2.22e-16，是 double 能表示的「相对精度」——
+  //   也就是「在这个量级上，浮点自己最多能误差多少」。乘 2 是留一点余量。
+  //
+  //   为什么这个容差不会把真的三位小数放过去（这是关键，必须算过）：
+  //     · 金额已被上界卡在 1e10 以内 → 乘 100 最多 1e12。
+  //     · 在 1e12 这个量级上，double 的最小可表示间隔是
+  //       2^-52 * 2^40 ≈ 0.000244 —— 这就是「浮点噪声」的量级。
+  //     · 而**真的三位小数**，乘 100 之后必然是 k/10（k%10≠0），
+  //       离整数**至少 0.1**。
+  //     · tol 在 1e12 处 = 0.00044。
+  //     → 0.000244（噪声）< 0.00044（容差）< 0.1（真三位小数）
+  //     中间差了 200 多倍，两类东西**不可能被这个容差混起来**。
+  //
+  //   ⚠️ 顺带说明 `0.1 + 0.2 = 0.30000000000000004` 为什么**要放行**：
+  //     它在数学上就是 0.3，是**两位小数**，只是 double 存不下 0.3。
+  //     前端做加减法之后传过来的值很可能就是这种形态 ——
+  //     如果这里拦掉，用户会看到「金额最多两位小数」而完全不知道是自己的
+  //     计算链产生的浮点噪声。**拦住它是在惩罚正确的结果。**
+  const scaledAmount = rawAmount * 100;
+  const tolerance = Math.abs(scaledAmount) * 2 * Number.EPSILON;
+  if (Math.abs(scaledAmount - Math.round(scaledAmount)) > tolerance) {
+    return { ok: false, field: 'amount', message: '金额最多两位小数' };
+  }
+  // 上界：数据库列是 numeric(12,2)，装不下超大数字。
+  // 不在这里拦的话，数据库会回 numeric field overflow，
+  // 我们只能把它归成 503「稍后重试」—— 而这是永久性错误，重试一万次也没用。
+  // 完整踩坑记录见 MAX_AMOUNT 的注释。
+  if (rawAmount > MAX_AMOUNT) {
+    return { ok: false, field: 'amount', message: '金额太大了，最多能记 9999999999.99' };
+  }
+
+  /* ---- type ---- */
+  const rawType = body.type;
+  if (typeof rawType !== 'string' || VALID_TYPES.indexOf(rawType) === -1) {
+    return { ok: false, field: 'type', message: '类型只能是「收入」或「支出」' };
+  }
+
+  /* ---- category ---- */
+  // 顺序很关键：**先确认 type 合法，再按 type 取那一份分类表**。
+  // 反过来写会拿到 undefined.indexOf，抛出来的错前端完全看不懂。
+  const rawCategory = body.category;
+  const allowed = CATEGORIES_BY_TYPE[rawType];
+  if (typeof rawCategory !== 'string' || allowed.indexOf(rawCategory) === -1) {
+    return {
+      ok: false,
+      field: 'category',
+      message: rawType + '的分类只能是：' + allowed.join('、')
+    };
+  }
+
+  /* ---- note ---- */
+  // 缺省 / null / 未传 都当成「没写备注」→ 存 null。
+  // 为什么不是存空字符串：数据库的 null 和 '' 在语义上就是两回事
+  // （null = 没填，'' = 填了个空的），而 toFrontend() 会把 null 收成 ''
+  // 再给前端，所以对外两种情况长得一样、库里分得清——这是好事，不要抹平。
+  let rawNote = null;
+  if (body.note !== undefined && body.note !== null) {
+    if (typeof body.note !== 'string') {
+      return { ok: false, field: 'note', message: '备注只能是文字' };
+    }
+    if (body.note.length > MAX_NOTE_LENGTH) {
+      return { ok: false, field: 'note', message: '备注最多 ' + MAX_NOTE_LENGTH + ' 个字' };
+    }
+    rawNote = body.note;
+  }
+
+  /* ---- clientToken（防重复提交） ---- */
+  // 三种结果，注释见 buildId()：
+  //   · 合法 → 用它当 id 的后半段（防重生效）
+  //   · 没传 / 空 → 服务端自生成（**没有防重能力**，日志里会记一笔）
+  //   · 传了但格式不对 → 400。这条最容易被写成「忽略它然后自生成」，
+  //     那样用户会遇到「我明明传了令牌，你却说是重复提交/或没防住」的糊涂局面，
+  //     直接告诉他「令牌格式不对」最省事。
+  let token = null;
+  if (body.clientToken !== undefined && body.clientToken !== null && body.clientToken !== '') {
+    if (typeof body.clientToken !== 'string' || !CLIENT_TOKEN_PATTERN.test(body.clientToken)) {
+      return {
+        ok: false,
+        field: 'clientToken',
+        message: '提交标识格式不对（8~40 位，只能用字母、数字、下划线或连字符）'
+      };
+    }
+    token = body.clientToken;
+  }
+
+  const now = new Date().toISOString();
+
+  return {
+    ok: true,
+    value: {
+      id: buildId(token),
+      date: rawDate,
+      // 统一保留两位：numeric(12,2) 存进去本来就是两位，
+      // 前端拿到 38.5 和 38.50 是同一个数，但回传形状要稳定，所以写死 toFixed(2) → Number。
+      // ⚠️ 用 Number(...) 包一层：toFixed 返回的是字符串 "38.50"，
+      //    直接写进 JSON 会让前端拿到字符串，契约第二节写的是「数字」。
+      amount: Number(rawAmount.toFixed(MAX_AMOUNT_DECIMALS)),
+      type: rawType,
+      category: rawCategory,
+      note: rawNote,
+      created_at: now,
+      updated_at: now
+    }
+  };
 }
 
 /* ============================================================
@@ -835,6 +1657,35 @@ async function queryExpenses(query) {
 
   const rows = await httpGetJson(restUrl('expenses', params));
   return rows.map(toFrontend);
+}
+
+/* ============================================================
+   第 6 段之二 · 写数据库（Day 18 新增）
+   ============================================================ */
+
+/**
+ * 把一笔账写进数据库。
+ *
+ * ⚠️ 这里的 URL **不带任何查询参数** —— restUrl 传一个空数组即可。
+ *   读接口那一堆 select / order / limit 在写入时全是多余的：
+ *   插一行没有「排序」「筛选」「取几行」可言，多写一个参数就是多一个
+ *   出错的地方。restUrl 第二个参数给空数组是它本来就支持的用法
+ *   （`parts.length > 0 ? '?' + ... : ''` 那一行就是为它写的）。
+ *
+ *   表名这里直接写 'expenses' 字面量，与 queryExpenses()、buildDiag() 保持一致 ——
+ *   同一个文件里三处都写一遍字面量，比「两处用常量、一处写字面量」好读。
+ *   哪天真的要改成多张表时，再一起抽常量，那是一次全局替换，不会漏。
+ *
+ * ⚠️ 写进去的是**数据库列名**（created_at / updated_at），
+ *    出去的时候用 toFrontend() 换回驼峰。两边的转换分别在
+ *    validateExpenseInput（入）和 toFrontend（出），职责单一。
+ *
+ * @param {object} row validateExpenseInput 产出的、已校验的数据库行
+ * @returns {Promise<object>} 刚写进去的那一行，已翻译成前端形状
+ */
+async function createExpense(row) {
+  const written = await httpWriteJson(restUrl('expenses', []), row);
+  return toFrontend(written);
 }
 
 /* ============================================================
@@ -1055,6 +1906,536 @@ async function buildDiag() {
 /* ↑↑ DIAG-END ================================================= */
 
 /* ============================================================
+   ↓↓↓ WDIAG-BEGIN · Day 18 部署后临时探针（定位 401 后整块删除）
+   ------------------------------------------------------------
+   ⚠️⚠️ **这是一个临时探针，定位完请整块删掉。**
+      删掉本标记与「↑↑ WDIAG-END」之间的全部内容，再删掉 main() 里
+      那 5 行 WDIAG 分流，就**完全回到今天上线的样子**，不留残留
+      （与 Day 17 `_diag` 同一个套路）。
+
+   【要解决什么问题】
+     部署后公网实测：同一个令牌、同一分钟、同一份代码 ——
+        GET  ?month=2026-09  → 200，5 条，正常
+        POST 各种 clientToken → 503（函数日志：**网关状态码=401**，令牌无效）
+     而 `_diag` 显示同一个令牌读完全正常（probeStatus 200、令牌 1166 字符完整）。
+     → **差异出在网关对「写」不接受这种令牌**（读放行 Publishable Key，写要求更高一档）。
+
+   【为什么不直接改成用 API Key 试试】
+     因为**猜**不能当结论。三种可能必须用真实结果区分开：
+        ① API Key 能写、Publishable Key 不能 → 令牌档位问题，换环境变量即可
+        ② 三档都不能写 → 不是令牌问题（表权限 / RLS / 网络策略），换令牌也没用
+        ③ 别的档回403 而不是 401 → 机制与推测不同，按真实结果走
+     这个探针就是一次性把① ② ③ 全部打出来。
+
+   【设计纪律 · 与 Day 17 `_diag` 完全一致】
+     · **必须真打请求**，不能回显配置了事 —— 配置回显没用，要运行时真相
+     · **探针挂了不能连带出事**：任何一档发请求抛错，都记成该档 status:null
+       然后**继续打下一档**。全部失败也回 200 + 数据。
+       （理由：探针挂了 = 一条信息都拿不到，等于白部署一次。）
+     · **零泄露铁律**（比诊断本身更重要，下面每处都标了）
+
+   ⚠️⚠️ **零泄露铁律（这一条比诊断本身更重要）**：
+     网关返回的 401 报错正文**绝对不许回传**。
+     它可能带表结构、列名、内部标识、甚至认证细节 ——
+     Day 17 立的铁律就是「不回传网关响应体正文」。
+     本探针回传的**只有一个数字状态码** + 我们写死的中文分档：
+       · 绝不回令牌原文或片段
+       · 绝不回响应体正文
+       · 绝不回表名 / 列名
+       · 绝不回域名 / IP / 端口
+     探针比正式路径多打一次写请求，所以**更容易碰到带表结构的报错**，
+     更要守住这一条。
+   ============================================================ */
+
+/** 探针专用超时。比正式的 8 秒短，因为诊断要快速回三个结果。 */
+const WDIAG_TIMEOUT_MS = 8000;
+
+/**
+ * 探针用的假数据（**不含 id** —— id 每次探测时按档位现拼，见 wdiagProbeWrite）。
+ *
+ * ⚠️⚠️ **为什么这里不带 id，而 id 要在wdiagProbeWrite() 里现拼**
+ *   （这是一个写错了才发现的坑，值得写下来）
+ *   第一版把 id 写死在这个常量里，结果**跑出来的 201 是假的** ——
+ *   真表里 `id text PRIMARY KEY`（schema.sql 第 68 行，PRIMARY KEY 隐含 NOT NULL），
+ *   不带 id 的行会被数据库用 **23502 not_null_violation** 拒掉，
+ *   那个 400 与「令牌能不能写」**毫无关系**。
+ *   也就是说：**探针自己制造了一个与目标问题无关的失败原因**，
+ *   照着它下结论会得出完全错误的判断 ——
+ *   「API Key 也不行」其实只是「我忘了填主键」。
+ *   所以 id 必须**每档一个、且真的发出去**，让这一行**只**因为令牌问题而失败或成功。
+ *
+ * ⚠️ 字段值全部取「一定过 CHECK 约束」的安全值：
+ *   date 合法格式、amount > 0、type/category 匹配（支出+其他）、
+ *   note 短（varchar(50)）、created_at/updated_at 由 buildId 那套 ISO 文本给出。
+ *   **目的：除了「令牌能不能写」，不给数据库任何别的拒绝理由。**
+ */
+const WDIAG_PROBE_ROW = {
+  date: '2026-01-01',
+  amount: 1,
+  type: '支出',
+  category: '其他',
+  note: 'wdiag'
+};
+
+/**
+ * 裸打一次网关的写接口，返回**只有状态码**的结构化结果。
+ *
+ * ⚠️⚠️ **刻意不调用 createExpense()** —— 那是我们的封装，
+ *    走它会牵进校验、8 字段出口检查、409 判定……
+ *    那样测出来分不清是**网关拒了**还是**我们的代码拒了**。
+ *    这个探针要回答的是「网关对写操作是什么态度」，所以**裸打**：
+ *    自己拼 URL、自己拼头、自己发 fetch，只取状态码。
+ *
+ * ⚠️ 令牌作为参数传进来，**不读模块变量** —— 因为要试三档不同的令牌，
+ *    而正式路径的 resolveToken() 只会按优先级返回其中一档。
+ *
+ * ⚠️⚠️ **id 必须这一档一个、且真的发出去** ——
+ *    真表 `id text PRIMARY KEY`（NOT NULL）。不填 id 的话数据库会用
+ *    23502 拒绝，**那个状态码与「令牌能不能写」毫无关系**，
+ *    照着它下结论会错得离谱（详见 WDIAG_PROBE_ROW 的注释）。
+ *    刻意用**固定** id（`ex_wdiag_p1/p2/p3`）而不是带时间戳的：
+ *    固定 id 第二次撞主键会回 409 —— 而 409 明确说明「**这一档真写进去了**」，
+ *    同样是有用信息，而且好手工清理。
+ *
+ * @param {string} token     这一档要用的令牌
+ * @param {number} tierIndex 档位序号（0/1/2），只用来拼 id
+ * @returns {Promise<object>} {status, errorName, errorMessage, elapsedMs, insertedId}
+ *   永远 resolve，不reject。
+ */
+async function wdiagProbeWrite(token, tierIndex) {
+  const startedAt = Date.now();
+
+  // 固定 id，三档各一个。写入成功时它就是清理时的主键。
+  const probeId = 'ex_wdiag_p' + (tierIndex + 1);
+  const nowIso = new Date().toISOString();
+
+  // ⚠️ 8 个字段一次给全，让这一行**只**可能因为令牌问题而失败。
+  // created_at / updated_at 是 NOT NULL + CHECK，缺一个就是另一个无关的拒绝理由。
+  const body = Object.assign({}, WDIAG_PROBE_ROW, {
+    id: probeId,
+    created_at: nowIso,
+    updated_at: nowIso
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(function () {
+    controller.abort();
+  }, WDIAG_TIMEOUT_MS);
+
+  let resp;
+  try {
+    resp = await fetch(baseUrl() + '/v1/rdb/rest/expenses', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        // return=minimal：只要状态码，不要响应体。
+        // 为什么用 minimal 而不是 representation：
+        //   · 本探针**不关心**写进去的字段长什么样 → 不需要正文
+        //   · 少读一次响应体 = 少一次泄露面（正文永远不外泄）
+        //   · 状态码 201 / 409 就已经够回答「能不能写」了
+        //     （409 = 主键已存在 = 上一轮真的写进去了，同样是有效信息）
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    return {
+      status: null,
+      errorName: err && err.name ? err.name : 'Error',
+      errorMessage: describeErrorDeeply(err),
+      elapsedMs: Date.now() - startedAt,
+      insertedId: ''
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+
+  /*⚠️ 收到响应了。**这里刻意不读、不记响应体**——
+    401/403/500 的正文里可能带表结构、列名、认证细节。
+    只有一个状态码出门。
+    201 / 409 都说明「这一档真的写进去了」——
+    409 是因为 id 固定、上一轮已经写过 —— 把 id 报出来给你好清理。 */
+  const inserted = (resp.status === 201 || resp.status === 409);
+  if (inserted) {
+    // ⚠️ 真的写进库了，**必须让它显眼**，否则会留下一条无人认领的记录。
+    // 日志里也记一笔（只记 id，不记任何业务字段，更不记令牌）。
+    console.warn('[expenses][wdiag] 探针写入成功（status=' + resp.status
+      + '），需要手工清理：id=' + probeId);
+  }
+  return {
+    status: resp.status,
+    errorName: null,
+    errorMessage: '',
+    elapsedMs: Date.now() - startedAt,
+    insertedId: inserted ? probeId : ''
+  };
+}
+
+/**
+ * 匿名登录换一个临时 access_token（探针第 ③ 档专用）。
+ *
+ * ⚠️ Day 17 已实测：个人版这条路走不通（`LOGIN_TYPE_DISABLED`）。
+ *   但**本探针必须真打一次**才能把真实结果记下来 ——
+ *   「假设它一定失败」和「验证它确实失败」是两回事，
+ *   前者是猜测，后者是事实。将来开了匿名登录，这个探针也自动有用。
+ *
+ * @returns {Promise<{token:string, errorName:string, errorMessage:string}>}
+ *   token 非空 = 换到了；token 为空 = 失败（原因在 errorName/errorMessage）
+ */
+async function wdiagFetchAnonToken() {
+  try {
+    const resp = await fetch(baseUrl() + '/auth/v1/signin/anonymously', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-device-id': 'jiance-server' },
+      body: '{}'
+    });
+    if (!resp.ok) {
+      return {
+        token: '',
+        errorName: 'signin_http_' + resp.status,
+        errorMessage: '匿名登录端点返回 ' + resp.status
+      };
+    }
+    const body = await resp.json();
+    if (!body || typeof body.access_token !== 'string' || body.access_token === '') {
+      return { token: '', errorName: 'signin_no_token', errorMessage: '匿名登录未返回令牌' };
+    }
+    return { token: body.access_token, errorName: '', errorMessage: '' };
+  } catch (err) {
+    return {
+      token: '',
+      errorName: err && err.name ? err.name : 'Error',
+      errorMessage: describeErrorDeeply(err)
+    };
+  }
+}
+
+/**
+ * 组装探针结果。
+ *
+ * ⚠️⚠️ **fail-safe 是这里的第一要务**：
+ *   三档里任何一档出问题（环境变量没配、请求抛错、解析失败），
+ *   都只把它那一档记成失败，**继续打下一档**。
+ *   全部失败也回 200 + 完整结果 ——
+ *   因为「探针自己挂了」= 一条信息都拿不到，
+ *   那种情况下你只能重新打包部署一轮，白花时间。
+ *
+ * @returns {Promise<object>} 探针报告
+ */
+async function buildWdiag() {
+  const report = {
+    // —— 结论用的元信息（都是常量或长度，不含任何密钥）——
+    // ⚠️ 这一行是**给排查用的第一手答案**：正式路径现在走的是哪一档令牌。
+    //   它只回答「会用哪一档」，不需要发请求就能算出来。
+    activeTierInUse: (process.env.CLOUDBASE_APIKEY || process.env.TCB_API_KEY)
+      ? 'apiKey'
+      : (process.env.TCB_TOKEN ? 'publishableKey' : 'anonToken-or-none'),
+
+    nodeVersion: process.version,
+    hasFetch: hasFetch,
+
+    // 三档令牌各打一次写请求，结果排成一张表
+    tiers: []
+  };
+
+  // 提前把匿名令牌换好（可能失败，失败也不影响另两档）
+  const anon = await wdiagFetchAnonToken();
+
+  /*  ⚠️ 三档的令牌来源（**只读，绝不赋值**）：
+     `CLOUDBASE_APIKEY` / `TCB_API_KEY`  → 官方推荐的 API Key（带service_role）
+     `TCB_TOKEN`                          → Publishable Key（现在在用的这串 JWT）
+     匿名登录                → 换来的临时 access_token
+     ⚠️ 变量名**只出现在代码里**，值由控制台注入，这里不写死任何域名和密钥。 */
+  const tiers = [
+    {
+      label: 'apiKey',
+      token: process.env.CLOUDBASE_APIKEY || process.env.TCB_API_KEY || '',
+      tokenSource: (process.env.CLOUDBASE_APIKEY || process.env.TCB_API_KEY)
+        ? 'env:CLOUDBASE_APIKEY'
+        : 'missing'
+    },
+    {
+      label: 'publishableKey',
+      token: process.env.TCB_TOKEN || '',
+      tokenSource: process.env.TCB_TOKEN ? 'env:TCB_TOKEN' : 'missing'
+    },
+    {
+      label: 'anonToken',
+      token: anon.token,
+      tokenSource: anon.token ? 'anon-signin' : 'missing',
+      // 匿名登录本身就失败时，把原因记在这一档（不外泄任何令牌）
+      preError: anon.token ? '' : (anon.errorName + ' / ' + anon.errorMessage)
+    }
+  ];
+
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i];
+    const row = {
+      label: t.label,
+      tokenSource: t.tokenSource,
+      // ⚠️ 只报**长度**。长度本身推不出密钥内容（Day 17 `_diag` 已在用这个手法）。
+      //    它的用处是发现「控制台保存时被截断」—— 明明存在、长度却明显偏短。
+      tokenLength: typeof t.token === 'string' ? t.token.length : 0,
+      status: null,
+      errorName: null,
+      errorMessageSanitized: '',
+      insertedId: ''
+    };
+
+    // ⚠️ 没配令牌就不发请求（发了必然 401，浪费一次往返，
+    //   而且会让「没配」和「配了但被拒」两种情况看起来一样）。
+    if (t.token === '') {
+      row.errorName = t.label === 'anonToken' ? 'anonTokenUnavailable' : 'tokenNotConfigured';
+      row.errorMessageSanitized = t.preError
+        ? sanitizeErrorMessage(t.preError)
+        : '该档令牌未配置，未发请求';
+      report.tiers.push(row);
+      continue;
+    }
+
+    try {
+      const res = await wdiagProbeWrite(t.token, i);
+      row.status = res.status;
+      row.errorName = res.errorName;
+      // ⚠️ 脱敏后才外发：错误 message 里可能带域名 / IP / 端口 / Bearer 串
+      row.errorMessageSanitized = sanitizeErrorMessage(res.errorMessage);
+      row.insertedId = res.insertedId;
+    } catch (err) {
+      // ⚠️⚠️ fail-safe：这一档自己抛异常了，**记下来继续下一档**，绝不让整个探针挂掉
+      row.errorName = err && err.name ? err.name : 'Error';
+      row.errorMessageSanitized = sanitizeErrorMessage(describeErrorDeeply(err));
+    }
+    report.tiers.push(row);
+  }
+
+  /*------------------------------------------------------------
+   CORS 顺带看一眼（Day 17 遗留：浏览器发的OPTIONS 预检报错）。
+   ⚠️ 次要，主线是 401。
+   ⚠️ **只回响应头的名字和值，不回请求头的任何内容** ——
+      请求头里有 Origin / Authorization 等，只回响应头这一侧就够诊断了。
+   ------------------------------------------------------------ */
+  try {
+    const probe = await fetch(baseUrl() + '/v1/rdb/rest/expenses', {
+      method: 'OPTIONS',
+      headers: {
+        // Origin 用一个**不可能存在的域名**：不反射真实访问来源，
+        // 而且如果网关回显了这个假 Origin，我们能看出它是无脑反射。
+        'Origin': 'https://wdiag.invalid',
+        'Access-Control-Request-Method': 'POST'
+      }
+    });
+    report.cors = {
+      status: probe.status,
+      // ⚠️ 头名是固定的常量；头值取不到就null。**不回任何请求头**。
+      allowOrigin: probe.headers.get('access-control-allow-origin'),
+      allowMethods: probe.headers.get('access-control-allow-methods'),
+      allowHeaders: probe.headers.get('access-control-allow-headers')
+    };
+  } catch (err) {
+    report.cors = {
+      status: null,
+      allowOrigin: null,
+      allowMethods: null,
+      allowHeaders: null,
+      errorName: err && err.name ? err.name : 'Error'
+    };
+  }
+
+  /*------------------------------------------------------------
+   WDIAG-CLEANUP · 探针可能写进库里的假数据，怎么删
+
+   探针 id（**固定三档，重复跑也不会变**）：
+       ex_wdiag_p1   ← 第 ① 档 apiKey
+       ex_wdiag_p2   ← 第 ② 档 publishableKey
+       ex_wdiag_p3   ← 第 ③ 档 anonToken
+
+   ⚠️ **只有 status = 201 或 409 的那一档才真的写进去了**，
+      其它状态码（401 / 403 / 500）网关都没接受这行数据。
+      返回里 `insertedId` 非空的那一档就是需要清理的。
+      （409 也会写进去：id 是固定的，上一次探针已经写过一行，
+        这次撞主键 —— 同样说明这一档**有写权限**。）
+
+   手工清理 SQL（在 CloudBase SQL 编辑器执行）：
+       DELETE FROM public.expenses WHERE id LIKE 'ex_wdiag_p%';
+
+   ⚠️ 用 LIKE 'ex_wdiag_p%' 而不是逐条列 id：
+      一次清干净，且这个前缀**不可能**与真实流水撞名
+      （真实 id 是 ex_时间戳_随机 的形态，不含 wdiag）。
+   ------------------------------------------------------------ */
+
+  return report;
+}
+/* ↑↑ WDIAG-END =============================================== */
+
+/* ============================================================
+   第 7 段之二 · 写入处理（POST /api/expenses）—— Day 18 新增
+   ------------------------------------------------------------
+   契约第五节第 4 条。成功 201，body 形状与第 2 条里的一项**完全一致**
+   （这一点很重要：前端「记完一笔立刻把这笔显示在列表里」时，
+   追加进去的对象和 GET 读回来的对象必须是同一个形状，
+   否则前端要写两套取值代码。复用 toFrontend() 就是为了从根上保证这一点）。
+
+   400 的四种触发条件（契约第五节第 4 条的错误表）全部在
+   validateExpenseInput() 里判（带 field、中文 message），本段只负责
+   把判定结果翻译成响应、以及把真正写库这一步的错误兜住。
+   ============================================================ */
+
+/**
+ * 处理 POST /api/expenses。
+ *
+ * 完整流程一共五步，每一步都可能提前返回：
+ *   ① 读请求体 → ② 解析 JSON → ③ 校验（400）→ ④ 写库（201/ 409 / 503）→ ⑤ 翻译成前端形状
+ *
+ * @param {object} event 这次 HTTP 请求的信息
+ * @returns {Promise<object>} CloudBase 集成响应
+ */
+async function handleCreate(event) {
+  /* ---- ① 读请求体 ---- */
+
+  /* ⚠️ 关于 CloudBase 怎么把请求体递进来（踩过才知道的）：
+     经「HTTP 访问服务」进来时，event.body 是一段 **JSON 字符串**，
+     不是对象。直接在 event.body.date 上取属性会拿到 undefined，
+     然后被当成「date 没填」回 400 —— 错得莫名其妙。
+     而直接调函数测试时（比如控制台的「测试」按钮），body 可能已经是对象了。
+     所以两种都要认，见下面 parseRequestBody()。 */
+  const parsed = parseRequestBody(event);
+
+  if (parsed.error !== null) {
+    // 401 那条这里用不上（网关不会在解析请求体之前就拒绝），
+    // 400 也不是契约第五节第 4 条列的那四种之一，
+    // 但**必须**有一句能回的话：body 不是合法 JSON 时不能让它变成 500。
+    // 字段名给 'body'，提示「整体格式不对」—— 挂到 date 上会误导前端标红日期框。
+    return fail(400, 'bad_request', parsed.error, 'body');
+  }
+
+  /* ---- ③ 校验 ---- */
+
+  const checked = validateExpenseInput(parsed.value);
+
+  if (checked.ok === false) {
+    // 每条 400 都带 field（契约第二节：field 给前端标红对应输入框）。
+    // message 是我们自己写死的中文常量，不含任何用户输入 ——
+    // 把用户填的内容拼回 message，等于把用户输入原样反射回浏览器，
+    // 前端一般会直接渲染它，属于反射型 XSS 的经典入口。
+    return fail(400, 'bad_request', checked.message, checked.field);
+  }
+
+  /* ---- 写库前先确认运行环境 ---- */
+
+  // 和 GET 路径同一个判断、同一句 503。写接口没有理由比读接口更宽容：
+  // 没配环境变量就 POST，除了报 503 什么也做不了。
+  if (configError !== '' || !hasFetch) {
+    console.error('[expenses] 写入前检查到运行配置缺失：'
+      + (configError !== '' ? configError : '运行时不支持 fetch，请确认使用 Node.js 18 及以上'));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(null)));
+  }
+
+  /* ---- ④ 真正写库 ---- */
+
+  try {
+    const saved = await createExpense(checked.value);
+    // 到这里这笔账**已经在库里了**。日志里不记金额、分类、备注 ——
+    // 全是用户自己的账，记进日志等于把账目抄一份到平台的日志系统里。
+    // 只记一笔「写成功」，排错时知道「写进去了」就够。
+    console.log('[expenses] 已写入一笔记录');
+    return created(saved);
+  } catch (err) {
+    /* --------------------------------------------------------
+       三类错误，三种回法：
+
+       ① duplicate —— 同一个 clientToken 第二次提交，撞主键。
+          回 **409 + 固定中文**。这个状态码**不在契约第五节第 4 条的错误表里**
+          （那里只列了 400 / 405），是 Day 18 为了「防重复提交」补的，
+          契约需补一行（见文件末尾的对照注释）。前端不用改：
+          它本来就要先判 res.ok，409 会被当成「不成功」，再读 message 提示用户。
+
+          ⚠️ message 是**我们自己写死的一句中文**，不含任何来自网关的内容 ——
+          Day 17 铁律在这里同样成立：绝不回传网关响应体（可能带表结构、列名）。
+          状态码 409 只说明「重复」，别的什么都不说明，泄露不了什么。
+
+       ② 其它一切失败（401 令牌 / 403 权限 / 404 表不存在 / 网络超时 / 响应形状异常）
+          统统回 503，与 GET 路径完全一致 —— 前端只需要处理一种「稍后重试」。
+
+       ⚠️ 日志纪律与 GET 路径相同：
+         只记 dbStatus（状态码）与 err.name（错误类），
+         **不记 err.message**（带域名 / IP / 端口）、**不记 err 整个对象**
+         （上面的字段将来可能增加）。
+       -------------------------------------------------------- */
+    if (err && err.duplicate) {
+      console.log('[expenses] 命中防重复：同一个提交标识第二次到达，已按409 处理'
+        + '（网关状态码=' + (err.dbStatus ? err.dbStatus : '无') + '）');
+      return fail(409, 'duplicate_submission', '这笔已经记过了，没有重复添加');
+    }
+
+    console.error('[expenses] 写入失败：网关状态码='
+      + (err && err.dbStatus ? err.dbStatus : '无响应或超时')
+      + '，错误名='
+      + (err && err.name ? err.name : 'Error')
+      + '，分档=' + translateReason(err));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(err)));
+  }
+}
+
+/**
+ * 把 event 里的请求体变成一个对象。
+ *
+ * ⚠️ 为什么要单独一个函数：请求体有两种可能形态，各平台的默认值还不一样。
+ *   CloudBase「HTTP 访问服务」给的是 **base64 编码的字符串**
+ *   （凭据里带 `isBase64Encoded: true`），控制台的「测试」按钮给的可能是
+ *   **已经解析好的对象**。两种都认，代码才既能在公网跑、也能在控制台里点。
+ *
+ *   最怕的写法是 `event.body || {}` 之后直接读 `.date`：
+ *   字符串 '{...}' 读 .date 得到 undefined，看起来像「用户没填日期」，
+ *   于是回一句「日期格式必须是 YYYY-MM-DD」—— 用户完全不知道自己哪里错了。
+ *
+ * @param {object} event
+ * @returns {{value:object|null, error:string|null}} 二选一
+ *   error 非空时，value 一定是 null；error 是**我们自己写死的中文**，不含用户输入
+ */
+function parseRequestBody(event) {
+  const raw = event ? event.body : null;
+
+  // 完全没有 body（前端空 POST）：当成「什么也没填」，
+  // 交给 validateExpenseInput 去报第一个字段的 400，
+  // 而不是在这里笼统回一句「请求体不能为空」——
+  // 那样用户只知道整个请求坏了，不知道该改哪一格。
+  if (raw === undefined || raw === null || raw === '') {
+    return { value: {}, error: null };
+  }
+
+  // 形态一：已经是对象（控制台测试 / 某些调用方式）
+  if (typeof raw === 'object') {
+    return { value: raw, error: null };
+  }
+
+  // 形态二：字符串。先看是不是 base64
+  let text = String(raw);
+  if (event && event.isBase64Encoded) {
+    try {
+      text = Buffer.from(text, 'base64').toString('utf8');
+    } catch (err) {
+      return { value: null, error: '请求体解析失败，请重新提交' };
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { value: null, error: '请求体格式不对，需要一个 JSON 对象' };
+    }
+    return { value: parsed, error: null };
+  } catch (err) {
+    // JSON.parse 抛出来的 err.message 会带上原文片段，
+    // 绝不能回传（既泄露用户输入，又可能带 HTML）。只回一句固定中文。
+    return { value: null, error: '请求体格式不对，需要一个 JSON 对象' };
+  }
+}
+
+/* ============================================================
    第 7 段 · 云函数入口
    ============================================================ */
 
@@ -1068,10 +2449,43 @@ async function buildDiag() {
 exports.main = async (event, context) => {
   const method = (event && event.httpMethod) || 'GET';
 
-  // 今天只认 GET。POST / PUT / DELETE 是Day 18 的活。
-  // 别的方法一律拒掉，而不是「也回一句 ok」—— 回了就是假话。
+  /* ------------------------------------------------------------
+   ⚠️⚠️ Day 18 的唯一一处 GET 行为改动，就是下面这 5 行。
+
+   改前：只认 GET，其它一律 405。
+   改后：GET 走读（原样，一字未改）／ POST 走写（新增）／ 其它仍 405。
+
+   为什么 PUT / DELETE 今天还回 405：
+     它们是契约第五节第 5/6 条，Day 18 清单里明确「今日不做」。
+     宁可回一句「不支持」，也不能「先放进去看看」——
+     放进去等于给前端一个能过、能用、但语义不确定的假接口，
+     将来真正实现 PUT 时前端已经按假行为写了代码，回改动的是前端。
+
+   ⚠️ 关键纪律：**GET 分支必须保证在其它分支之前分流出去**。
+      如果写成「先读 method，等确定了不是 GET 再判 POST」，
+      中间任何一次对 GET 路径的改动都可能连带影响 POST，反之亦然。
+      两路从第一行就分开，是防串味最省事的办法。
+   ------------------------------------------------------------ */
+
+  // —— 写：POST /api/expenses（契约第五节第 4 条）——
+  if (method === 'POST') {
+    return handleCreate(event);
+  }
+
+  // 读：GET /api/expenses（契约第五节第 2 条）。
+  // ↓↓↓ 从这一行往下到函数结束，与 Day 17 上线版**逐字相同**（Day 18 只在它上面加分流）
   if (method !== 'GET') {
-    return fail(405, 'method_not_allowed', '这个接口只支持 GET（写入接口等Day 18）');
+    /* ⚠️ Day 18 修 bug：这里原来直接 `+ method`，把 httpMethod **原样拼进响应**。
+       那是一个反射面 —— 原则是「不把原始输入甩给用户」（AGENTS.md 附三第 6 条的同一口径）。
+       现在过一道白名单：只放行「字母和连字符、1~20 个字符」的方法名
+       （GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS / 自定义动词都能过），
+       其它一律换成「该方法」三个字。
+       ⚠️ 代价几乎没有：真的方法名全部照常回显（对用户有用，前端会读它），
+          只有畸形的 method 才被替换 —— 而畸形 method 本来也没法回显。
+       ⚠️ 刻意**不删**「不支持 X」那半句：它是有用的信息（前端能读 method），
+          这次只把「值」换成可信的。 */
+    const safeMethod = /^[A-Za-z-]{1,20}$/.test(method) ? method : '该方法';
+    return fail(405, 'method_not_allowed', '这个接口只支持 GET（读列表）和 POST（记一笔），不支持 ' + safeMethod);
   }
 
   // queryStringParameters 在没有任何查询参数时可能是 null，
@@ -1110,6 +2524,38 @@ exports.main = async (event, context) => {
     }
   }
   /* ↑↑ DIAG-END */
+
+  /* ------------------------------------------------------------
+   ⚠️⚠️ WDIAG-BEGIN · Day 18 部署后临时探针，定位 401 后删掉这 5 行即可。
+
+   触发方式**只走路径**：/api/expenses/_wdiag
+   ⚠️ **刻意不做查询参数版**：`?__wdiag=1` 这种名字会被网关剥掉
+     （Day 17 实测：`?month=2026-13` 能传进来，但 `__diag` 取不回来，
+      猜测是 `__` 前缀被注入防护当内部保留字删了）。
+     探针只在排查期间用一次，走路径最稳、不用赌网关的过滤行为。
+
+   ⚠️ 放在 DIAG 之后、GET 参数校验之前：
+     它必须在 month / type / limit 那几行**之前**分流掉，
+     否则 `GET /_wdiag`（没带 month）会先走进正常查询逻辑。
+   ------------------------------------------------------------ */
+  if (/_wdiag\/?$/.test(rawPath)) {
+    try {
+      const report = await buildWdiag();
+      // ⚠️ 探针回**永远 200**：它挂了也要把能拿到的信息带回来。
+      // 探针失败 = 一条信息都拿不到 = 白部署一轮。
+      return json(200, { ok: true, data: report });
+    } catch (err) {
+      // 到这里说明探针**自身**抛异常了（buildWdiag 内部已逐档兜住，
+      // 走到这里通常是连fetch 都发不出去）。仍要回 200 + 脱敏原因，
+      // 至少能知道「探针跑到哪一步炸的」。
+      console.error('[expenses][wdiag] 探针自身异常：'
+        + (err && err.name ? err.name : 'Error'));
+      return json(200, { ok: true, data: { wdiagBroken: true,
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessageSanitized: sanitizeErrorMessage(describeErrorDeeply(err)) } });
+    }
+  }
+  /* ↑↑ WDIAG-END */
 
   const rawMonth = raw.month;
   const rawType = raw.type;
@@ -1224,4 +2670,140 @@ exports.main = async (event, context) => {
          响应体正文）在第 2 段之二逐条列了，逐条都能对照代码验证
      如果将来还是希望message 一个字都不多，删掉 unavailableMessage()
      里的拼接即可，translateReason() 可以留着给日志用。
+
+   ============================================================
+   ⚠️⚠️ Day 18 补记 · 契约第五节第 4 条（POST /api/expenses）
+   ============================================================
+
+   契约第五节第 4 条
+     · 请求体 { date, amount, type, category, note } ✓
+     · id / createdAt / updatedAt **由服务端生成，前端传了也忽略** ✓
+       （本地实测断言 A6：故意传 id / createdAt / updatedAt 进去，
+         回来的仍是服务端生成的值）
+     · 成功 **201** ✓（created()，与 ok() 形状相同、只改状态码）
+     · 成功体 = 第 2 条里的一项，**完全一致** ✓
+       （两边都过 toFrontend()，所以「记完立刻显示」时前端不用写第二套取值）
+     · 400 date 格式不对（带 field: date）✓
+     · 400 amount 不是大于 0 的数字 / 超过两位小数（带 field: amount）✓
+     · 400 type 不是收入或支出（带 field: type）✓
+     · 400 category 不在该 type 对应的选项里（带 field: category）✓
+     · 405 用了 PUT / DELETE ✓
+     · 分类合法值：支出 = 餐饮/交通/房租/购物/医疗/娱乐/其他；
+       收入 = 工资/兼职/理财收益/其他 ✓（CATEGORIES_BY_TYPE，与 schema.sql 一致）
+
+   ⚠️⚠️【契约需补第4 行】amount 的**上界** 9999999999.99：
+     契约第二节目前只写「数字，正数，最多两位小数」，**没有写上界**。
+     但数据库列是 numeric(12,2），装不下更大的数，所以代码必须卡：
+       · 超过 → 400 / field: "amount" /「金额太大了，最多能记 9999999999.99」
+       · 9999999999.99 恰好**放行**（不是 9999999999.98）
+     为什么这条值得进契约：它现在是一条**用户可见的 400**，
+       前端要能对它做提示（虽然 field 已经够用了）。
+     数字不是我拍的，是照抄 schema.sql 第 84 行的 `amount numeric(12,2)`。
+     **代码里的上界必须 ≤ 数据库列的上界** —— 将来 schema.sql 改了这里要跟着改。
+     ⚠️ 这条要请秋鹰师拍板：上界也可以改成「不卡上界、让数据库报错」，
+       但那样用户会看到 503「稍后重试」而实际是永久性错误（填大了改小就好），
+       点一万次也没用 —— 我认为卡上界明显更好，但这属于对外约定的变更。
+
+   ⚠️⚠️【契约需补一行】409 —— 这是**超出契约的补充**，如实写明：
+     契约第五节第 4 条的错误表目前只列了 400 与 405，**没有 409**。
+     409 是为了「防重复提交」（秋鹰师 Day 18 拍板 A 方案）才加的：
+       触发：同一个 clientToken 第二次提交 → 主键冲突
+       code：duplicate_submission
+       message：这笔已经记过了，没有重复添加
+     为什么值得单独占一行而不是塞进 400：
+       400 的语义是「你填错了，改一下」；409 的语义是「**已经存过了**」。
+       前端对这两者的处理完全不同 —— 400 要标红输入框让用户改，
+       409 只需弹一句「已经记过了」然后把列表刷新。
+       混成 400 会让用户以为是自己填错了，去反复检查一个本来没错的表单。
+     另有两处也是契约外的**保守扩展**，一并写明：
+       ① field: 'body' —— 请求体不是合法 JSON / 不是对象时用。
+          契约没列这一条，但必须有话说，否则会掉成 500。
+       ② field: 'clientToken' —— 令牌格式不合法时用。
+          同样是为了不静默降级（静默降级 = 假装防住了）。
+     这三处**都不改任何已有约定**，只是把「原来会掉进 500 的情况」
+     和「需要新增的业务结果」显式登记。契约补完后本段即可删。
+
+   ⚠️ Day 18 对 GET 路径的影响：**只有两处，且都是 QA 复验后批准修的 bug**。
+     ① main() 顶部的方法分流（GET 走读 / POST 写 / 其余 405）—— 这是加功能
+     ② 405 那句文案（因为现在多支持了一个方法）+ 回显 method 前加白名单过滤
+     ③ sendGet 的 clearTimeout 位置（P3，见下）
+     GET 分支从分流那一行往下，除上面 ②③ 外与 Day 17 上线版**逐字节相同**
+     —— 这条不是「看着没变」，是本地自测里 F 组（27 条断言，含 16 组
+     与 git 里 Day 17 版**同参数逐字节比对响应体**）+ G5（源码尾部比对，
+     已把批准的两处抠掉后再比）跑出来的。
+
+   ============================================================
+   ⚠️⚠️ Day 18 QA 复验后修的 5 个 bug —— 逐条留档
+   ------------------------------------------------------------
+   这一段是「修 bug 记录」，写下来有两个用处：
+     ① 后来的人能知道**这些坑是被怎么发现的**，下次别再踩；
+     ② 改动看起来「只是收窄了几个词 / 加了个判断」时，
+        能查到当初**为什么**要这么改，而不是当成多余的防御给删了。
+   ------------------------------------------------------------
+
+   ①【P0】唯一冲突误判 → 数据库故障被报成「已经记过了」（最严重）
+      位置：looksLikeUniqueViolation() + sendWrite() 的失败分支
+      原写法：6 个宽泛关键词，且**没有状态码门槛**。
+      怎么发现的：QA 逐个造假正文，6/6 全被误判。最致命的一条是
+        网关回 500 + `{"code":"42P07","message":"relation \"expenses\" already exists"}`
+        → 42P07是 duplicate_table（**表**已存在），与「这一行 id 重复」无关，
+        但 `already exists` 命中了 → 回 409「已经记过了」。
+      为什么这个后果最坏：数据库挂了/表被误删/权限掉了 → 用户界面说「已经记过了」
+        → 前端按 duplicate_submission 分支弹提示并**刷新列表**
+        → 用户以为记成功了，实际库里一行都没有。**静默丢数据 + 错误告知。**
+      修法：① 关键词收窄到只剩 23505 与完整句
+              「duplicate key value violates unique constraint」
+            ② 加状态码门槛 isUniqueConflictStatus()：只放行 400 / 409 / 422，
+              **5xx 一律不算**（5xx 是服务端自己的问题，不是用户重复提交）
+            ③ 5xx 时**连正文都不读**（读了就有诱惑去用它）
+
+   ②【P1】201出口没校验字段齐全 → 回给前端一份残缺对象
+      位置：httpWriteJson()
+      怎么发现的：QA 造「201 + 残缺元素」「201 + [123]」等响应，全部回201。
+      为什么这个后果坏：**这一笔是真的写进库了**，但回给前端的是残缺对象，
+        前端追加进列表显示成「undefined 元」，界面和数据库**永久对不上**，
+        而我们回的是 201「成功」，任何地方都查不出错误。
+      修法：出口按**数据库列名**（created_at，不是驼峰）校验 8 个字段齐全，
+        元素必须是对象且非 null，缺任一 → 抛错走 503。
+
+   ③【P1】amount 没有上界 → 永久性错误被报成「稍后重试」
+      位置：validateExpenseInput()
+      怎么发现的：QA 传 10000000000，放行了。真库 numeric(12,2) 装不下
+        → numeric field overflow → 网关 400 → 我们归成 503「稍后重试」。
+      为什么坏：这是**永久性错误**（金额改小就好），点一万次也没用。
+        **把「你填错了」报成「稍后重试」是在浪费用户的时间。**
+      修法：加 MAX_AMOUNT = 9999999999.99（照抄 schema.sql 的 numeric(12,2)），
+        超了 400 / field: amount。契约需补这一行，见上文。
+
+   ④【P2】两处小的
+      · 405 文案直接回显 httpMethod → 加白名单过滤（不违规方法名换成「该方法」）。
+        Day 18 新增了一个外部输入反射面，AGENTS.md 的口径是「不把原始输入甩给用户」。
+      · buildId() 双前缀：前端传 clientToken: "ex_xxx" → id 落成 ex_ex_xxx。
+        schema.sql 对 id 列**没有 CHECK**，脏 id 会直接落库。改成自带前缀就原样返回。
+
+   ⑤【P3】超时管不到读正文 → 函数可能永久挂死（Day 17 遗留，顺手一起修）
+      位置：sendGet() + sendWrite()
+      怎么发现的：QA 实测「网关只回响应头、正文卡住」时 2 秒内既没回 201 也没回 503。
+      原因：fetch() 只在**收到响应头**时就resolve，clearTimeout 在它的 finally 里
+        就清了，而读正文（resp.json()）在它之后 —— 那时已经没有任何东西能打断读正文。
+      修法：clearTimeout 挪到覆盖「取头 + 读正文」整体的外层 finally。
+      ⚠️ 读路径挂死比写路径更该修：读挂死是**列表永远转不出来**，
+        连已有的账都看不到；写挂死是这一笔没记上。
+      📌 验证方式：假网关必须 res.flushHeaders()。不 flush 的话 Node 会缓冲住
+        响应头不发出去，fetch() 自己就挂住，那测的是「取响应头超时」
+        而不是「读正文超时」—— **修好 P3 也照样会「通过」，等于白测。**
+        （这个坑我自己踩了一次：L1 第一版是假通过的，加上 flushHeaders
+          后耗时从「立刻返回」变成 8007ms，才是真的走超时路径。）
+
+   ⚠️ 防重复提交的能力边界（写在这里，别让人误以为永远防得住）：
+     令牌由**客户端**生成，服务端拿不到就造不出来。
+       · 带了合法 clientToken → 防重生效（撞主键 → 409）
+       · 没带 / 带空串 → **这一次没有防重**，退回服务端自增 id，
+         并在日志里打一条 warn（实测会打，见 buildId）。
+         唯一的解法是前端每次点提交都带上 clientToken。
+     ⚠️ 机制固有边界（**不是 bug，不要试图「修」**）：
+       PostgreSQL 文本主键**区分大小写**，所以 `Day18Token01` 与
+       `day18token01` 是两个不同令牌、算两次提交。这是主键机制本身的性质，
+       唯一的解法是前端**每次生成随机令牌**（不要用可预测的固定串）。
+     详见 buildId() 的完整说明。
 ---- */
