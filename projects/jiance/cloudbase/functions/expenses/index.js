@@ -5,10 +5,10 @@
    ------------------------------------------------------------
    文件：functions/expenses/index.js
    功能：GET  /api/expenses —— 收支流水「列表读取」（Day 17 上线）
-        POST /api/expenses —— 收支流水「记一笔」  （Day 18 新增）
+        POST /api/expenses —— 收支流水「记一笔」（Day 18 新增并已公网验证）
    归属：Day 17 建读路径 / Day 18 加写路径
    依据：api-contract.md 第五节第 2 条（GET：200 / 400 / 405 / 503 的全部形状）
-        + 第五节第 4 条（POST：201 / 400 / 405）
+        + 第五节第 4 条（POST：201 / 400 / 405 / 409）
         + 第二节通用约定（字段名不改编、日期是文本、金额是正数、type 是中文）
 
    今天范围：**只加 POST；读路径除两处已批准的 bug 修复外不动。**
@@ -28,6 +28,27 @@
      G5 则是源码级比对，**把批准改的 ②④ 两处抠掉之后**再比其余部分 ——
      所以「除这两处外一字未改」是测出来的，不是嘴上说的。
      五个 bug 的完整留档见文件末尾「Day 18 QA 复验后修的 5 个 bug」。
+
+   ┌─────────────────────────────────────────────────────────────┐
+   │ ⚠️ 两条临时诊断入口已删除（Day 18 收尾，定位完成即整块移除）      │
+   ├─────────────────────────────────────────────────────────────┤
+   │ ① `/_diag`（Day 17 建）—— 定位 GET 的 503。根因是环境变量没配，  │
+   │    不是代码问题。已用「改环境变量」解决，探针使命完成。            │
+   │ ② `/_wdiag`（Day 18 建）—— 定位 POST 的 401。                  │
+   │    根因是**令牌档位用错**：Publishable Key（`TCB_TOKEN`）读得了、 │
+   │    写不了，写必须用 API Key（`CLOUDBASE_APIKEY`）。            │
+   │                                                              │
+   │ 两处都是「打进来才知道」的问题：本地假网关永远测不出，            │
+   │ 因为令牌档位与平台鉴权策略是云端事实，不是代码逻辑。             │
+   │                                                              │
+   │ 【留下的宝贵结论，下次别再踩】                                   │
+   │   · 读可用 Publishable Key；**写必须 API Key**。                │
+   │   · `resolveToken()` 本来就优先读 `CLOUDBASE_APIKEY`（第 ① 档），│
+   │     401 卡了两天是因为**那个环境变量从来没配过**。                │
+   │   · API Key 约 900 字符，Publishable Key 约 1166 —— 前者还顺带  │
+   │     消除了 Day 17 那个「长 JWT 被控制台截断」的风险。            │
+   │   · ⚠️ API Key 绝不能进前端 / 浏览器 / 仓库。                   │
+   └─────────────────────────────────────────────────────────────┘
 
    它的位置：课程打卡案例里的 GET /api/favorites 那种「列表读取」。
            Day 16 把表建好了、Day 15 把通道打通了，今天第一次真正
@@ -233,7 +254,8 @@ function fail(statusCode, code, message, field) {
      ③ 前端只需要知道「稍后重试」——多出来的这段是给**日志和截图**看的，
         不参与前端逻辑判断（前端分支只认 error.code，那是契约规定的）。
 
-   这一段不是临时的，它不依赖诊断入口，可以长期留着。
+   这一段不是临时的：分档靠的是**状态码语义**（401/403/404/400 各代表什么），
+   不依赖任何临时排查手段，可以长期留着。
    ============================================================ */
 
 /** 503 的那句固定前缀。**只改后半段，前面一个字都不动**，前端文案不变。 */
@@ -252,10 +274,9 @@ function unavailableMessage(reason) {
 /**
  * 把一个失败翻译成「分档代码」。
  *
- * ⚠️ 这里**只做翻译，不发任何请求**。真正的诊断（真的打一次网关看状态码）
- *    在第 7 段之二的诊断入口里。两者刻意分开：
- *    正式路径不该为了「给出原因」多打一次请求，
- *    而诊断入口是临时的、只在排查时才走。
+ * ⚠️ 这里**只做翻译，不发任何请求**。这样分层是有意的：
+ *    正式路径不该为了「给出原因」多打一次请求 —— 诊断是排查时才做的事，
+ *    不该留在每次用户请求的必经之路上。
  *
  * @param {object} err catch 到的错误对象（可能带 dbStatus）
  * @returns {string} 分档代码；'' 表示原因不明
@@ -307,12 +328,6 @@ function translateReason(err) {
    两者的职责完全对应：
      pg 的连接池 → 这里的「拼 URL + 发请求 + 拿 JSON」
      pg 的驱动   → 这里的全局 fetch（Node 18 自带，不用装依赖）
-
-   ⚠️ 临时排查入口（Day 17 · 定位 503 用，定位后可整块删除）
-      见下面「第 3 段之二 · 诊断」。诊断整块由
-      「↓↓ DIAG-BEGIN」与「↑↑ DIAG-END」两个标记包住，
-      删掉这两行之间的内容、再把 main() 里 __diag 那 3 行删掉，
-      就完全回到今天上线的样子，不留任何残留。
    ============================================================ */
 
 /**
@@ -554,7 +569,8 @@ async function sendGet(url) {
     token = await resolveToken();
   } catch (err) {
     // 令牌换不到（匿名登录失败 / 网络不通）也算一次「没打出去」。
-    // 这里必须 catch：否则诊断入口自己会跟着炸，等于白加。
+    // 这里必须 catch：否则一次令牌故障会让整个查询直接抛出，
+    // 上面那套「网关状态码分档」就永远用不上了。
     return {
       reached: false,
       status: err && err.dbStatus ? err.dbStatus : null,
@@ -1672,8 +1688,8 @@ async function queryExpenses(query) {
  *   出错的地方。restUrl 第二个参数给空数组是它本来就支持的用法
  *   （`parts.length > 0 ? '?' + ... : ''` 那一行就是为它写的）。
  *
- *   表名这里直接写 'expenses' 字面量，与 queryExpenses()、buildDiag() 保持一致 ——
- *   同一个文件里三处都写一遍字面量，比「两处用常量、一处写字面量」好读。
+ *   表名这里直接写 'expenses' 字面量，与 queryExpenses() 保持一致 ——
+ *   同一个文件里两处都写一遍字面量，比「一处用常量、一处写字面量」好读。
  *   哪天真的要改成多张表时，再一起抽常量，那是一次全局替换，不会漏。
  *
  * ⚠️ 写进去的是**数据库列名**（created_at / updated_at），
@@ -1688,588 +1704,6 @@ async function createExpense(row) {
   return toFrontend(written);
 }
 
-/* ============================================================
-   ↓↓↓ DIAG-BEGIN · Day 17 临时诊断入口（定位后可整块删除）
-   ------------------------------------------------------------
-   ⚠️⚠️ **这是 Day 17 临时排查入口，定位完成后即可移除。**
-   它不属于 api-contract.md 的正式接口，是排查 503 时临时加的探针。
-   契约里没有登记它，前端也不会调它。
-
-   用法：GET /api/expenses?__diag=1
-   （用双下划线前缀是为了不和真实参数 month / type / limit 混淆；
-     真实参数三个都不长这样，__diag 永远不会和它们撞名。）
-
-   【要解决什么问题】
-   部署后公网接口一律 503，但同域名的 /api/health 正常 ——
-   说明函数在跑、代码在跑，503 是我们自己回的。
-   而同一个 Publishable Key 从本机直连网关是通的，
-   所以网关、令牌、表数据都是好的，问题只发生在**云函数内部**。
-   可能性有五六种（环境变量没保存 / 出网被拦 / DNS 不通 / 运行时不对…），
-   靠猜是猜不出来的，**必须拿到运行时真相**。
-
-   【设计上怎么做到能干净摘掉】
-   · 全部代码集中在下方两个标记之间，删掉即可，不散落在别处
-   · 唯一侵入正式路径的是 main() 开头的 3 行（一个 if + 一个 return）
-     ——没有 __diag 时，那 3 行不改变任何行为
-   · 复用正式路径的 sendGet()（同一个 fetch、同一套头、同一个超时），
-     不是另写一份 —— 另写一份的话，测出来的结果不能代表正式路径
-   · 不依赖任何新依赖、不改 package.json
-
-   ⚠️【安全红线 · 每一条都在下面代码里落实了】
-   · TCB_TOKEN 只回「有没有」和「多长」，**绝不回值、绝不回片段**
-   · 环境变量只回**名字**，不回值（名字本身不敏感，值敏感）
-   · 探测请求真的发出去，但**只读状态码，不读响应体**
-   · 错误 message 过一遍脱敏：IP / 域名 / 端口 / Bearer 后那串 / 任何长串
-     全部替换成 ***
-   · 探测用的是**只取 1 行的 select**，诊断输出里不会有任何真实业务数据
-   · 诊断本身不打印令牌、不打印查询结果
-   ============================================================ */
-
-/**
- * 脱敏：把错误 message 里可能带连接细节的部分替换成 ***。
- *
- * ⚠️ 为什么不能直接返回 err.message 原文：
- *    Node 的网络错误长这样 ——
- *      · DNS 失败：getaddrinfo ENOTFOUND xxx.api.tcloudbasegateway.com
- *      · 连不上：connect ECONNREFUSED 10.0.0.5:5432
- *      · 证书问题：unable to verify... hostname: xxx.api.tcloudbasegateway.com
- *    这些字符串里带着**内网地址、端口、我们的域名**。
- *    而这个诊断入口是公网可访问的，原文回出去等于把内部拓扑送上门。
- *
- *    但**完全不能回**也不行 —— 「ENOTFOUND」和「ECONNREFUSED」和
- *    「ETIMEDOUT」这三个词恰恰是定性的关键：
- *      ENOTFOUND    → DNS 解析不了（出网被拦 / 域名不对）
- *      ECONNREFUSED → 域名解析了但连不上（安全组 / 出网策略）
- *      ETIMEDOUT    → 出去的路是黑的（黑洞）
- *    所以做法是：**只保留这些「诊断词」，其余能定位到机器/网络的一律打码**。
- *
- * 规则（按顺序执行，先长后短，避免打码不彻底）：
- *   ① Bearer 后面那串      → ***
- *   ② 任何长度 > 40 的连续串 → ***（令牌、签名、路径片段）
- *   ③ IPv4:端口            → ***
- *   ④ 带点的域名           → ***
- *   ⑤ 单独的数字串         → ***（端口）
- *
- * @param {string} text 原始错误信息
- * @returns {string} 脱敏后的信息（只保留错误类别词，长度收窄）
- */
-function sanitizeErrorMessage(text) {
-  if (typeof text !== 'string' || text === '') {
-    return '';
-  }
-  let out = text;
-
-  // ① Authorization: Bearer xxxxx —— 先处理这个，不然后面的长串规则会漏掉
-  out = out.replace(/Bearer\s+\S+/gi, 'Bearer ***');
-
-  // ④ 域名（含子域、含端口）。注意要放在 ③ 前面，
-  //    否则 xxx.api.tcloudbasegateway.com:443 里的域名会被 ③ 拆错。
-  out = out.replace(/[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9-]+)+(:\d+)?/g, '***');
-
-  // ③ IPv4（可带端口）
-  out = out.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?/g, '***');
-
-  // ① 的补漏：有些库会写成 "Authorization: <token>"（不带 Bearer 字样）
-  //    这里靠 ② 的长串规则兜底。
-
-  // ② 任何长串 —— 令牌 / 签名 / 内部路径。这是最后一道网，
-  //    上面所有规则漏掉的，只要超过 40 个字符就一定被打掉。
-  out = out.replace(/[A-Za-z0-9_\-./+=]{41,}/g, '***');
-
-  // ⑤ 剩下的独立数字（端口号、错误码数字）也一并打掉。
-  //    ⚠️ 刻意**保留** 这些词，它们是定性关键：
-  //      ENOTFOUND / ECONNREFUSED / ETIMEDOUT / EPERM / EAI_AGAIN
-  //      fetch failed / network timeout / aborted
-  out = out.replace(/(?<![\w.:])\d{2,5}(?![\w.])/g, '***');
-
-  // 收窄长度：万一将来出现没被上面规则覆盖的新型长串，
-  // 至少不会一口气吐出几百字。截断处标出来，让人知道被截了。
-  if (out.length > 200) {
-    out = out.slice(0, 200) + '…(已截断)';
-  }
-  return out;
-}
-
-/**
- * 列出 CloudBase 注入的环境变量**名字**（不含值）。
- *
- * ⚠️ 为什么这一项价值最高：
- *    它能一眼看出两件事 ——
- *      ① 平台到底注入了什么（SCF_NAMESPACE / TCB_ENV / TENCENTCLOUD_* 之类）
- *      ② **我们配的 TCB_ENV 和平台自己注入的同名变量是不是打架了**
- *        —— 如果两边都有 TCB_ENV 而值不一样，命令行注入通常会覆盖代码，
- *          这正是「环境变量明明填了却不生效」最常见的一种成因。
- *
- * 只列名字不列值：变量名不敏感，值敏感。
- * 这是一次**真实**的枚举 —— 诊断要的是运行时真相，
- * 写死几个名字回显等于什么都没查。
- *
- * @returns {string[]} 排序后的变量名数组
- */
-function listInjectedEnvNames() {
-  const names = Object.keys(process.env).filter(function (name) {
-    // 过滤掉明显是我们自己测试塞进去的，以及太长/含怪字符的
-    // （环境变量名按规范只可能是字母数字下划线，不合规的说明是平台内部用的）
-    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && name.length <= 64;
-  });
-  names.sort();
-  return names;
-}
-
-/**
- * 组装诊断结果。
- *
- * ⚠️ 关键：**真的发一次请求**，用和正式路径完全相同的 sendGet()。
- *    写成静态配置回显是没用的 —— 我们要的是「此刻真的能不能出去」。
- *
- * 探测用 `select=id&limit=1`：只取主键、只取 1 行。
- *   · 够用来判断「能不能出去、令牌认不认、权限够不够」
- *   · 不会把任何真实业务数据带进诊断输出（安全红线）
- *
- * @returns {Promise<object>} 诊断结果对象
- */
-async function buildDiag() {
-  const token = process.env.TCB_TOKEN;
-
-  const report = {
-    // —— 配置类：只回「有没有」和「多长」，绝不回值 ——
-    hasTCBEnv: Boolean(process.env.TCB_ENV),
-    hasTCBToken: Boolean(token),
-    // 只回长度。用途：发现「控制台保存时被截断」——
-    // 令牌明明存在、长度却明显偏短，指向保存环节出了问题。
-    // 长度本身推不出任何密钥内容。
-    tcbTokenLength: typeof token === 'string' ? token.length : 0,
-
-    // —— 运行时类——
-    nodeVersion: process.version,
-    hasFetch: hasFetch,
-
-    // —— 环境类：只列名字——
-    cloudbaseInjected: listInjectedEnvNames(),
-
-    // —— 探测类：下面真的发一次请求填 ——
-    // probeUrl 只到「域名 + 路径」，不带任何查询参数：
-    // select= 里是列名、date= 里是用户可能传的值，都不关我们的事。
-    // TCB_ENV 没配时不要把字符串 "undefined" 拼进域名 ——
-    // 那样看起来像「域名拼错了」，而真实原因是「压根没配」，两回事。
-    probeUrl: process.env.TCB_ENV
-      ? baseUrl() + '/v1/rdb/rest/expenses'
-      : '(未配置 TCB_ENV，无法拼出域名)',
-    probeStatus: null,
-    probeErrorName: null,
-    probeErrorMessageSanitized: '',
-    elapsedMs: 0
-  };
-
-  // 配置不全或运行时不支持 fetch：根本发不出请求，如实说清楚，不假装。
-  if (configError !== '' || !hasFetch) {
-    report.probeStatus = 'skipped';
-    report.probeErrorName = configError !== '' ? 'ConfigError' : 'NoFetchError';
-    report.probeErrorMessageSanitized = configError !== ''
-      ? configError
-      : '运行时不支持 fetch';
-    return report;
-  }
-
-  // ⚠️ 用 select=id&limit=1 —— 只探连通性与认证，不带任何真实数据。
-  // restUrl 负责 encodeURIComponent，和正式路径同一套拼装逻辑。
-  const probeUrl = restUrl('expenses', [['select', 'id'], ['limit', '1']]);
-  const res = await sendGet(probeUrl);
-
-  report.elapsedMs = res.elapsedMs;
-  if (res.reached) {
-    // 真的收到了 HTTP 响应。状态码就是全部答案。
-    report.probeStatus = res.status;
-    if (res.errorName !== null) {
-      // 收到了响应但正文不是合法 JSON：状态码正常，数据却拿不了。
-      report.probeErrorName = res.errorName;
-      report.probeErrorMessageSanitized = sanitizeErrorMessage(res.errorMessage);
-    }
-  } else {
-    // 没收到响应：DNS / 出网 / 超时 / 令牌环节失败。
-    // 状态码为 null；匿名登录失败时 resolveToken 已把网关状态码带出来了。
-    report.probeStatus = res.status === null ? 'no_response' : res.status;
-    report.probeErrorName = res.errorName;
-    report.probeErrorMessageSanitized = sanitizeErrorMessage(res.errorMessage);
-  }
-
-  // 最后一道保险：万一脱敏规则漏了什么东西，
-  // 只要输出里还看得到令牌原文，就整段替换掉。
-  // 这是**兜底**，不是主力 —— 主力是上面 sanitizeErrorMessage。
-  if (typeof token === 'string' && token !== '' && report.probeErrorMessageSanitized !== '') {
-    report.probeErrorMessageSanitized = report.probeErrorMessageSanitized
-      .split(token).join('***');
-  }
-
-  return report;
-}
-/* ↑↑ DIAG-END ================================================= */
-
-/* ============================================================
-   ↓↓↓ WDIAG-BEGIN · Day 18 部署后临时探针（定位 401 后整块删除）
-   ------------------------------------------------------------
-   ⚠️⚠️ **这是一个临时探针，定位完请整块删掉。**
-      删掉本标记与「↑↑ WDIAG-END」之间的全部内容，再删掉 main() 里
-      那 5 行 WDIAG 分流，就**完全回到今天上线的样子**，不留残留
-      （与 Day 17 `_diag` 同一个套路）。
-
-   【要解决什么问题】
-     部署后公网实测：同一个令牌、同一分钟、同一份代码 ——
-        GET  ?month=2026-09  → 200，5 条，正常
-        POST 各种 clientToken → 503（函数日志：**网关状态码=401**，令牌无效）
-     而 `_diag` 显示同一个令牌读完全正常（probeStatus 200、令牌 1166 字符完整）。
-     → **差异出在网关对「写」不接受这种令牌**（读放行 Publishable Key，写要求更高一档）。
-
-   【为什么不直接改成用 API Key 试试】
-     因为**猜**不能当结论。三种可能必须用真实结果区分开：
-        ① API Key 能写、Publishable Key 不能 → 令牌档位问题，换环境变量即可
-        ② 三档都不能写 → 不是令牌问题（表权限 / RLS / 网络策略），换令牌也没用
-        ③ 别的档回403 而不是 401 → 机制与推测不同，按真实结果走
-     这个探针就是一次性把① ② ③ 全部打出来。
-
-   【设计纪律 · 与 Day 17 `_diag` 完全一致】
-     · **必须真打请求**，不能回显配置了事 —— 配置回显没用，要运行时真相
-     · **探针挂了不能连带出事**：任何一档发请求抛错，都记成该档 status:null
-       然后**继续打下一档**。全部失败也回 200 + 数据。
-       （理由：探针挂了 = 一条信息都拿不到，等于白部署一次。）
-     · **零泄露铁律**（比诊断本身更重要，下面每处都标了）
-
-   ⚠️⚠️ **零泄露铁律（这一条比诊断本身更重要）**：
-     网关返回的 401 报错正文**绝对不许回传**。
-     它可能带表结构、列名、内部标识、甚至认证细节 ——
-     Day 17 立的铁律就是「不回传网关响应体正文」。
-     本探针回传的**只有一个数字状态码** + 我们写死的中文分档：
-       · 绝不回令牌原文或片段
-       · 绝不回响应体正文
-       · 绝不回表名 / 列名
-       · 绝不回域名 / IP / 端口
-     探针比正式路径多打一次写请求，所以**更容易碰到带表结构的报错**，
-     更要守住这一条。
-   ============================================================ */
-
-/** 探针专用超时。比正式的 8 秒短，因为诊断要快速回三个结果。 */
-const WDIAG_TIMEOUT_MS = 8000;
-
-/**
- * 探针用的假数据（**不含 id** —— id 每次探测时按档位现拼，见 wdiagProbeWrite）。
- *
- * ⚠️⚠️ **为什么这里不带 id，而 id 要在wdiagProbeWrite() 里现拼**
- *   （这是一个写错了才发现的坑，值得写下来）
- *   第一版把 id 写死在这个常量里，结果**跑出来的 201 是假的** ——
- *   真表里 `id text PRIMARY KEY`（schema.sql 第 68 行，PRIMARY KEY 隐含 NOT NULL），
- *   不带 id 的行会被数据库用 **23502 not_null_violation** 拒掉，
- *   那个 400 与「令牌能不能写」**毫无关系**。
- *   也就是说：**探针自己制造了一个与目标问题无关的失败原因**，
- *   照着它下结论会得出完全错误的判断 ——
- *   「API Key 也不行」其实只是「我忘了填主键」。
- *   所以 id 必须**每档一个、且真的发出去**，让这一行**只**因为令牌问题而失败或成功。
- *
- * ⚠️ 字段值全部取「一定过 CHECK 约束」的安全值：
- *   date 合法格式、amount > 0、type/category 匹配（支出+其他）、
- *   note 短（varchar(50)）、created_at/updated_at 由 buildId 那套 ISO 文本给出。
- *   **目的：除了「令牌能不能写」，不给数据库任何别的拒绝理由。**
- */
-const WDIAG_PROBE_ROW = {
-  date: '2026-01-01',
-  amount: 1,
-  type: '支出',
-  category: '其他',
-  note: 'wdiag'
-};
-
-/**
- * 裸打一次网关的写接口，返回**只有状态码**的结构化结果。
- *
- * ⚠️⚠️ **刻意不调用 createExpense()** —— 那是我们的封装，
- *    走它会牵进校验、8 字段出口检查、409 判定……
- *    那样测出来分不清是**网关拒了**还是**我们的代码拒了**。
- *    这个探针要回答的是「网关对写操作是什么态度」，所以**裸打**：
- *    自己拼 URL、自己拼头、自己发 fetch，只取状态码。
- *
- * ⚠️ 令牌作为参数传进来，**不读模块变量** —— 因为要试三档不同的令牌，
- *    而正式路径的 resolveToken() 只会按优先级返回其中一档。
- *
- * ⚠️⚠️ **id 必须这一档一个、且真的发出去** ——
- *    真表 `id text PRIMARY KEY`（NOT NULL）。不填 id 的话数据库会用
- *    23502 拒绝，**那个状态码与「令牌能不能写」毫无关系**，
- *    照着它下结论会错得离谱（详见 WDIAG_PROBE_ROW 的注释）。
- *    刻意用**固定** id（`ex_wdiag_p1/p2/p3`）而不是带时间戳的：
- *    固定 id 第二次撞主键会回 409 —— 而 409 明确说明「**这一档真写进去了**」，
- *    同样是有用信息，而且好手工清理。
- *
- * @param {string} token     这一档要用的令牌
- * @param {number} tierIndex 档位序号（0/1/2），只用来拼 id
- * @returns {Promise<object>} {status, errorName, errorMessage, elapsedMs, insertedId}
- *   永远 resolve，不reject。
- */
-async function wdiagProbeWrite(token, tierIndex) {
-  const startedAt = Date.now();
-
-  // 固定 id，三档各一个。写入成功时它就是清理时的主键。
-  const probeId = 'ex_wdiag_p' + (tierIndex + 1);
-  const nowIso = new Date().toISOString();
-
-  // ⚠️ 8 个字段一次给全，让这一行**只**可能因为令牌问题而失败。
-  // created_at / updated_at 是 NOT NULL + CHECK，缺一个就是另一个无关的拒绝理由。
-  const body = Object.assign({}, WDIAG_PROBE_ROW, {
-    id: probeId,
-    created_at: nowIso,
-    updated_at: nowIso
-  });
-
-  const controller = new AbortController();
-  const timer = setTimeout(function () {
-    controller.abort();
-  }, WDIAG_TIMEOUT_MS);
-
-  let resp;
-  try {
-    resp = await fetch(baseUrl() + '/v1/rdb/rest/expenses', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        // return=minimal：只要状态码，不要响应体。
-        // 为什么用 minimal 而不是 representation：
-        //   · 本探针**不关心**写进去的字段长什么样 → 不需要正文
-        //   · 少读一次响应体 = 少一次泄露面（正文永远不外泄）
-        //   · 状态码 201 / 409 就已经够回答「能不能写」了
-        //     （409 = 主键已存在 = 上一轮真的写进去了，同样是有效信息）
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-  } catch (err) {
-    clearTimeout(timer);
-    return {
-      status: null,
-      errorName: err && err.name ? err.name : 'Error',
-      errorMessage: describeErrorDeeply(err),
-      elapsedMs: Date.now() - startedAt,
-      insertedId: ''
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-
-  /*⚠️ 收到响应了。**这里刻意不读、不记响应体**——
-    401/403/500 的正文里可能带表结构、列名、认证细节。
-    只有一个状态码出门。
-    201 / 409 都说明「这一档真的写进去了」——
-    409 是因为 id 固定、上一轮已经写过 —— 把 id 报出来给你好清理。 */
-  const inserted = (resp.status === 201 || resp.status === 409);
-  if (inserted) {
-    // ⚠️ 真的写进库了，**必须让它显眼**，否则会留下一条无人认领的记录。
-    // 日志里也记一笔（只记 id，不记任何业务字段，更不记令牌）。
-    console.warn('[expenses][wdiag] 探针写入成功（status=' + resp.status
-      + '），需要手工清理：id=' + probeId);
-  }
-  return {
-    status: resp.status,
-    errorName: null,
-    errorMessage: '',
-    elapsedMs: Date.now() - startedAt,
-    insertedId: inserted ? probeId : ''
-  };
-}
-
-/**
- * 匿名登录换一个临时 access_token（探针第 ③ 档专用）。
- *
- * ⚠️ Day 17 已实测：个人版这条路走不通（`LOGIN_TYPE_DISABLED`）。
- *   但**本探针必须真打一次**才能把真实结果记下来 ——
- *   「假设它一定失败」和「验证它确实失败」是两回事，
- *   前者是猜测，后者是事实。将来开了匿名登录，这个探针也自动有用。
- *
- * @returns {Promise<{token:string, errorName:string, errorMessage:string}>}
- *   token 非空 = 换到了；token 为空 = 失败（原因在 errorName/errorMessage）
- */
-async function wdiagFetchAnonToken() {
-  try {
-    const resp = await fetch(baseUrl() + '/auth/v1/signin/anonymously', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-device-id': 'jiance-server' },
-      body: '{}'
-    });
-    if (!resp.ok) {
-      return {
-        token: '',
-        errorName: 'signin_http_' + resp.status,
-        errorMessage: '匿名登录端点返回 ' + resp.status
-      };
-    }
-    const body = await resp.json();
-    if (!body || typeof body.access_token !== 'string' || body.access_token === '') {
-      return { token: '', errorName: 'signin_no_token', errorMessage: '匿名登录未返回令牌' };
-    }
-    return { token: body.access_token, errorName: '', errorMessage: '' };
-  } catch (err) {
-    return {
-      token: '',
-      errorName: err && err.name ? err.name : 'Error',
-      errorMessage: describeErrorDeeply(err)
-    };
-  }
-}
-
-/**
- * 组装探针结果。
- *
- * ⚠️⚠️ **fail-safe 是这里的第一要务**：
- *   三档里任何一档出问题（环境变量没配、请求抛错、解析失败），
- *   都只把它那一档记成失败，**继续打下一档**。
- *   全部失败也回 200 + 完整结果 ——
- *   因为「探针自己挂了」= 一条信息都拿不到，
- *   那种情况下你只能重新打包部署一轮，白花时间。
- *
- * @returns {Promise<object>} 探针报告
- */
-async function buildWdiag() {
-  const report = {
-    // —— 结论用的元信息（都是常量或长度，不含任何密钥）——
-    // ⚠️ 这一行是**给排查用的第一手答案**：正式路径现在走的是哪一档令牌。
-    //   它只回答「会用哪一档」，不需要发请求就能算出来。
-    activeTierInUse: (process.env.CLOUDBASE_APIKEY || process.env.TCB_API_KEY)
-      ? 'apiKey'
-      : (process.env.TCB_TOKEN ? 'publishableKey' : 'anonToken-or-none'),
-
-    nodeVersion: process.version,
-    hasFetch: hasFetch,
-
-    // 三档令牌各打一次写请求，结果排成一张表
-    tiers: []
-  };
-
-  // 提前把匿名令牌换好（可能失败，失败也不影响另两档）
-  const anon = await wdiagFetchAnonToken();
-
-  /*  ⚠️ 三档的令牌来源（**只读，绝不赋值**）：
-     `CLOUDBASE_APIKEY` / `TCB_API_KEY`  → 官方推荐的 API Key（带service_role）
-     `TCB_TOKEN`                          → Publishable Key（现在在用的这串 JWT）
-     匿名登录                → 换来的临时 access_token
-     ⚠️ 变量名**只出现在代码里**，值由控制台注入，这里不写死任何域名和密钥。 */
-  const tiers = [
-    {
-      label: 'apiKey',
-      token: process.env.CLOUDBASE_APIKEY || process.env.TCB_API_KEY || '',
-      tokenSource: (process.env.CLOUDBASE_APIKEY || process.env.TCB_API_KEY)
-        ? 'env:CLOUDBASE_APIKEY'
-        : 'missing'
-    },
-    {
-      label: 'publishableKey',
-      token: process.env.TCB_TOKEN || '',
-      tokenSource: process.env.TCB_TOKEN ? 'env:TCB_TOKEN' : 'missing'
-    },
-    {
-      label: 'anonToken',
-      token: anon.token,
-      tokenSource: anon.token ? 'anon-signin' : 'missing',
-      // 匿名登录本身就失败时，把原因记在这一档（不外泄任何令牌）
-      preError: anon.token ? '' : (anon.errorName + ' / ' + anon.errorMessage)
-    }
-  ];
-
-  for (let i = 0; i < tiers.length; i++) {
-    const t = tiers[i];
-    const row = {
-      label: t.label,
-      tokenSource: t.tokenSource,
-      // ⚠️ 只报**长度**。长度本身推不出密钥内容（Day 17 `_diag` 已在用这个手法）。
-      //    它的用处是发现「控制台保存时被截断」—— 明明存在、长度却明显偏短。
-      tokenLength: typeof t.token === 'string' ? t.token.length : 0,
-      status: null,
-      errorName: null,
-      errorMessageSanitized: '',
-      insertedId: ''
-    };
-
-    // ⚠️ 没配令牌就不发请求（发了必然 401，浪费一次往返，
-    //   而且会让「没配」和「配了但被拒」两种情况看起来一样）。
-    if (t.token === '') {
-      row.errorName = t.label === 'anonToken' ? 'anonTokenUnavailable' : 'tokenNotConfigured';
-      row.errorMessageSanitized = t.preError
-        ? sanitizeErrorMessage(t.preError)
-        : '该档令牌未配置，未发请求';
-      report.tiers.push(row);
-      continue;
-    }
-
-    try {
-      const res = await wdiagProbeWrite(t.token, i);
-      row.status = res.status;
-      row.errorName = res.errorName;
-      // ⚠️ 脱敏后才外发：错误 message 里可能带域名 / IP / 端口 / Bearer 串
-      row.errorMessageSanitized = sanitizeErrorMessage(res.errorMessage);
-      row.insertedId = res.insertedId;
-    } catch (err) {
-      // ⚠️⚠️ fail-safe：这一档自己抛异常了，**记下来继续下一档**，绝不让整个探针挂掉
-      row.errorName = err && err.name ? err.name : 'Error';
-      row.errorMessageSanitized = sanitizeErrorMessage(describeErrorDeeply(err));
-    }
-    report.tiers.push(row);
-  }
-
-  /*------------------------------------------------------------
-   CORS 顺带看一眼（Day 17 遗留：浏览器发的OPTIONS 预检报错）。
-   ⚠️ 次要，主线是 401。
-   ⚠️ **只回响应头的名字和值，不回请求头的任何内容** ——
-      请求头里有 Origin / Authorization 等，只回响应头这一侧就够诊断了。
-   ------------------------------------------------------------ */
-  try {
-    const probe = await fetch(baseUrl() + '/v1/rdb/rest/expenses', {
-      method: 'OPTIONS',
-      headers: {
-        // Origin 用一个**不可能存在的域名**：不反射真实访问来源，
-        // 而且如果网关回显了这个假 Origin，我们能看出它是无脑反射。
-        'Origin': 'https://wdiag.invalid',
-        'Access-Control-Request-Method': 'POST'
-      }
-    });
-    report.cors = {
-      status: probe.status,
-      // ⚠️ 头名是固定的常量；头值取不到就null。**不回任何请求头**。
-      allowOrigin: probe.headers.get('access-control-allow-origin'),
-      allowMethods: probe.headers.get('access-control-allow-methods'),
-      allowHeaders: probe.headers.get('access-control-allow-headers')
-    };
-  } catch (err) {
-    report.cors = {
-      status: null,
-      allowOrigin: null,
-      allowMethods: null,
-      allowHeaders: null,
-      errorName: err && err.name ? err.name : 'Error'
-    };
-  }
-
-  /*------------------------------------------------------------
-   WDIAG-CLEANUP · 探针可能写进库里的假数据，怎么删
-
-   探针 id（**固定三档，重复跑也不会变**）：
-       ex_wdiag_p1   ← 第 ① 档 apiKey
-       ex_wdiag_p2   ← 第 ② 档 publishableKey
-       ex_wdiag_p3   ← 第 ③ 档 anonToken
-
-   ⚠️ **只有 status = 201 或 409 的那一档才真的写进去了**，
-      其它状态码（401 / 403 / 500）网关都没接受这行数据。
-      返回里 `insertedId` 非空的那一档就是需要清理的。
-      （409 也会写进去：id 是固定的，上一次探针已经写过一行，
-        这次撞主键 —— 同样说明这一档**有写权限**。）
-
-   手工清理 SQL（在 CloudBase SQL 编辑器执行）：
-       DELETE FROM public.expenses WHERE id LIKE 'ex_wdiag_p%';
-
-   ⚠️ 用 LIKE 'ex_wdiag_p%' 而不是逐条列 id：
-      一次清干净，且这个前缀**不可能**与真实流水撞名
-      （真实 id 是 ex_时间戳_随机 的形态，不含 wdiag）。
-   ------------------------------------------------------------ */
-
-  return report;
-}
-/* ↑↑ WDIAG-END =============================================== */
 
 /* ============================================================
    第 7 段之二 · 写入处理（POST /api/expenses）—— Day 18 新增
@@ -2492,70 +1926,7 @@ exports.main = async (event, context) => {
   // 所以给个空对象兜住，免得后面读属性报错。
   const raw = (event && event.queryStringParameters) || {};
 
-  /* ------------------------------------------------------------
-   ⚠️⚠️ DIAG-BEGIN · Day 17 临时诊断入口，定位后删掉这一段即可。
 
-   触发方式**两种都支持**（因为踩过一个坑）：
-     ① 路径：/api/expenses/_diag   ← 推荐
-     ② 查询参数：?__diag=1
-
-   为什么必须留 ②：实测发现 `?month=2026-13` 能正常触发 400，
-   说明网关**确实**会把查询参数传进来；但 `__diag` 这个名字取不回来。
-   原因几乎可以肯定是网关（或它前面的网关层）对**双下划线开头**的参数名
-   做了剥离 —— `__` 前缀在各类框架里都是内部保留字（`__proto__` 那类），
-   注入防护会直接把它从 query 里删掉。所以诊断入口改走**路径**最稳。
-
-   两种都没命中时，下面条件恒为假，**行为与改动前完全一致**。
-   ------------------------------------------------------------ */
-  const rawPath = String((event && event.path) || '');
-  const diagByPath = /_diag\/?$/.test(rawPath);
-  const diagByQuery = raw.__diag !== undefined && raw.__diag !== null && raw.__diag !== '';
-  if (diagByPath || diagByQuery) {
-    try {
-      const report = await buildDiag();
-      return json(200, { ok: true, data: report });
-    } catch (err) {
-      // 诊断自己都不该挂。挂了就回 500 + 脱敏后的原因，
-      // 至少能知道「诊断跑到哪一步炸的」。
-      console.error('[expenses][diag] 诊断入口自身异常：'
-        + (err && err.name ? err.name : 'Error'));
-      return fail(500, 'internal_error', '诊断入口自身异常（'
-        + sanitizeErrorMessage(describeErrorDeeply(err)) + '）');
-    }
-  }
-  /* ↑↑ DIAG-END */
-
-  /* ------------------------------------------------------------
-   ⚠️⚠️ WDIAG-BEGIN · Day 18 部署后临时探针，定位 401 后删掉这 5 行即可。
-
-   触发方式**只走路径**：/api/expenses/_wdiag
-   ⚠️ **刻意不做查询参数版**：`?__wdiag=1` 这种名字会被网关剥掉
-     （Day 17 实测：`?month=2026-13` 能传进来，但 `__diag` 取不回来，
-      猜测是 `__` 前缀被注入防护当内部保留字删了）。
-     探针只在排查期间用一次，走路径最稳、不用赌网关的过滤行为。
-
-   ⚠️ 放在 DIAG 之后、GET 参数校验之前：
-     它必须在 month / type / limit 那几行**之前**分流掉，
-     否则 `GET /_wdiag`（没带 month）会先走进正常查询逻辑。
-   ------------------------------------------------------------ */
-  if (/_wdiag\/?$/.test(rawPath)) {
-    try {
-      const report = await buildWdiag();
-      // ⚠️ 探针回**永远 200**：它挂了也要把能拿到的信息带回来。
-      // 探针失败 = 一条信息都拿不到 = 白部署一轮。
-      return json(200, { ok: true, data: report });
-    } catch (err) {
-      // 到这里说明探针**自身**抛异常了（buildWdiag 内部已逐档兜住，
-      // 走到这里通常是连fetch 都发不出去）。仍要回 200 + 脱敏原因，
-      // 至少能知道「探针跑到哪一步炸的」。
-      console.error('[expenses][wdiag] 探针自身异常：'
-        + (err && err.name ? err.name : 'Error'));
-      return json(200, { ok: true, data: { wdiagBroken: true,
-        errorName: err && err.name ? err.name : 'Error',
-        errorMessageSanitized: sanitizeErrorMessage(describeErrorDeeply(err)) } });
-    }
-  }
-  /* ↑↑ WDIAG-END */
 
   const rawMonth = raw.month;
   const rawType = raw.type;
