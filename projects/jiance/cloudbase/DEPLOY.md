@@ -1,7 +1,15 @@
-# 部署手册 · 云函数 + 静态托管（Day 15 建立 / Day 17 扩写）
+# 部署手册 · 云函数 + 静态托管（Day 15 建立 / Day 17 扩写 / Day 19 补分层）
 
-> 版本：v1.14 ｜ 日期：2026-10-03 ｜ 归属：Day 15 任务（重大路线调整后）｜ Day 17 新增第2/11 号业务接口部署
+> 版本：v1.15 ｜ 日期：2026-10-06 ｜ 归属：Day 15 任务（重大路线调整后）｜ Day 17 新增第2/11 号业务接口部署 ｜ Day 19 新增第六节（分层重构）
 > 适用：把 `/api/health`、`/api/expenses`、`/api/profile` 三个云函数和 React + Vite 前端页面（dist/）放到公网
+>
+> **v1.15 变更**：Day 19 把「查数据库」那段代码从 `index.js` 拆进了独立的数据访问层文件
+> （`expensesRepository.js` / `profileRepository.js`），并**重打了两个 zip**。
+> ⚠️ **对外行为一字未改** —— 契约仍是 v1.5，字段名、排序、状态码、错误码全部照旧，
+> 本地140 个用例逐字节比对拆分前后响应，差异 0 个。
+> ⚠️ **zip 内容变了**：`expenses.zip` / `profile.zip` 从 2 个文件变成 3 个。
+> 漏传repository 文件会导致云端报 `Cannot find module` —— 上传前必看第六节之 3。
+> 详见第六节。
 >
 > **v1.14 变更（重要）**：Day 17 部署当天，**第 2/11 号接口的取数方式从数据库 TCP 直连
 > 改成了 CloudBase PostgreSQL HTTP API**。原因是个人版套餐不提供数据库连接地址、
@@ -627,6 +635,182 @@ Day 17 部署当天 · HTTP API 版：本地假网关 + 真 PostgreSQL 18.6.0真
 | 4 | **令牌能不能通过认证（200 而不是 401/403）** | 需要真实环境与真实令牌 | 部署后直接打开接口看状态码 |
 | 5 | **匿名登录是否可用** | 个人版的默认设置本地无从得知 | 若没配 `TCB_TOKEN` 且返回 401，去控制台开通匿名登录，或直接配令牌 |
 | 6 | **表/角色的读权限是否配好** | schema.sql 第 3 节明确没配 GRANT / RLS | 若返回 403，按 db/schema.sql 第 3 节的三步授权 |
+
+---
+
+# 第六节 · Day 19：分层重构后的目录结构与重新部署（v1.15 新增）
+
+> 这一天**不加任何功能、契约一个字没动**，只做两件事：
+> 把「查数据库」那段代码从 `index.js` 搬进独立的数据访问层文件，
+> 然后把所有已上线的接口重新验一遍。
+
+---
+
+## 六-0、一句话讲清今天改了什么
+
+```
+ Day 18 之前                Day 19 之后
+┌──────────────────┐      ┌──────────────────┐  ┌────────────────────────┐
+│ expenses/index.js│      │ expenses/        │  │ expenses/              │
+│                  │  →   │                  │  │                        │
+│ 2180 行          │      │  index.js        │  │  index.js   1143 行    │
+│ 七件事混在一起    │      │  1143 行         │  │  只管对外怎么答应       │
+│                  │      │                  │  │                        │
+│                  │      │  expensesRepo... │  │  expensesRepository.js │
+│                  │      │  1119 行         │  │  1119 行               │
+│                  │      │                  │  │  只管跟数据库说话       │
+└──────────────────┘      └──────────────────┘  └────────────────────────┘
+```
+
+**为什么要拆**：改一个查询要在 2180 行里上下翻，漏看一眼就是线上事故；
+后面`entries`、`matches` 两个接口还要照着写，先把结构立起来才抄得省事。
+
+---
+
+## 六-1、分层示意图（这一节的图，贴进项目文档用）
+
+```
+                    浏览器
+                      │  GET/POST /api/expenses
+                      ▼
+┌─────────────────────────────────────────┐
+│  接口层  index.js                │
+│  职责：对外怎么答应                      │
+│  · 方法分流（GET / POST / 其余→ 405）      │
+│  · 参数校验（month/type/limit、五要素）    │
+│  · 响应外壳（ok / created / fail）        │
+│  · 503 那句人话（分档原因）                │
+│  ❌ 不碰：fetch、URL、令牌、表名            │
+└───────────────┬─────────────────────────┘
+                │ queryExpenses({month,type,limit})
+                │ createExpense(row)
+                ▼
+┌─────────────────────────────────────────┐
+│  数据访问层  expensesRepository.js        │
+│  职责：怎么跟数据库说话                   │
+│  · 令牌三档回退（API Key → Publishable → 匿名）│
+│  · URL 拼装（注入防护两层防线在这）         │
+│  · sendGet / sendWrite（超时管整个往返）   │
+│  · toFrontend（下划线列名 → 驼峰对外字段）  │
+│  · queryExpenses / createExpense          │
+│  ❌ 不碰：响应外壳、状态码语义、校验         │
+└───────────────┬─────────────────────────┘
+                │ https://{TCB_ENV}.api.tcloudbasegateway.com
+                │   /v1/rdb/rest/expenses?...
+                ▼
+        CloudBase PostgreSQL（HTTP API / PostgREST）
+```
+
+**一句话记法**：
+- **接口层**只回答「你问得对不对、我怎么答你」
+- **数据访问层**只回答「数据怎么拿回来、失败了是什么错」
+
+**互相不知道对方的事**——这是分层的关键：
+数据访问层**不知道** 503 对外意味着什么，只负责把失败变成一个带 `dbStatus` 的 Error；
+接口层**不知道** URL 怎么拼、令牌从哪来。
+
+---
+
+## 六-2、重构后的目录结构
+
+```
+projects/jiance/cloudbase/
+├── DEPLOY.md                      本文件
+├── api-contract.md契约（**v1.5，一字未动**）
+├── db/
+│   ├── schema.sql                 建表脚本
+│   └── seed.sql                   种子数据
+└── functions/
+    ├── health/                ← 不连数据库，**Day 19 未改动**
+    │   ├── index.js
+    │   ├── package.json
+    │   └── health.zip
+    ├── expenses/                   ← 收支流水
+    │   ├── index.js                    1143 行 · 接口层
+    │   ├── expensesRepository.js   1119 行 · 数据访问层（新增）
+    │   ├── package.json
+    │   └── expenses.zip                ⚠️ 已重打，含 3 个文件
+    └── profile/                    ← 个人参数（单行表）
+        ├── index.js                    196 行 · 接口层
+        ├── profileRepository.js        487 行 · 数据访问层（新增）
+        ├── package.json
+        └── profile.zip                 ⚠️ 已重打，含 3 个文件
+```
+
+**命名规矩**：`函数名Repository.js`。一个云函数一个数据访问层文件，
+文件名就是它操作的表名。将来加 `entries`（第 7 号接口）、`matches`（第 13 号）时，
+照这个规矩建 `entriesRepository.js` / `matchesRepository.js` 即可。
+
+**为什么两个函数各带一份访问层，不共用一个文件**：
+CloudBase 每个云函数是**各自独立打包上传**的（zip 里只有本函数目录），
+函数之间**没有共享模块**机制。这不是偷懒，是平台形态决定的。
+
+---
+
+## 六-3、⚠️ 重新部署时最容易踩的坑（今天新增，必读）
+
+**Day 19 之前，`expenses.zip` 里只有 2 个文件（`index.js` + `package.json`）。
+Day 19 之后必须变成 3 个。**
+
+如果不改就上传，云端会直接报：
+
+```
+Cannot find module './expensesRepository'
+```
+
+**而且这个错本地完全测不出来** —— 你本地的源码是好的，只有传上去才炸。
+所以 Day 19 的本地回归里专门有一道「解包真跑」（见六-4）。
+
+**上传前自查（两条命令，30 秒）**：
+
+```bash
+# 1. 确认 zip 里有 3 个文件
+cd D:/梦空间/projects/jiance/cloudbase/functions/expenses
+python -c "import zipfile;print(zipfile.ZipFile('expenses.zip').namelist())"
+# 期望输出：['index.js', 'expensesRepository.js', 'package.json']
+
+# 2. 确认解包后能加载（这一步才是真的验require 通不通）
+#    把下面命令里的 <上面打印出来的目录> 换成第1 步解包打印的路径
+node -e "require('D:/tmp/day19ziptest/index.js');console.log('OK')"
+```
+
+> 第2 步完整的解包命令（先跑它，会打印一个临时目录路径）：
+>
+> ```bash
+> python -c "import zipfile,tempfile;d=tempfile.mkdtemp();zipfile.ZipFile('expenses.zip').extractall(d);print(d)"
+> ```
+>
+> 然后把打印出来的路径接到第 2 步的 `require('...')` 里。
+
+---
+
+## 六-4、Day 19 本地回归清单（已完成，140+41 项全过）
+
+| 回归项 | 方法 | 结果 |
+|---|---|---|
+| **搬移是否纯搬移** | 从 git 取拆分前的版本，按同一套行号切开，与工作区两个文件**逐行逐字节比对**（7 段+ 6 段） | 13 段全部完全一致，零丢失 |
+| **接口行为是否不变** | 70 个用例 × 2 个接口 = **140 个**，同一批请求分别跑拆分前/拆分后，**逐字节比对响应体 + 发出去的 URL** | **差异 0 个** |
+| **红线不变量** | 注入防护 / 写入姿势 / 防重复提交 / 不回传网关正文 / 招聘网站名自查 | **41/41 通过** |
+| **zip 能不能用** | 重新打包后**解包到临时目录**，`node -e "require('./index.js')"` 真跑一次 | 3 个 zip 全部 `main 加载成功` |
+
+**140 个用例覆盖到的东西**（不是随便凑数的）：
+
+| 类别 | 覆盖到的行为 |
+|---|---|
+| GET 读 | 全量/ 筛选 / 空结果 / limit 边界 / month 空串 / 13 月 / 格式错 / type 不在枚举 / 参数为 null |
+| 503 分档 | 401 / 403 / 404 / 400 / 500 / 502 / 响应非数组 / 网络失败（ENOTFOUND、ECONNREFUSED） |
+| 405 | PUT / DELETE / PATCH / **畸形 method 不反射** |
+| POST 写 | 正常 201 / 无note / body 是对象 / body 是 base64 / 空 body / 非法 JSON |
+| POST 400 | 日期格式 / 2 月 31 日 / 金额 0 / 负数 / 三位小数 / 超上界 / type 非法 / 分类错配 / 备注超长 / 备注非字符串 / clientToken 格式错 |
+| POST 边界 | 浮点噪声 0.1+0.2 **放行** / 上界 9999999999.99 **放行** / 10000000000 拦住 |
+| POST 201 出口 | 字段残缺 / 元素是数字 / 空数组 / 不是数组 → 全回 503 |
+| 409 防重 | 同令牌两次提交 → 201 然后 409，两次发出去的 id **完全相同** |
+| profile | 正常 / 查不到回空对象 / monthlyExpense 为 null / 字符串 / POST → 405 / 四种 503 |
+
+⚠️ **有一件事本地测不出来，别把它当成已验证**：
+假网关只能验「我们发出去的请求长这样」和「我们怎么处理返回」，
+**验不了 CloudBase 网关认不认**。所以「网关解码后 `%25` 是否还原成 LIKE 通配符」
+这类问题，仍须部署后按第五节之 3 的验证点真跑一次。
 
 ---
 
