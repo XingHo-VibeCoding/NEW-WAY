@@ -158,3 +158,112 @@
     grid-template-columns: 80px 1fr auto;
   }
 }
+/* ============================================================
+   Day 20 · 检查台样式
+   ------------------------------------------------------------
+   ⚠️ 选择器一律带 `.home` 前缀。Day 15 踩过：
+   写成裸 `.card` 会把牌桌的居中样式泄漏到全站。
+   ============================================================ */
+
+.home .inspect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 20px 0 16px;
+}
+.home .inspect-cell {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm, 8px);
+  padding: 12px 14px;
+  min-width: 0;
+}
+.home .inspect-key {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+/* 长地址（域名）要能断行，否则窄屏会撑破卡片 */
+.home .inspect-val {
+  font-size: var(--fs-md);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.home .inspect-val.is-num {
+  font-variant-numeric: tabular-nums;
+}
+.home .inspect-val.is-host {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+}
+/* 状态三色：好 / 警告 / 坏。用 --ink 系列走，不引入新色值 */
+.home .inspect-val.is-ok {
+  color: #8fbf7f;
+}
+.home .inspect-val.is-warn {
+  color: var(--line);
+}
+.home .inspect-val.is-bad {
+  color: #d98a7a;
+}
+
+.home .inspect-note {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+  margin: 8px 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.home .inspect-note.is-ok {
+  color: #8fbf7f;
+}
+.home .inspect-note.is-bad {
+  color: #d98a7a;
+}
+.home .inspect-note.is-hint {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  opacity: 0.8;
+}
+
+.home .inspect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* 按钮：描边款，与页面现有的输入框同一套质感 */
+.home .btn-outline {
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 16px;
+  min-height: 24px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.home .btn-outline:hover:not(:disabled) {
+  background: rgba(201, 161, 74, 0.12);
+}
+.home .btn-outline:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+/* 禁用态：除了变灰还要显式标 not-allowed —— 光变灰用户不知道能不能点 */
+.home .btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 窄屏：检查台两列 → 一列 */
+@media (max-width: 640px) {
+  .home .inspect-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
