@@ -108,16 +108,27 @@ async function request(path, options) {
     headers: headers,
   });
 
-  /* ---- 读响应体 ---- */
-  // ⚠️ 为什么这里必须 try：网关挂掉或被安全页拦下时，
-  //   回来的是 HTML 错误页而不是 JSON，`res.json()` 会抛
-  //   语法错。不兜住的话，用户看到的是「Unexpected token <」
-  //   这种天书，而不是「服务暂时不可用」。
-  let body = null;
+  /* ---- 读响应体（先按文字读，不是直接 res.json()） ----
+     ⚠️ 为什么要绕这一步：`res.json()` 对**空正文**会抛错，
+     而空正文在删接口上是**正常的成功响应**（见下面 2xx 那一段）。
+     先读文字，才能分清「正文是空的」和「正文是一堆看不懂的东西」——
+     前者是成功，后者才可疑。 */
+  let text = '';
   try {
-    body = await res.json();
+    text = await res.text();
   } catch {
-    body = null;
+    text = '';
+  }
+
+  let body = null;
+  if (text !== '') {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // 不是 JSON：多半是网关/安全中间页拦下了，回来一个 HTML 错误页。
+      // 不兜住的话用户看到的是「Unexpected token <」这种天书。
+      body = null;
+    }
   }
 
   /* ---- 拆壳：好几种形状都试一遍 ---- */
@@ -139,7 +150,30 @@ async function request(path, options) {
     throw err;
   }
 
-  // 连 JSON 都不是：多半是网关/安全中间页拦下了
+  /* ---- 2xx，但没有 JSON 正文 = 成功，只是「没什么要说的话」 ----
+     ⚠️⚠️ 这一条是 Day 22 本地自测抓出来的**真 bug**，改之前先读完：
+
+     【原来的写法】不判状态码，只要解析不出 JSON 就往下走到「服务暂时不可用」。
+     【错在哪】DELETE 成功时正文**本来就是空的**（大量实现回 204 No Content）。
+       于是：库里那一行**已经真的删掉了**，前端却收到「服务暂时不可用」，
+       于是**保留列表里那一行**、还弹了个失败提示。
+       用户看到「删除失败」→ 再点一次删除 → 这次后端说「没有这一条」（404）→
+       用户彻底糊涂：到底删掉没有？
+
+     【为什么这类错最难查】动作**真的发生了**，界面却说没发生 ——
+       界面和数据库各说各话。刷新一下那一行又不见了，
+       用户只会觉得「这软件有鬼」，而我们这边一行报错都没有
+       （因为服务端的响应完全正常，是前端自己判错了）。
+
+     【修法】成功与否**看状态码**，不看正文有没有。2xx 且没正文 = 成功、返回 null。
+       调用方不需要返回值（删接口的契约本来就只承诺 { ok, id }）。
+
+     ⚠️ 不要把它和「非 2xx 且没有正文」混为一谈 —— 那种仍然算失败，见下面。 */
+  if (res.ok) {
+    return null;
+  }
+
+  // 非 2xx 且没有 JSON 正文：确实出问题了（网关挂了 / 被安全页拦下 / 502…）
   const err = new Error(`服务暂时不可用（HTTP ${res.status}）`);
   err.code = 'service_unavailable';
   err.status = res.status;
@@ -204,6 +238,79 @@ export async function createExpense(row) {
   return await request('/api/expenses', {
     method: 'POST',
     body: JSON.stringify({ ...row, clientToken }),
+  });
+}
+
+/**
+ * 契约第 5 号：PATCH /api/expenses/:id —— 改一笔（Day 22 新增）
+ *
+ * @param {string} id    要改的那一笔的编号
+ * @param {object} patch **只放要改的字段**（date / amount / type / category / note）
+ * @returns {Promise<object>} 改完之后的完整记录（8 个字段）
+ */
+export async function updateExpense(id, patch) {
+  /* ⚠️ 编号必须 encodeURIComponent：
+     它虽然形状受限，但它终究是用户数据的一部分，扔进 URL 前一律转义 ——
+     与后端 restUrl() 逐个编码是同一条纪律，**两头都不许省**。
+     本文件是服务端之外的另一层，不能指望服务端替我们转义。 */
+  return await request('/api/expenses/' + encodeURIComponent(id), {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+/**
+ * 契约第 6 号：DELETE /api/expenses/:id —— 删一笔（Day 22 新增）
+ *
+ * @param {string} id 要删的那一笔的编号
+ * @returns {Promise<object>} `{ ok: true, id }`（**没有 data**，契约第 6 条如此规定）
+ */
+export async function deleteExpense(id) {
+  // ⚠️ 刻意不带 body、也不带 Content-Type。
+  //    带了 Content-Type: application/json 会让这个请求掉进「预检」那一档，
+  //    白白多跑一趟 OPTIONS（Day 20 实测踩过，见上面 request() 里的说明）。
+  return await request('/api/expenses/' + encodeURIComponent(id), {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * 「撤销删除」：把刚删掉的那一条**按原编号**写回去（Day 22 新增）。
+ *
+ * ⚠️ 这是前端的能力，**不是后端的**。契约第 6 条写得清楚 ——
+ *    「后端不做回收站（第 3 周范围外）」。所以撤销 = **重新记一笔**，
+ *    只是编号沿用原来那条，这样它在列表里的身份和位置都不变。
+ *
+ * ⚠️ 为什么编号能原样沿用（这条依赖后端的一个实现细节，必须写明，别让它成为暗知识）：
+ *    POST 的主键是 `id = 'ex_' + clientToken`（见后端 buildId()）。
+ *    所以只要把**原来那一条的编号**当 clientToken 传回去，
+ *    算出来的 id 就还是它 —— 等号两边其实是同一个式子。
+ *    ⚠️ 前提：那个编号要符合 clientToken 的白名单（8~40 位，只含字母数字下划线连字符）。
+ *      简册的编号是 `ex_` + 时间戳 + 随机串，天然符合。
+ *      但**这不是永久保证**：将来若编号规则改了，这里要跟着改
+ *      （改法以后端注释为准，去 buildId 看，别只信这一段描述）。
+ *
+ * ⚠️ 代价（诚实写明）：`createdAt` 会变成**撤销的这一刻**，不是原来那个。
+ *    因为服务端认为这是「新记的一笔」，会给它打上新的创建时间。
+ *    界面上看不到这个字段（列表只显示 date），但将来若做了
+ *    「按创建时间排序」，撤销过的记录会跑到最前面。**这个取舍是拍过板的**：
+ *    宁可 createdAt 变新，也不要为了它给后端加一个回收站。
+ *
+ * @param {object} row 被删掉的那一条（前端手上的完整记录）
+ * @returns {Promise<object>} 服务端生成的完整记录
+ */
+export async function restoreExpense(row) {
+  return await request('/api/expenses', {
+    method: 'POST',
+    body: JSON.stringify({
+      date: row.date,
+      amount: Number(row.amount),
+      type: row.type,
+      category: row.category,
+      note: row.note || '',
+      // ⚠️ 用原编号当令牌 → 写回去的 id 与原来完全一致（推导见上方说明）
+      clientToken: row.id,
+    }),
   });
 }
 

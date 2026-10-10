@@ -1,0 +1,96 @@
+/* 简册 · 浮动提示（Toast）样式 —— Day 22 新增
+   ------------------------------------------------------------
+   ⚠️ 定位用 fixed，贴在视口底部居中。
+   为什么不用 absolute：消息是「刚才发生了什么」，跟页面滚到哪没关系，
+   滚到页面中间时也应该在屏幕下方看得见。
+
+   ⚠️ 颜色沿用账簿面的深墨底 + 金线，不引新色板（AGENTS.md 附四第 4 条的口径：
+   新元素要跟已有材质一致，不许自己发明配色）。 */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  z-index: 50;
+
+  /* ⚠️ 动效：先下移 12px 再滑上来。这条必须在 prefers-reduced-motion 下关掉，
+     全站的 reduced-motion 总闸（index.css）已经统一处理过渡时长，这里不重复写。 */
+  transform: translateX(-50%) translateY(12px);
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  max-width: min(92vw, 560px);
+  padding: 12px 18px;
+  border-radius: 10px;
+
+  background: #1f1a14;
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+
+  opacity: 0;
+  /* ⚠️ 不可见时不许接鼠标事件 —— 否则透明的一层会挡住底下的按钮点不着 */
+  pointer-events: none;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.toast.is-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+/* ⚠️ 消息里可能出现用户自己填的备注（很长、没有空格的中文/英文），
+   必须让它断行，不然会把提示条撑出屏幕 */
+.toast-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 「撤销」按钮。触控目标高度基线 ≥24px（AGENTS.md 无障碍基线）*/
+.toast-act {
+  flex: none;
+  min-height: 24px;
+  padding: 5px 12px;
+
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1;
+  cursor: pointer;
+
+  transition: background 180ms ease-out;
+}
+
+.toast-act:hover {
+  background: rgba(201, 161, 74, 0.14);
+}
+
+/* ⚠️ 焦点描边：全局 :focus-visible 已经有一条金线描边（index.css），
+   但 toast 是深底，描边可能贴底色看不清 —— 这里加一道内阴影把焦点框衬出来。 */
+.toast-act:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+
+/* ---------- 窄屏：按钮不要被挤成两行 ---------- */
+@media (max-width: 640px) {
+  .toast {
+    left: 12px;
+    right: 12px;
+    bottom: 16px;
+    max-width: none;
+    transform: translateY(12px);
+  }
+  .toast.is-show {
+    transform: translateY(0);
+  }
+}

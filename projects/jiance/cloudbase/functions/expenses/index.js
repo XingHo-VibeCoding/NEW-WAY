@@ -4,16 +4,19 @@
    简册 · 云函数 expenses
    ------------------------------------------------------------
    文件：functions/expenses/index.js
-   功能：GET  /api/expenses —— 收支流水「列表读取」（Day 17 上线）
-        POST /api/expenses —— 收支流水「记一笔」（Day 18 新增并已公网验证）
-   归属：Day 17 建读路径 / Day 18 加写路径
-   依据：api-contract.md 第五节第 2 条（GET：200 / 400 / 405 / 503 的全部形状）
-        + 第五节第 4 条（POST：201 / 400 / 405 / 409）
+   功能：GET  /api/expenses—— 收支流水「列表读取」（Day 17 上线）
+        POST /api/expenses        —— 收支流水「记一笔」（Day 18 已公网验证）
+        PATCH /api/expenses/:id   —— 收支流水「改一笔」（Day 22 新增）
+        DELETE /api/expenses/:id  —— 收支流水「删一笔」（Day 22 新增）
+   归属：Day 17 建读路径 / Day 18 加写路径 / Day 22 加改与删
+   依据：api-contract.md 第五节第 2 条（GET）
+        + 第 4 条（POST）
+        + 第 5 条（PATCH）
+        + 第 6 条（DELETE）
         + 第二节通用约定（字段名不改编、日期是文本、金额是正数、type 是中文）
 
-   今天范围：**只加 POST；读路径除两处已批准的 bug 修复外不动。**
-           PUT / DELETE（契约第五节第 5/6 条）今天仍然不做，
-           用了照样回 405 —— 没做的接口宁可回「不支持」，也不能假装支持。
+   今天范围：**加 PATCH 与 DELETE。GET / POST 分支一行未改**
+           （详见 main() 里分流处的说明与文件末尾的「Day 22 影响面核对」）。
 
    ⚠️ 关于「读路径不变」这句话怎么保证（秋鹰师 Day 18 硬要求）：
      GET 分支的入参解析、同样的两条校验、同样的拼 URL、同样的排序、
@@ -84,6 +87,13 @@ const configError = repo.runtime.configError;
 const hasFetch = repo.runtime.hasFetch;
 const queryExpenses = repo.queryExpenses;
 const createExpense = repo.createExpense;
+// ---- Day 22 新增三行。理由与上面四个一模一样：**为了让调用点一字不改** ----
+// 改一笔需要「先查在不在」再「改」，删一笔也需要先查。
+// 那三次查询用同一个名字 fetchExpenseById（在 repository 里定义，
+// 语义就是「读一条」，读和写共用它是合理的——它们都是「按 id 拿那一行」）。
+const fetchExpenseById = repo.fetchExpenseById;
+const updateExpense = repo.updateExpense;
+const deleteExpense = repo.deleteExpense;
 
 
 /* ============================================================
@@ -834,6 +844,781 @@ function parseRequestBody(event) {
 }
 
 /* ============================================================
+   第 4 段之三 · 路径里的 :id（Day 22 新增）
+   ------------------------------------------------------------
+   契约第 5/6 条的形状是 `/api/expenses/:id`，也就是说
+   「改哪一条 / 删哪一条」这个信息**在路径的最后一段**。
+   而本函数的触发路径只绑了 `/api/expenses`（Day 17 部署时定的），
+   网关是**前缀匹配**（Day 21 实测确认：/api/expenses/summary
+   会落进本函数的读分支），所以 `/api/expenses/ex_xxx` 也会进到这里 ——
+   这一点是前缀匹配带来的**顺带好处**：不用绑第二条路由。
+
+   ⚠️⚠️ 但**路径的哪一截会出现在 event 里，我没有实测过**，不敢拍。
+     CloudBase 各版本 / 各接入方式的字段名并不统一，已知至少有两种：
+       · event.path            —— 完整路径（如 /api/expenses/ex_xxx）
+       · event.httpPath        —— 同样是路径，字段名不同
+       · event.requestContext.path —— 部分版本把路径放在 requestContext 里
+       · event.headers['x-original-url'] —— 少数网关会回传原始地址
+     本函数**不挑**。下面这个函数按顺序全部试一遍，
+     **哪个先有值用哪个**，试完还没有才回 400。
+     这是「用实测代替假设」的写法：多写几行判断，
+     换来的是**不管平台给哪个字段名都能work**，而不是猜错一个就 404。
+
+     ⚠️ 与 Day 18 那两个临时诊断入口（/_diag、/_wdiag）的区别：
+        那是**加一条只会打印日志的旁路**，用来查问题；
+        这是**正式代码的一部分**（读路径参数本来就该多来源兜底），
+        查清之后应当**留着**，不属于「定位完成即删」的临时物。
+
+   ⚠️ 拿到整条路径之后还要做三件事，缺一不可（都在下面的 extractIdFromPath 里）：
+     ① 砍掉前缀，只留最后那一段 —— 防「把完整 URL 当成 id」
+     ② 长度与字符白名单校验 —— **这是防注入的第一层**，第二层仍是
+        restUrl() 的 encodeURIComponent（见 expensesRepository.js）
+     ③ 长度上限 —— 防传一个几 KB 的字符串进来
+   ============================================================ */
+
+/** 触发路径本身。前缀匹配时，event 里出现的就是它。 */
+const ROUTE_PREFIX = '/api/expenses';
+
+/**
+ * 流水 id 的白名单格式。
+ *
+ * ⚠️ 为什么比 POST 的 clientToken 白名单**多放行了前缀**：
+ *   clientToken 是**要被塞进** id 的（id = 'ex_' + token），
+ *   所以它必须是最干净的一段；id 本身是**数据库里已经有的东西**，
+ *   它天生就带 `ex_` 前缀（见 buildId 与 schema.sql）。
+ *
+ * ⚠️ 上限为什么给 60：真实 id 只有两种形态 ——
+ *     · `ex_` + 8~40 位令牌 = 11~43 字符
+ *     · `ex_` + 13 位时间戳 + `_` + 8 位十六进制 = 25 字符
+ *   最长43，给 60 留了一倍余量，同时**挡住「传本把 KE 进来撑成几 KB」**。
+ *
+ * ⚠️ 这是防注入的**第一层**，第二层在 restUrl() 里。
+ *    两层的分工与 month / type / clientToken 完全一致：
+ *      第 1 层表达意图（id 就该长这样），第 2 层兜底安全（就算绕过也拼不出结构）。
+ */
+const ID_PATTERN = /^ex_[A-Za-z0-9_-]{1,57}$/;
+
+/** id 的最大长度。与 ID_PATTERN 的上限保持一致（60 - 3 个前缀字符）。 */
+const MAX_ID_LENGTH = 60;
+
+/**
+ * 从 event 里把 id 掏出来。
+ *
+ * @param {object} event CloudBase 递给函数的事件对象
+ * @returns {{ok:true, id:string}|{ok:false, reason:string}}
+ *   ok 为 true 时带 id；为 false 时 reason 是**我们自己写死的中文**，
+ *   说明「压根没在路径里找到 id」，供日志与 400 文案使用
+ */
+function extractIdFromPath(event) {
+  if (!event || typeof event !== 'object') {
+    return { ok: false, reason: '事件对象为空' };
+  }
+
+  /* ---- ① 依次收集所有可能的路径来源 ---- */
+  const candidates = [];
+
+  const push = function (v) {
+    // ⚠️ 只收字符串、只收非空。数组（某些版本给 pathSegments 数组）
+    // 这里**刻意不解析** —— 数组形态意味着另一种字段命名，
+    // 与其在这里猜第5 种，不如让 400 说清「没找到 id」，
+    // 那样一次真实请求就能告诉我们平台到底给的是什么。
+    // 猜错的代价（静默改错一行数据）远大于报错的代价。
+    if (typeof v === 'string' && v !== '') {
+      candidates.push(v);
+    }
+  };
+
+  push(event.path);
+  push(event.httpPath);
+  push(event.rawPath);
+  if (event.requestContext && typeof event.requestContext === 'object') {
+    push(event.requestContext.path);
+    push(event.requestContext.httpPath);
+  }
+  // 少数网关把原始完整地址回在请求头里。这是最后一道，
+  // 顺序放最后是因为它最不可能有值。
+  if (event.headers && typeof event.headers === 'object') {
+    const h = event.headers;
+    const raw = h['x-original-url'] || h['X-Original-URL'];
+    if (typeof raw === 'string' && raw !== '') {
+      candidates.push(raw);
+    }
+  }
+
+  if (candidates.length === 0) {
+    return { ok: false, reason: '事件里没有任何路径字段（path / httpPath / requestContext.path 都没有值）' };
+  }
+
+  /* ---- ② 从每个候选里切出最后一段 ---- */
+  for (let i = 0; i < candidates.length; i++) {
+    let p = candidates[i];
+
+    // 剥查询串与锚点。id 里不该有它们，剥掉才轮到白名单去判。
+    const q = p.indexOf('?');
+    if (q !== -1) p = p.slice(0, q);
+    const h = p.indexOf('#');
+    if (h !== -1) p = p.slice(0, h);
+
+    // 砍掉触发路径前缀。前缀匹配下 event 给的可能就是 `/api/expenses/ex_xxx`，
+    // 但也可能是完整的 URL（含域名），所以先砍协议与域名。
+    const schemeAt = p.indexOf('://');
+    if (schemeAt !== -1) {
+      const afterSlash = p.indexOf('/', schemeAt + 3);
+      p = afterSlash === -1 ? '' : p.slice(afterSlash);
+    }
+    if (p.indexOf(ROUTE_PREFIX) === 0) {
+      p = p.slice(ROUTE_PREFIX.length);
+    }
+
+    /* ---- 先去掉结尾多余的斜杠 ---- */
+    /* ⚠️⚠️ Day 22 回归用例抓出来的**真 bug**，而且正是「注释说错了」的那种：
+       我原先在这里写的是「用 lastIndexOf('/') 就能处理结尾多出的斜杠」——
+       **这句话是错的**。`/ex_seed0001/` 的 lastIndexOf('/') 落在**最后那个斜杠**上，
+       slice 出来的是**空串**，不是 `ex_seed0001`。
+       于是 `/api/expenses/ex_seed0001/` 会被判成「路径里没有 id」→ 400。
+       而结尾补一个斜杠在真实网关上是**很常见的**（有的会补、有的不会，
+       取决于配置和客户端），所以这不是一个可以忽略的边角情况。
+
+       修法：先把结尾的斜杠全部削掉，再取最后一段。
+       削之前 p 可能是以下几种（都在削之后得到正确答案）：
+         · `/ex_xxx/`   → `/ex_xxx` → last = `ex_xxx`     ✅
+         · `/ex_xxx`    → `/ex_xxx` → last = `ex_xxx`     ✅
+         · `/`          → ``        → last = `` → continue（没有 id）✅
+         · ``           → ``        → last = `` → continue（没有 id）✅ */
+    while (p.length > 0 && p.charAt(p.length - 1) === '/') {
+      p = p.slice(0, p.length - 1);
+    }
+
+    // 只要最后一段。用 lastIndexOf('/') 而不是 split('/').pop()：
+    // 两者在这一点上等价，但 lastIndexOf 版本不用建中间数组，
+    // 而且「取最后一个斜杠之后的东西」这个意图写得更直白。
+    const cut = p.lastIndexOf('/');
+    const last = cut === -1 ? p : p.slice(cut + 1);
+
+    // 空段 = 这一条路径就是 `/api/expenses`（列表本身，没有 id）。
+    // 这是**最常见的一种「找不到」**——它不是错误，是「这个请求本来就不带 id」。
+    if (last === '') {
+      continue;
+    }
+
+    /* ---- ③ 长度与字符白名单（防注入第一层） ---- */
+    if (last.length > MAX_ID_LENGTH) {
+      // 过长不试下一个候选，也不当不存在处理 ——
+      // 直接返回错误，让上层回 400 并把这句话记进日志（能看出是谁在发什么）。
+      return { ok: false, reason: '路径最后一段超过 ' + MAX_ID_LENGTH + ' 个字符' };
+    }
+    if (!ID_PATTERN.test(last)) {
+      return { ok: false, reason: '路径最后一段不符合流水 id 的格式（应为 ex_ 开头的字母数字）' };
+    }
+
+    return { ok: true, id: last };
+  }
+
+  return { ok: false, reason: '路径里没有最后一段可用的 id（只访问到了 /api/expenses）' };
+}
+
+/* ============================================================
+   第 4 段之四 · 局部更新的参数校验（Day 22 新增）
+   ------------------------------------------------------------
+   ⚠️⚠️ 本段是 Day 22 技术上**最难的一块**，难在「只发改的字段」
+      这件事本身带来一个 POST 没有的问题。先把问题讲清楚：
+
+   【问题】
+     POST 一次填 5 个字段，5 个值一起校验，一一对应，没有歧义。
+     PATCH 只发改的字段，可 **type 和 category 是互相咬合的一对**：
+       数据库那张表上有一道约束（schema.sql 的 CHECK）：
+         type=「支出」时，category 必须是 餐饮/交通/房租/购物/医疗/娱乐/其他
+         type=「收入」时，category 必须是 工资/兼职/理财收益/其他
+       也就是说「餐饮」配「收入」是非法的。
+
+     于是这样一次请求就会出事：
+       原来：{ type: "支出", category: "餐饮" }
+       前端只发 { type: "收入" }（用户把支出改成收入，忘了改分类）
+       → 如果我们只发 type  income 这一列，数据库就会看到
+         { type: "收入", category: "餐饮" } → **约束不通过，插入/更新被拒**。
+
+   【三条路，我们选了第2 条】
+     ① 让数据库拒，把它的报错翻译成 400  —— 但正文不能回传（Day 17 铁律），
+        于是只能回一句「改不了」，用户**不知道要改哪个框**，改十次也改不对。
+     ② ✅ **先把这一条读出来，把改动合并上去，校验「改完之后」的那个整体**，
+        然后只把真正要改的列发出去。
+     ③ 要求前端「改 type 就必须连带把 category 一起传」——
+        把这个约束推给前端，等于在校验规则上开第二个实现，
+        两条路迟早不一致（Day 14~18 反复吃过这个亏）。
+
+   选 ② 的代价是**多一次 GET**。这个代价必须明说：
+     它不是「顺手多查一次」，而是**唯一能让用户在改之前就拿到
+     「type 和 category 对不上」这种精确提示**的办法。
+     多一次往返换一条准确的 400，很划算。
+
+   ⚠️ 因此本函数的输入**不是请求体**，而是「原记录 + 改动」两份东西，
+     它需要用到现有那一行的字段 —— 所以它天然依赖 fetchExpenseById 的结果。
+     这也解释了为什么 handleUpdate() 的顺序是「先查后改」而不是「先改后查」。
+   ============================================================ */
+
+/** PATCH 里**可以**被改的字段。只有这 5 个，其余一律忽略。 */
+const PATCHABLE_FIELDS = ['date', 'amount', 'type', 'category', 'note'];
+
+/**
+ * PATCH 请求体的**前置检查**：形状对不对 + 有没有要改的东西。
+ *
+ * ⚠️ 为什么单独抽成一个函数、而且要在**查库之前**调用：
+ *   这两件事**完全不需要知道库里现在是什么**，纯看请求体就能判。
+ *   而 handleUpdate() 的顺序是「先查后改」—— 如果把这两条塞在
+ *   validatePatchInput() 里（那是查完之后才调的），
+ *   那么一个「空对象」的请求也会**先白跑一趟数据库查询**才被拒。
+ *
+ *   一次白查看着不严重，但它有两个实际代价：
+ *     ① 用户手快连点十下「保存」（空表单）→ 十次数据库往返，
+ *        而正确答案零次就够；
+ *     ② 更要紧的是**失败语义会错**：如果那一刻数据库恰好连不上，
+ *        这个「本来就该被 400 拒绝的请求」会先撞上查询失败，
+ *        被回成 503「稍后重试」—— 而它明明是个**永久性的输入错误**，
+ *        重试一万次也不会成功。**把「你填错了」报成「稍后重试」
+ *        是在浪费用户的时间**（Day 18 的 amount 上界就是这么踩出来的）。
+ *
+ *   → 所以：**不需要数据库就能判断的错误，一律在碰数据库之前判掉。**
+ *
+ * ⚠️ validatePatchInput() 里**仍然保留**这两条检查（不删）。
+ *   看起来像重复，但那是有意的兜底：那个函数是「给定了原记录 + 改动」
+ *   就能独立完成校验的单元，不该依赖「调用方一定先跑过前置检查」这种默契。
+ *   两处检查的文案一字不差，且都指向同一段说明，不会漂移。
+ *
+ * @param {*} body 已解析的请求体
+ * @returns {{ok:true}|{ok:false, field:string, message:string}}
+ */
+function checkPatchBodyShape(body) {
+  // 不是对象（含 null、数组、字符串）都算错 —— 与 POST 同一条口径。
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, field: 'body', message: '请求体格式不对，需要一个 JSON 对象' };
+  }
+
+  // 「改一笔但什么都没改」不是合法请求：回 400 说清楚，
+  // 而不是当成功返回（那样用户看到「改好了」而实际什么都没发生 = 界面说谎）。
+  let hasAny = false;
+  for (let i = 0; i < PATCHABLE_FIELDS.length; i++) {
+    if (body[PATCHABLE_FIELDS[i]] !== undefined) {
+      hasAny = true;
+      break;
+    }
+  }
+  if (!hasAny) {
+    return { ok: false, field: 'body', message: '没有要修改的内容，请至少改一个字段再保存' };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * 校验一次局部更新。
+ *
+ * ⚠️ 刻意做成与 validateExpenseInput 同一套形状
+ *   （`{ok:true, value}|{ok:false, field, message}`），
+ *   原因很实际：handleUpdate() 要把它的结果翻译成响应，
+ *   而翻译那段代码（fail + 同一个 field 标红机制）在 POST 那边已经有了。
+ *   两边形状一致 → 翻译代码可以照抄，不用写第二套。
+ *
+ * ⚠️ 字段顺序**刻意与 validateExpenseInput 完全一致**（date → amount → type →
+ *   category → note）。不是为了好看，是为了让「同一个错误在两种接口里
+ *   报出同一句话」—— 用户从「记一笔」切到「改一笔」，不该看到两种措辞。
+ *
+ * @param {object} existing 库里现在这一行（数据库列名，来自 fetchExpenseById）
+ * @param {object} body前端这次要改的字段（**只有一部分**）
+ * @returns {{ok:true, value:object}|{ok:false, field:string, message:string}}
+ *   value 是**只含要改的列**的对象（数据库列名），可以直接发给 PATCH
+ */
+function validatePatchInput(existing, body) {
+  /* ---- 请求体形状 + 至少改一个字段（与前置检查同一段逻辑，兜底保留） ---- */
+  const shape = checkPatchBodyShape(body);
+  if (shape.ok === false) {
+    return shape;
+  }
+
+  /* ---- 前端传了不该传的字段：忽略，不报错 ---- */
+  // 契约第 5 条是「只传要改的字段即可」，但没说「传了别的要怎么办」。
+  // 这里选**忽略**而不是 400，理由与 POST 忽略 id / createdAt 一样：
+  //   前端「把整个表单一起发过来」是很自然的事，
+  //   为了一个用户根本没在意的字段回 400 只会让他填表填到怀疑人生。
+  // ⚠️ 但 id / created_at / updated_at 是**另一回事**，见下面单独处理。
+
+  // 改动前的完整样子（原记录 + 本次改动）。下面的每一步都校验它。
+  const merged = {
+    date: existing.date,
+    amount: Number(existing.amount),
+    type: existing.type,
+    category: existing.category,
+    note: existing.note === null || existing.note === undefined ? '' : existing.note
+  };
+
+  /* ---- date ---- */
+  // 只有传了 date 才校验 date。没传就是「日期不变」，
+  // 而「不变」已经由merged.date = existing.date 表达清楚了。
+  if (body.date !== undefined) {
+    const rawDate = body.date;
+    if (typeof rawDate !== 'string' || !DATE_PATTERN.test(rawDate)) {
+      return { ok: false, field: 'date', message: '日期格式必须是 YYYY-MM-DD，例如 2026-09-30' };
+    }
+    // 与 POST 同一条：'2026-02-31' 能过正则但 2 月没有 31 号。
+    const y = Number(rawDate.slice(0, 4));
+    const m = Number(rawDate.slice(5, 7));
+    const d = Number(rawDate.slice(8, 10));
+    const probe = new Date(Date.UTC(y, m - 1, d));
+    if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
+      return { ok: false, field: 'date', message: '日期不存在，请检查月份和日号' };
+    }
+    merged.date = rawDate;
+  }
+
+  /* ---- amount ---- */
+  if (body.amount !== undefined) {
+    const rawAmount = body.amount;
+    // ⚠️ 注意这里**不能直接复用 POST 的那段校验然后就赋值**，
+    //   因为 amount 的小数位判定里有一段「按量级给容差」的逻辑，
+    //   复制一份就多一份可能漂移的地方。
+    //   → 这里直接调用共享出来的那个判定函数（见下方 patchAmountCheck）。
+    const amountChecked = patchAmountCheck(rawAmount);
+    if (amountChecked.ok === false) {
+      return amountChecked;
+    }
+    merged.amount = amountChecked.value;
+  }
+
+  /* ---- type ---- */
+  if (body.type !== undefined) {
+    const rawType = body.type;
+    if (typeof rawType !== 'string' || VALID_TYPES.indexOf(rawType) === -1) {
+      return { ok: false, field: 'type', message: '类型只能是「收入」或「支出」' };
+    }
+    merged.type = rawType;
+  }
+
+  /* ---- category ---- */
+  // ⚠️⚠️ 本段是本函数存在的**全部理由**，逐句说明：
+  if (body.category !== undefined) {
+    const rawCategory = body.category;
+    // ⚠️ 这里查的是 CATEGORIES_BY_TYPE[merged.type]，**不是** [body.type]。
+    //   区别：body 里可能压根没传 type（只改分类），
+    //   那时 merged.type 就是原来的类型 —— 用哪个才对，看的是「改完之后是什么」，
+    //   所以必须用 merged.type。整个 PATCH 校验都遵守这一条。
+    const allowedByBody = CATEGORIES_BY_TYPE[merged.type];
+    if (typeof rawCategory !== 'string' || allowedByBody.indexOf(rawCategory) === -1) {
+      return {
+        ok: false,
+        field: 'category',
+        message: merged.type + '的分类只能是：' + allowedByBody.join('、')
+      };
+    }
+    merged.category = rawCategory;
+  } else if (body.type !== undefined) {
+    /* 只改了 type、没改 category —— **这里就是那个必然会出事的组合**。
+       分类还留着原来那一类的，而它对新 type 可能根本非法。
+       两种情况：
+         · 旧分类对新 type 合法（如 支出→收入 之外的、其他→其他）
+           → 放行，不用管
+         · 旧分类对新 type 非法（支出餐饮 → 收入）
+           → 回400，并且**告诉用户要改成什么**（列出收入能用的分类），
+             不能只说「不匹配」—— 那句话会让人反复试。
+       ⚠️ 这一句就是本函数多花一次 GET 换来的东西。 */
+    const oldCategory = merged.category;
+    const allowedNow = CATEGORIES_BY_TYPE[merged.type];
+    if (allowedNow.indexOf(oldCategory) === -1) {
+      return {
+        ok: false,
+        field: 'category',
+        message: '类型改成了「' + merged.type + '」，分类也得跟着改。'
+          + merged.type + '只能用：' + allowedNow.join('、')
+      };
+    }
+  }
+
+  /* ---- note ---- */
+  if (body.note !== undefined) {
+    const rawNote = body.note;
+    if (rawNote !== null && typeof rawNote !== 'string') {
+      return { ok: false, field: 'note', message: '备注只能是文字' };
+    }
+    if (typeof rawNote === 'string' && rawNote.length > MAX_NOTE_LENGTH) {
+      return { ok: false, field: 'note', message: '备注最多 ' + MAX_NOTE_LENGTH + ' 个字' };
+    }
+    // null 存null、字符串存字符串 —— 与 POST 同一口径，
+    // **不把 null 收成空串**：那是toFrontend 出口才做的事，
+    // 库里 null 与 '' 分得清是好事（见 validateExpenseInput 里同一段注释）。
+    merged.note = rawNote === null ? null : rawNote;
+  }
+
+  /* ---- id / created_at / updated_at：服务端说了算，前端传了也忽略 ---- */
+  // ⚠️ 为什么这三个「忽略」而不是 400：
+  //   updatedAt 由服务端强制刷新（契约第 5 条要求「updatedAt 已刷新」），
+  //   用户手填的值没有意义；
+  //   id / createdAt 改了就是改主键和创建时间，那不是「改一笔账」，
+  //   那是「换一条账」—— 按契约第 5 条根本不在可改范围内。
+  // 忽略它们（而不是报错）是与 POST 完全一致的口径。
+
+  /* ---- 最后一步：只把**真正变了**的列挑出去 ---- */
+  //⚠️ 这一步是 PATCH 与 POST 分道扬镳的地方，也是全篇最要紧的纪律：
+  //   凡是「合并后与原值相同」的列，**一律不发**。
+  //   为什么要比原值：前端常常把整张表单一起发过来
+  //   （这很正常，用户看不出区别），里面大部分字段其实没动。
+  //   如果照单全收，数据库会把没动的列**原样写回去** ——
+  //   并发下这会覆盖掉别人刚做的修改（丢更新），
+  //   而且每次保存都白写一遍所有列。
+  //
+  //   **「只发改了的」不是优化，是 PATCH 的定义。**
+  //   （详细理由见 expensesRepository.js 里 updateExpense() 的⚠️⚠️。）
+  const patch = {};
+
+  if (merged.date !== existing.date) {
+    patch.date = merged.date;
+  }
+
+  // 金额的比较用数字比，不能用字符串比：
+  // 库里回来的是 38.5（数字）或 "38.50"（字符串，取决于网关怎么序列化 numeric），
+  // merged.amount 已经在上面 Number() 过了，两边都是数字，比起来才可靠。
+  // ⚠️ 如果直接比 '38.50' !== 38.5 会得到 true（不同类型），
+  //   结果是「用户没改金额也发了一次金额」—— 不致命，但会让
+  //   「只发改了的」这条纪律形同虚设。
+  if (merged.amount !== Number(existing.amount)) {
+    patch.amount = merged.amount;
+  }
+  if (merged.type !== existing.type) {
+    patch.type = merged.type;
+  }
+  if (merged.category !== existing.category) {
+    patch.category = merged.category;
+  }
+  /* ---- note：null 与 '' 是同一个意思，必须归一再比 ----
+     ⚠️⚠️ 这一段是 Day 22 回归用例抓出来的一个**真 bug**，说清楚免得被改回去：
+
+     原写法把 null 和 undefined 归一了，**但漏了空字符串**：
+       const existingNote = existing.note === null || undefined ? null : existing.note;
+       const mergedNote   = merged.note   === null || undefined ? null : merged.note;
+       if (mergedNote !== existingNote) → 发 note
+
+     于是这个最常见的组合会出问题：
+       · 库里这一条 note 是 **null**（记一笔时没填备注 → 存的就是 null）
+       · 前端把整张表单发回来，备注框是空的 → 传过来是 **''**
+       · existingNote = null，mergedNote = '' → `'' !== null` 成立
+       → **每次都发一次 note 的 PATCH**，而它什么都没改。
+
+     代价不是「错」，是**每次都白写一行数据库**：
+       用户只是改了个金额，数据库却把 note 从 null 改成 ''（或反过来），
+       而且每点一次保存就写一次 —— 这个「没变的东西也在写」正是
+       PATCH「只发改了的字段」要防的（见 updateExpense 的⚠️⚠️）。
+
+     为什么这两个值必须视为同一个意思：
+       toFrontend() 出口把 null 收成了 ''（前端拿不到 null），
+       所以**前端根本区分不出这两种形态**，它只会把 null 也回传成 ''。
+       要一个根本看不见区别的前端去保持两种形态的差异，是不可能的。
+       → 既然区分不了，就在**这一层**认掉它：三类空值一律归一成 null 再比。
+
+     ⚠️ 归一的是**比较用的值**，不是用户主动填的内容：
+       用户真把备注从「某某科技食堂」清空成 '' 时，
+       existingNote = '某某科技食堂'、mergedNote = null → 不相等 → 正常发出，
+       且发的是 **null**（= 没备注），与记一笔时「不填备注存 null」同一口径。 */
+  const normalizedExistingNote =
+    (existing.note === null || existing.note === undefined || existing.note === '') ? null : existing.note;
+  const normalizedMergedNote =
+    (merged.note === null || merged.note === undefined || merged.note === '') ? null : merged.note;
+  if (normalizedMergedNote !== normalizedExistingNote) {
+    patch.note = normalizedMergedNote;
+  }
+
+  // ⚠️ 挑完之后可能**一个都没剩**（用户把每个字段都改成了它原来的样子）。
+  //   那就回一句人话，而不是静悄悄地「返回 200 说改好了」——
+  //   与前面「至少改一个字段」同一个道理：不让界面说谎。
+  if (Object.prototype.hasOwnProperty.call(patch, 'date') === false
+    && Object.prototype.hasOwnProperty.call(patch, 'amount') === false
+    && Object.prototype.hasOwnProperty.call(patch, 'type') === false
+    && Object.prototype.hasOwnProperty.call(patch, 'category') === false
+    && Object.prototype.hasOwnProperty.call(patch, 'note') === false) {
+    return { ok: false, field: 'body', message: '填的内容和原来一样，没有需要修改的地方' };
+  }
+
+  // updated_at 由服务端强制刷new —— 前端传了也忽略（契约第 5 条）。
+  patch.updated_at = new Date().toISOString();
+
+  return { ok: true, value: patch };
+}
+
+/**
+ * amount 的一次校验，PATCH 与 POST **共用**。
+ *
+ * ⚠️ 为什么要抽成共享函数（而不是把 POST 里那段抄一份）：
+ *   Day 18 修过一次 bug ——「金额最多两位小数」的判定
+ *   在边界值 9999999999.99 上误伤了合法输入（浮点精度）。
+ *   修好之后那段代码带着一屏注释和三个推导，
+ *   **抄一份就等于把那个坑重新挖一次**（改了一处忘了另一处，
+ *   两边容差悄悄不一样，比一开始更糟）。
+ *   所以：**能共享的一定共享**，注释里那套容差推导只留这一份。
+ *
+ * @param {*} rawAmount 请求里的原始值
+ * @returns {{ok:true, value:number}|{ok:false, field:string, message:string}}
+ */
+function patchAmountCheck(rawAmount) {
+  if (typeof rawAmount !== 'number' || !Number.isFinite(rawAmount)) {
+    return { ok: false, field: 'amount', message: '金额必须是大于 0 的数字' };
+  }
+  if (rawAmount <= 0) {
+    return { ok: false, field: 'amount', message: '金额必须大于 0（收入和支出靠「收入/支出」区分，不靠正负号）' };
+  }
+  // 容差按量级给：tol = |scaled| * 2 * Number.EPSILON。
+  // 完整的推导（为什么0.000244 < 0.00044 < 0.1，两类值不可能被混起来）
+  // 见 validateExpenseInput 里 MAX_AMOUNT_DECIMALS 的注释，此处不重复。
+  const scaledAmount = rawAmount * 100;
+  const tolerance = Math.abs(scaledAmount) * 2 * Number.EPSILON;
+  if (Math.abs(scaledAmount - Math.round(scaledAmount)) > tolerance) {
+    return { ok: false, field: 'amount', message: '金额最多两位小数' };
+  }
+  if (rawAmount > MAX_AMOUNT) {
+    return { ok: false, field: 'amount', message: '金额太大了，最多能记' + MAX_AMOUNT };
+  }
+  return { ok: true, value: Number(rawAmount.toFixed(MAX_AMOUNT_DECIMALS)) };
+}
+
+/* ============================================================
+   第 7 段之二 · 改与删的处理（PATCH / DELETE）—— Day 22 新增
+   ------------------------------------------------------------
+   契约第五节第 5 条（改一笔）与第 6 条（删一笔）。
+
+   【今天要掌握的：删除为什么比新增更容易出事？】
+     新增（POST）出错的**后果上限**是「多了一笔错账」——
+       用户看得见（列表里多一条），能自己发现，也能删掉。
+     删除（DELETE）出错的**后果没有下限**：
+       ① 它**不可逆**。后端没有回收站（契约第 6 条明写「后端不做回收站」），
+          删错了只能**凭记忆重新记一遍** —— 而用户很可能已经忘了金额和日期。
+       ② 它的错误**不会自己暴露**。POST 失败用户会看到「没记上」，
+          DELETE「谎报成功」的话，界面上那条消失、刷新也不见，
+          用户以为删对了 —— **只有等他某天想查这笔账时才发现少了一条**。
+       ③ POST 有防重（clientToken → 409），**DELETE 没有任何等效的护栏**：
+          连点两下就是两次删除请求，第二次打在一个已经不存在的 id 上。
+
+     所以 DELETE 的设计目标不是「尽量删成功」，而是
+     **「不确定的时候宁可不删，也不要谎报删成功」**。
+     下面三个地方都是为这一句服务的：
+
+       ·【确认 A】id 从路径里取，取不到/不合法 → 400，**绝不猜一个 id 去删**
+       ·【确认 B】先 fetchExpenseById 查存在性 → 没有就 404，
+                   **不在「不确定」的情况下发删除请求**
+       ·【确认 C】httpDelete() 只要状态码、不要正文（见那里的⚠️⚠️）——
+                   因为网关不一定认 DELETE 上的 Prefer，
+                   猜错的后果是「真删了却回 404」
+
+     至于「用户会不会手滑点错」，那是**前端**的事（删除前问一句 + 6 秒撤销），
+     后端这两层管不了、也不该管。分工见下面 handleDelete 的注释。
+
+   ⚠️ 三条路径的 503 处理与 GET / POST **完全一致**：
+     前端只需要处理一种「稍后重试」，多一种就要多写一套文案。
+   ============================================================ */
+
+/**
+ * 处理 PATCH /api/expenses/:id —— 改一笔（契约第五节第 5 条）。
+ *
+ * 完整流程七步，每一步都可能提前返回：
+ *   ① 取 id（400）→ ② 读请求体（400）→ ③ **先查这一条在不在**（404 / 503）
+ *   → ④ 合并后校验（400）→ ⑤ 改（200 / 404 / 503）→ ⑥ 翻译成前端形状
+ *
+ * ⚠️ 为什么③ 在 ④ 之前：validatePatchInput 需要用到现有那一行的字段
+ *   （type 与 category 的咬合校验，见第 4 段之四开头）。
+ *   **顺序不是随便定的**，反过来会漏校验。
+ *
+ * @param {object} event 这次 HTTP 请求的信息
+ * @returns {Promise<object>} CloudBase 集成响应
+ */
+async function handleUpdate(event) {
+  /* ---- ① 取 id ---- */
+
+  const picked = extractIdFromPath(event);
+  if (picked.ok === false) {
+    //⚠️ 日志里记reason（我们自己写死的中文常量），
+    //   这条日志的价值就是**告诉我们平台到底把路径放在了哪**。
+    //   如果公网上跑不通，第一个要看的就是这一行 ——
+    //   它会直接告诉我们「四个路径字段全是空的」还是「字段有值但格式不对」。
+    console.error('[expenses] PATCH 没能从路径里取出 id：' + picked.reason);
+    return fail(400, 'bad_request', '这个地址少了一笔账的编号，没法确定要改哪一条');
+  }
+  const id = picked.id;
+
+  /* ---- ② 读请求体 ---- */
+
+  // 与 POST 用同一个 parseRequestBody：它同时认「已经是对象的」和
+  // 「base64 / JSON 字符串」两种形态（公网与控制台测试两种来源）。
+  const parsed = parseRequestBody(event);
+  if (parsed.error !== null) {
+    return fail(400, 'bad_request', parsed.error, 'body');
+  }
+
+  /* ---- ② 之二 前置检查（在碰数据库之前）---- */
+
+  /* ⚠️ 顺序很要紧：这条检查**必须在 fetchExpenseById 之前**。
+     理由见 checkPatchBodyShape() 的说明 —— 一句话：
+     **不需要数据库就能判的错，不要在碰了数据库之后才判。**
+     放在后面的话，一个空表单的请求会先白跑一次查询，
+     而且数据库恰好不通时会被报成 503「稍后重试」（其实它是永久性的输入错误）。
+
+     📌 这条是 Day 22 回归用例抓出来的：
+        「PATCH 空对象」原先实测**发了 1 次请求**（那次查询纯属多余），
+        断言里写着「一次请求都不该发」—— **用例写对了，代码顺序不对**。 */
+  const precheck = checkPatchBodyShape(parsed.value);
+  if (precheck.ok === false) {
+    return fail(400, 'bad_request', precheck.message, precheck.field);
+  }
+
+  /* ---- 写库前的环境检查（与 GET / POST 同一个判断同一句 503）---- */
+  if (configError !== '' || !hasFetch) {
+    console.error('[expenses] 改之前检查到运行配置缺失：'
+      + (configError !== '' ? configError : '运行时不支持 fetch，请确认使用 Node.js 18 及以上'));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(null)));
+  }
+
+  /* ---- ③ 先查这一条在不在 ---- */
+
+  let existing = null;
+  try {
+    existing = await fetchExpenseById(id);
+  } catch (err) {
+    /* ⚠️⚠️ 这里是 Day 22 最容易写错的一处，务必看清楚：
+       fetchExpenseById **抛错** = 「查不到」（网络/令牌/权限/表不存在），
+       **不是**「这一条不存在」。
+       两者只有通过返回值区分：
+         · 正常返回 null  → 确定不存在 → 回 404
+         · 抛错            → **不知道**   → 回 503「稍后重试」
+
+       把抛错也当成404 会造成什么：
+         数据库抖一下 → 用户看到「这笔不存在」→ 他很可能**重新记一笔**
+         → **多出一条重复账目**。而那个错误 503 本来点一下就好。
+       **「不确定」绝不能被翻译成「不存在」。** */
+    console.error('[expenses] 改之前查询失败：网关状态码='
+      + (err && err.dbStatus ? err.dbStatus : '无响应或超时')
+      + '，错误名=' + (err && err.name ? err.name : 'Error')
+      + '，分档=' + translateReason(err));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(err)));
+  }
+
+  if (existing === null) {
+    // 确定不存在。日志只记id —— 它是用户自己的数据标识，
+    // 但不含金额 / 分类 / 备注，排查时足够定位是哪一条。
+    console.log('[expenses] 要改的这一条不存在（编号已记在日志里），已按404 处理');
+    return fail(404, 'not_found', '没找到这一笔账，可能已经被删掉了');
+  }
+
+  /* ---- ④ 合并后校验 ---- */
+
+  const checked = validatePatchInput(existing, parsed.value);
+  if (checked.ok === false) {
+    // 与 POST 同一句纪律：message 全是写死的中文常量，
+    // 不含任何用户输入（把用户填的内容拼回 message = 反射型 XSS 的经典入口）。
+    return fail(400, 'bad_request', checked.message, checked.field);
+  }
+
+  /* ---- ⑤ 真正改 ---- */
+
+  try {
+    const updated = await updateExpense(id, checked.value);
+    // 与 POST 同一口径：日志里**不记金额、分类、备注**。
+    // 那是用户自己的账，记进平台日志等于抄了一份到别处。
+    console.log('[expenses] 已修改一条记录');
+    return ok(updated);
+  } catch (err) {
+    /* ⚠️ notFound 与 503 是两件事，分开处理（理由见 updateExpense 的注释）：
+       查的时候它在，写的时候它没了（有人在这中间把这条删了）。
+       这是**真实的并发结果**，不是故障 —— 而且回 200 也可以，
+       但回 404 更符合「前端刷新列表就能对上」的预期。*/
+    if (err && err.notFound) {
+      console.log('[expenses] 写的时候这一条已经不在了（刚被别处删掉），已按 404 处理');
+      return fail(404, 'not_found', '没找到这一笔账，可能刚刚被删掉了');
+    }
+
+    console.error('[expenses] 修改失败：网关状态码='
+      + (err && err.dbStatus ? err.dbStatus : '无响应或超时')
+      + '，错误名=' + (err && err.name ? err.name : 'Error')
+      + '，分档=' + translateReason(err));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(err)));
+  }
+}
+
+/**
+ * 处理 DELETE /api/expenses/:id —— 删一笔（契约第五节第 6 条）。
+ *
+ * 流程五步：
+ *   ① 取 id（400）→ ② **先查在不在**（404 / 503）→ ③ 删（200 / 503）
+ *   → ④ 回 { ok, id }→ （成功就这三样，没有 data）
+ *
+ * ⚠️ 成功响应**不是** `ok()` 而是专门的一形状。契约第 6 条写死了：
+ *     { "ok": true, "id": "ex_1758200000000_ab12" }
+ *   —— **没有 data**，因为删除没有「要返回给前端的对象」：
+ *     前端要的就是「好了，那一条从列表里去掉」。
+ *   把删掉的那一行原样返回反而会诱使人写成
+ *   「把返回值塞回列表里更新」—— 而正确做法是从列表里**移除**它。
+ *   契约这样设计是刻意的：返回形状会引导前端的正确写法。
+ *
+ * @param {object} event 这次 HTTP 请求的信息
+ * @returns {Promise<object>} CloudBase 集成响应
+ */
+async function handleDelete(event) {
+  /* ---- ① 取 id ---- */
+
+  const picked = extractIdFromPath(event);
+  if (picked.ok === false) {
+    console.error('[expenses] DELETE 没能从路径里取出 id：' + picked.reason);
+    // 【确认 A】没有 id 就**不下手**。这一条尤其重要：
+    // 万一平台没传路径，而代码「聪明地」取了个空字符串当 id，
+    // 那么 `id=eq.` 会命中**全表每一行** —— 一次请求删光所有账。
+    // 白名单 ID_PATTERN 要求必须有 ex_ 前缀，正是为了**物理上排除**这种可能。
+    return fail(400, 'bad_request', '这个地址少了一笔账的编号，没法确定要删哪一条');
+  }
+  const id = picked.id;
+
+  if (configError !== '' || !hasFetch) {
+    console.error('[expenses] 删之前检查到运行配置缺失：'
+      + (configError !== '' ? configError : '运行时不支持 fetch，请确认使用 Node.js 18 及以上'));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(null)));
+  }
+
+  /* ---- ② 先查存在性（确认 B） ---- */
+
+  let existing = null;
+  try {
+    existing = await fetchExpenseById(id);
+  } catch (err) {
+    /* 与 handleUpdate 里同一段注释，同一个道理：
+       **抛错 = 不知道，不是 = 不存在。**
+       在删除这件事上，误报 404 的后果比误报 503 更重——
+       用户看到「没有这条」通常不会再管，而看到「稍后重试」会再点一次。
+       但「再点一次」在删除路径上也不是好事（连点两次= 第二次打在不存在的 id 上），
+       所以**前端要做的不是「让用户重试」，而是弹一句「删不掉，稍后再试」**。
+       那正是 503 与 404 必须分开的原因。*/
+    console.error('[expenses] 删之前查询失败：网关状态码='
+      + (err && err.dbStatus ? err.dbStatus : '无响应或超时')
+      + '，错误名=' + (err && err.name ? err.name : 'Error')
+      + '，分档=' + translateReason(err));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(err)));
+  }
+
+  if (existing === null) {
+    /* 幂等：已删过的再删，仍返回 404（契约第 6 条明写「不要回 500」）。
+       为什么 404 而不是 200：契约的意思是「你问的这条现在不在」，
+       这是**如实回答**，不是错误。前端拿它去「刷新列表即可」。 */
+    console.log('[expenses] 要删的这一条不存在，已按 404 处理（删除是幂等的）');
+    return fail(404, 'not_found', '没找到这一笔账，可能已经被删掉了');
+  }
+
+  /* ---- ③ 真删 ---- */
+
+  try {
+    await deleteExpense(id);
+    console.log('[expenses] 已删除一条记录');
+    // 契约第 6 条的形状：只有 ok 与 id，**没有 data**。
+    return json(200, { ok: true, id: id });
+  } catch (err) {
+    console.error('[expenses] 删除失败：网关状态码='
+      + (err && err.dbStatus ? err.dbStatus : '无响应或超时')
+      + '，错误名=' + (err && err.name ? err.name : 'Error')
+      + '，分档=' + translateReason(err));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(err)));
+  }
+}
+
+/* ============================================================
    第 7 段 · 云函数入口
    ============================================================ */
 
@@ -848,22 +1633,33 @@ exports.main = async (event, context) => {
   const method = (event && event.httpMethod) || 'GET';
 
   /* ------------------------------------------------------------
-   ⚠️⚠️ Day 18 的唯一一处 GET 行为改动，就是下面这 5 行。
+   ⚠️⚠️ 方法分流（Day 22 更新）：四路，每一路从第一行就分开。
 
-   改前：只认 GET，其它一律 405。
-   改后：GET 走读（原样，一字未改）／ POST 走写（新增）／ 其它仍 405。
+   为什么顺序是这样（改之前先想清楚，接错顺序的代价很大）：
+     · **PATCH 与 DELETE 必须排在 GET / POST 前面**吗？—— 不必须。
+       它们互斥（同一个请求只可能是一种方法），顺序其实无所谓。
+       真正有讲究的是**它们必须在那个 `if (method !== 'GET')` 之前分流出去**，
+       否则会被405 拦掉。所以下面两条放在它前面就够了。
+     · GET 放在最后：它是最长的一条（参数校验 + 查询），
+       放在前面等于每次都要跳过两行无谓的判断。
+       但更重要的是**它下面那一整段（含 405 分支）从 Day 17 起就一个字没动过**，
+       放最后 = 它的开头与旧版逐字相同，回归比对时最容易核。
 
-   为什么 PUT / DELETE 今天还回 405：
-     它们是契约第五节第 5/6 条，Day 18 清单里明确「今日不做」。
-     宁可回一句「不支持」，也不能「先放进去看看」——
-     放进去等于给前端一个能过、能用、但语义不确定的假接口，
-     将来真正实现 PUT 时前端已经按假行为写了代码，回改动的是前端。
-
-   ⚠️ 关键纪律：**GET 分支必须保证在其它分支之前分流出去**。
-      如果写成「先读 method，等确定了不是 GET 再判 POST」，
-      中间任何一次对 GET 路径的改动都可能连带影响 POST，反之亦然。
-      两路从第一行就分开，是防串味最省事的办法。
+   ⚠️ Day 22 对 GET / POST 分支的影响：**零行**。
+     本次只在它们前面加了分流、更新了 405 那句文案、
+     顶部多引了三行require 别名（三段之二/之三/之四）。
+     第四段之三与第四段之四是**新加的独立段**，不插进原段中间。
    ------------------------------------------------------------ */
+
+  // —— 改：PATCH /api/expenses/:id（契约第五节第 5 条）——
+  if (method === 'PATCH') {
+    return handleUpdate(event);
+  }
+
+  // —— 删：DELETE /api/expenses/:id（契约第五节第 6 条）——
+  if (method === 'DELETE') {
+    return handleDelete(event);
+  }
 
   // —— 写：POST /api/expenses（契约第五节第 4 条）——
   if (method === 'POST') {
@@ -871,19 +1667,25 @@ exports.main = async (event, context) => {
   }
 
   // 读：GET /api/expenses（契约第五节第 2 条）。
-  // ↓↓↓ 从这一行往下到函数结束，与 Day 17 上线版**逐字相同**（Day 18 只在它上面加分流）
+  // ↓↓↓ 从这一行往下到函数结束，与 Day 18 上线版**逐字相同**
+  //（Day 22 只动了下面 405 那句文案，因为支持的列表变了）
   if (method !== 'GET') {
     /* ⚠️ Day 18 修 bug：这里原来直接 `+ method`，把 httpMethod **原样拼进响应**。
        那是一个反射面 —— 原则是「不把原始输入甩给用户」（AGENTS.md 附三第 6 条的同一口径）。
-       现在过一道白名单：只放行「字母和连字符、1~20 个字符」的方法名
-       （GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS / 自定义动词都能过），
+       现在过一道白名单：只放行「字母和连字符、1~20 个字符」的方法名，
        其它一律换成「该方法」三个字。
        ⚠️ 代价几乎没有：真的方法名全部照常回显（对用户有用，前端会读它），
           只有畸形的 method 才被替换 —— 而畸形 method 本来也没法回显。
-       ⚠️ 刻意**不删**「不支持 X」那半句：它是有用的信息（前端能读 method），
-          这次只把「值」换成可信的。 */
+       ⚠️ 刻意**不删**「不支持 X」那半句：它是有用的信息（前端能读 method）。
+     📌 Day 22 改动：支持的方法列表从「GET、POST」变成「GET、POST、PATCH、DELETE」，
+        并且从「不支持 X」改成「X 另有一处」——
+        **因为带 :id 的地址和列表地址是两回事**：
+        `/api/expenses`（列表）与 `/api/expenses/ex_xxx`（改/删）
+        在前缀匹配下都进本函数，靠方法分流区分开。
+        告诉用户「换个地址」是错的（地址已经对了），真正的问题是方法不对。 */
     const safeMethod = /^[A-Za-z-]{1,20}$/.test(method) ? method : '该方法';
-    return fail(405, 'method_not_allowed', '这个接口只支持 GET（读列表）和 POST（记一笔），不支持 ' + safeMethod);
+    return fail(405, 'method_not_allowed', '这个接口支持 GET（读列表）、POST（记一笔）、'
+      + 'PATCH（改一笔）、DELETE（删一笔）；改和删要在地址末尾加上那笔账的编号。不支持 ' + safeMethod);
   }
 
   // queryStringParameters 在没有任何查询参数时可能是 null，

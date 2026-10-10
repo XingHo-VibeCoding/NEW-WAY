@@ -944,6 +944,352 @@ async function httpWriteJson(url, row) {
 }
 
 /* ============================================================
+   第 3 段之三 · 改与删用的 HTTP 层（PATCH / DELETE）—— Day 22 新增
+   ------------------------------------------------------------
+   这一段是第 3 段之二（sendWrite / httpWriteJson）在
+   「改一条」与「删一条」方向上的对应物。
+
+   ⚠️ 为什么不把 sendWrite 改成 sendWrite(method, url, row) 一把抓：
+     看着少写一个函数，实际上三者的**失败语义完全不同**，硬合并会得到
+     一个到处是 if 的四不像：
+       · POST  失败时可能撞主键 → 要读正文判「重复提交」→ 409
+       · PATCH 失败时只有「没这一条」→ 空数组 → 404
+       · DELETE 失败时只有「数据库出问题」→ 503
+     分开写，每一段一眼看得懂；将来加 OPTIONS/HEAD 也不用回头改这三段。
+
+   ⚠️ 官方姿势（依据 docs.cloudbase.net 的 PostgREST 兼容说明）：
+
+       PATCH  https://{envId}.api.tcloudbasegateway.com/v1/rdb/rest/expenses?id=eq.{id}
+              Authorization: Bearer <token>
+              Content-Type: application/json
+              Prefer: return=representation
+              Body: {只放要改的字段}
+
+       DELETE https://{envId}.api.tcloudbasegateway.com/v1/rdb/rest/expenses?id=eq.{id}
+              Authorization: Bearer <token>
+
+     · 两者都用 `?id=eq.<值>` **筛选要动的那一行**（不是拼进 body）。
+     · PATCH 的 body **只放真正要改的字段** —— 没传的列数据库原样不动，
+       这正是「部分更新」的实现方式；这也是为什么这里**不能**用
+       sendWrite 那套「补齐 8 列」的逻辑（补齐了就把没传的字段全覆盖了）。
+     · `Prefer: return=representation` 在 PATCH 上**必须带**：
+       不带的话网关回 200 但正文是空的，我们拿不回改完之后的那一条，
+       而契约要求「返回更新后的完整对象」。
+     · DELETE 不带 Prefer：它只回 200 空壳。**我们不需要它的正文** ——
+       「这一条到底存不存在」在动手之前就已经用一次 GET 问过了
+       （见 fetchExpenseById），删除本身成不成功只看状态码。
+   ============================================================ */
+
+/** 改 / 删的超时。与读写同一个值，不另立规矩 —— 同一个网关，理由相同。 */
+const MUTATE_TIMEOUT_MS = 8000;
+
+/**
+ * 发一次 PATCH 或 DELETE，**只如实描述结果，不做判断**（与前两段同一套纪律）。
+ *
+ * ⚠️ 与 sendWrite 的三处**故意不同**，都跟「这一段不会失败在业务上」有关：
+ *
+ *   ① **非 2xx 时不读响应体**（sendWrite 只在状态码允许时才读）。
+ *      理由：这里没有任何「要从正文里认出来」的业务错误 ——
+ *      PATCH 的 404 是靠**返回数组为空**认的（2xx 之内），
+ *      不在数组里的 4xx/5xx 一律归 503，不需要正文来判。
+ *      **不读 = 从根上杜绝「正文里带表结构/列名」被误用的可能。**
+ *
+ *   ② 成功时把正文留在 json 里：PATCH 要拿回改完之后的那一条。
+ *      DELETE 留不留无所谓，调用方不取。
+ *
+ *   ③ **不做唯一约束判定**：改和删**永远不可能**因为主键重复而失败
+ *      （主键冲突只在插入时发生）。如果这里也去认「重复」，
+ *      就是 Day 18 那个把「表已存在」误报成「已经记过了」的同类错误。
+ *
+ * @param {string} url    完整 URL（由 restUrl 拼好，筛选条件已 encodeURIComponent）
+ * @param {string} method 'PATCH' 或 'DELETE'
+ * @param {object} [row]  PATCH 的请求体（数据库列名）；DELETE 不传
+ * @returns {Promise<object>} 永远 resolve，不 reject：
+ *   { reached, status, json, errorName, errorMessage, elapsedMs }
+ */
+async function sendMutate(url, method, row) {
+  const startedAt = Date.now();
+
+  let token;
+  try {
+    token = await resolveToken();
+  } catch (err) {
+    return {
+      reached: false,
+      status: err && err.dbStatus ? err.dbStatus : null,
+      json: undefined,
+      errorName: err && err.name ? err.name : 'Error',
+      errorMessage: describeErrorDeeply(err),
+      elapsedMs: Date.now() - startedAt
+    };
+  }
+
+  /* clearTimeout 放在覆盖「取头 + 读正文」的外层 finally ——
+     与 sendGet / sendWrite 同一个坑、同一个修法，理由见那两处注释。
+     改删路径挂死的后果：用户点了「保存 / 删除」，界面一直转圈，
+     而他完全不知道到底改没改成 —— 下次再点一次，又是一遍。 */
+  const controller = new AbortController();
+  const timer = setTimeout(function () {
+    controller.abort();
+  }, MUTATE_TIMEOUT_MS);
+
+  try {
+    const headers = {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/json'
+    };
+
+    // 只有 PATCH 有请求体，也只有它需要声明内容类型。
+    // DELETE 没有 body —— 带了 Content-Type 也不会有 body 可发，
+    // 多写一个头就多一个「万一被网关拒了」的变量。
+    if (method === 'PATCH') {
+      headers['Content-Type'] = 'application/json';
+      // 这一行是「PATCH 之后能拿到改好的那一条」的**唯一**原因，别删。
+      headers['Prefer'] = 'return=representation';
+    }
+
+    const init = {
+      method: method,
+      headers: headers,
+      signal: controller.signal
+    };
+    if (method === 'PATCH') {
+      init.body = JSON.stringify(row);
+    }
+
+    let resp;
+    try {
+      resp = await fetch(url, init);
+    } catch (err) {
+      return {
+        reached: false,
+        status: null,
+        json: undefined,
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: describeErrorDeeply(err),
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
+    if (!resp.ok) {
+      /* 刻意不读正文。见本段开头的 ①：
+         这里没有「要从正文里认出来的业务错误」，读了纯多一个泄露面。 */
+      return {
+        reached: true,
+        status: resp.status,
+        json: undefined,
+        errorName: null,
+        errorMessage: '',
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+
+    // DELETE 成功时网关回的是空壳（可能压根不是合法 JSON）。
+    // 所以只有 PATCH 才去读正文 —— 读不出来也不算失败，
+    // 交给上层的形状校验去抛（那里抛出来的错才带得上「哪一步不对」）。
+    let data = null;
+    if (method === 'PATCH') {
+      try {
+        data = await resp.json();
+      } catch (err) {
+        return {
+          reached: true,
+          status: resp.status,
+          json: undefined,
+          errorName: err && err.name ? err.name : 'Error',
+          errorMessage: describeErrorDeeply(err),
+          elapsedMs: Date.now() - startedAt
+        };
+      }
+    }
+
+    return {
+      reached: true,
+      status: resp.status,
+      json: data,
+      errorName: null,
+      errorMessage: '',
+      elapsedMs: Date.now() - startedAt
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 发一次 PATCH，把改完之后的那一行取回来。
+ *
+ * ⚠️ **空数组是这一段最要紧的返回值**，含义只有一个：**这一条不存在**。
+ *
+ *   PostgREST 的 PATCH 语义是「更新所有被筛选条件命中的行，
+ *   然后把命中的那些行还给你」。所以：
+ *     · 命中了 → 200，正文是数组，**长度 1**（筛选条件就是 id，唯一）
+ *     · 一条都没命中 → **照样 200**，正文是**空数组**
+ *
+ *   也就是说「找不到」这个业务结果**不在状态码里，在数组长度里**。
+ *   如果这里把空数组当成功返回，上层就会回一句「改好了」——
+ *   而数据库里那一行根本没被碰过。用户看到「改成功了」，
+ *   刷新一下发现原封不动，**这是最难查的一类故障：谎报成功**。
+ *   所以这里**明确区分**：`rows.length === 0` 一律当「不存在」抛出去，
+ *   由上层翻译成 404。
+ *
+ * @param {string} url  由 restUrl() 拼好的完整 URL
+ * @param {object} row  **只含要改的列**（数据库列名）
+ * @returns {Promise<object>} 改完之后那一行（数据库列名）
+ * @throws  err.notFound = true 表示「这一条不存在」
+ */
+async function httpPatchJson(url, row) {
+  const res = await sendMutate(url, 'PATCH', row);
+
+  if (!res.reached) {
+    /* 与前两段同一套纪律：只把状态码带出去，正文一个字不回传。
+       401 令牌 / 403 权限（**改删最可能**：令牌角色没有 UPDATE 或 DELETE 权限）
+       / 404 表不存在 / 400 请求有问题 / 超时 —— 全归 503。 */
+    const err = new Error('rdb rest patch failed');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  /* ⚠️ Day 22：这里**显式判 2xx**，与 httpDelete 里同一个理由（那里有个完整案例）。
+     原来只靠下面那句 `!Array.isArray(data)` 兜着 —— 非 2xx 时 sendMutate 回的 json
+     是 undefined，确实也会被那句挡住，**但那是巧合，不是设计**：
+     如果哪天 sendMutate 在失败分支里顺手带上了别的 json 值，
+     这个漏洞就会当场裂开。**判成功只判状态码，别依赖别的字段碰巧长成什么样。** */
+  if (res.errorName !== null || res.status < 200 || res.status >= 300) {
+    const err = new Error('rdb rest patch failed');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  const data = res.json;
+
+  // 形状不对（不是数组 / 正文读不出来）→ 抛，交给上层回 503。
+  // 这里**不猜**「读到空是不是就是不存在」—— 读不出来是「不知道」，
+  // 而「不知道」绝不能被翻译成「不存在」（那会让 404 去回答一个
+  // 其实只是网络抖了一下的请求，用户以为记录没了）。
+  if (res.errorName !== null || !Array.isArray(data)) {
+    const err = new Error('unexpected patch response shape');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  if (data.length === 0) {
+    /* 「不存在」是一个**正常的业务结果**，不是数据库故障 ——
+       所以用独立标记（notFound）跟 503 区分开，
+       和 Day 18 用 err.duplicate 区分 409 是同一个手法。 */
+    const err = new Error('expense not found');
+    err.dbStatus = res.status;
+    err.notFound = true;
+    throw err;
+  }
+
+  /* 出口字段校验（理由与 httpWriteJson 里那段完全相同，这里只复述结论）：
+     PATCH 成功回的是**完整的一行**（因为带了 return=representation），
+     契约也要求「返回更新后的完整对象」。如果网关回了残缺对象而我们照单全收，
+     前端就会把它整条替换进列表 → 界面显示成 undefined，
+     而数据库里明明是好的。**回 200「成功」却让界面挂掉，是最坏的组合。**
+     按数据库列名（下划线）校验 8 列齐全，缺任一 → 抛 → 503。 */
+  const updated = data[0];
+  if (updated === null || typeof updated !== 'object' || Array.isArray(updated)) {
+    const err = new Error('unexpected patch response item');
+    err.dbStatus = res.status;
+    throw err;
+  }
+  const REQUIRED_COLUMNS = [
+    'id', 'date', 'amount', 'type', 'category', 'note', 'created_at', 'updated_at'
+  ];
+  for (let i = 0; i < REQUIRED_COLUMNS.length; i++) {
+    if (!Object.prototype.hasOwnProperty.call(updated, REQUIRED_COLUMNS[i])) {
+      const err = new Error('incomplete patch response');
+      err.dbStatus = res.status;
+      throw err;
+    }
+  }
+
+  return updated;
+}
+
+/**
+ * 发一次 DELETE。**不关心正文**，只看「网关收下了没有」。
+ *
+ * ⚠️ 为什么这里不做「删了几行」的核对（那本来是能核对的，
+ *    加 `Prefer: return=representation` 就能拿到被删掉的那一行）：
+ *   两个理由，第二个是**决定性的**：
+ *
+ *   ① 上层在动手之前已经用 fetchExpenseById() 查过存在性了。
+ *      如果那一刻查到了、这一刻真删掉了，中间被别人抢先删掉的情形，
+ *      结果仍然是「这一条已经不在了」—— 回 200 是**对的**。
+ *      核对行数反而会把这种「并发下被别人抢先删」误报成失败，
+ *      而那明明是成功。
+ *
+ *   ② ⚠️⚠️ **网关不一定认DELETE 上的 Prefer**。
+ *      Day 18 实测过 POST 带 Prefer 会回完整对象（所以 201 能拿到新记录）。
+ *      但「POST 认」**推不出**「DELETE 也认」—— 网关对不同方法的支持
+ *      是各自实现的。如果 DELETE 上的 Prefer 被忽略，响应就是
+ *      **200 + 空数组**，而我们按「空 = 没删到」去解释它 →
+ *      → **用户的数据已经真的删掉了，我们却回一句 404「没找到」**。
+ *
+ *      这个后果比「多一次网络往返」严重得多：
+ *        · 谎报 404 → 用户以为记录还在 → 可能重新记一笔 → **重复账目**
+ *        · 而真删掉的那一条**永远回不来**（后端没有回收站，见契约第 6 条）
+ *
+ *      **删除是整个项目里唯一不可逆的操作**（新增错了能删、删错了只能重新记；
+ *      改错了还能再改一次）。所以在这一步上，
+ *      **宁可多一次往返，也不赌网关的行为。**
+ *
+ *      📌 如果将来一定要省掉那次 GET，正确做法是**先在控制台实测**
+ *      「DELETE 带 Prefer 到底回不回正文」，实测认了再改，**不能凭文档改**。
+ *
+ * @param {string} url 由 restUrl() 拼好的完整 URL
+ * @returns {Promise<void>} 成功即 resolve；失败抛带 dbStatus 的错
+ */
+async function httpDelete(url) {
+  const res = await sendMutate(url, 'DELETE', null);
+
+  if (!res.reached) {
+    // 403 在这里尤其常见：令牌角色没有 DELETE 权限（Day 18 只验证过 INSERT）。
+    const err = new Error('rdb rest delete failed');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  /* ⚠️⚠️⚠️ Day 22 抓到的一个**真 bug**，就是下面这 4 行，务必看清楚。
+
+     【原来的写法】只有上面那个 `!res.reached` 的判断。
+     【它为什么是错的】`reached: true` 的含义是「**收到了 HTTP 响应**」，
+        不是「**删除成功了**」。403 / 500 这些「服务端明确拒绝了」的响应，
+        reached 一样是 true（我们确实收到了它的答复）。
+        所以只判 reached 就等于把「权限不足」读成了「删成功」。
+
+     【后果】这是本项目最坏的一类故障 —— **谎报成功**：
+        · 网关回 403（令牌角色没有 DELETE 权限）→ 函数回 200 `{ok:true}`
+        · 前端把那条从列表里移除、还弹一句「已删除」
+        · 用户以为删掉了，**而数据库里那一行还好端端躺着**
+        · 下次刷新、或换台设备打开 → **那条又回来了**
+        · 而前端已经按「删成功」走完了流程（撤销按钮也过期了），
+          用户只会觉得「这软件有鬼」，怎么查都查不出错
+
+     【怎么被抓到的】Day 22 的回归用例里有一条
+        「DELETE 删除时网关 403 → 503」——**用例写对了，代码错了**。
+        这正是「不能靠肉眼验代码」的又一例：这一段逻辑看上去完全正常。
+
+     【修法】成功**只认 2xx**，显式判状态码，不依赖任何间接特征。
+        （DELETE 的官方成功码是 204 No Content，也可能被网关写成 200，
+          所以判区间而不是判某一个数。） */
+  if (res.errorName !== null || res.status < 200 || res.status >= 300) {
+    const err = new Error('rdb rest delete failed');
+    err.dbStatus = res.status;
+    throw err;
+  }
+
+  /* ⚠️ 走到这里才是真的删掉了。**刻意不判「删了几行」** —— 理由见上方注释。
+     如果将来真要做这个核对，正确做法是把 Prefer 加回去并比对数组长度，
+     **不要**改成「先查后删的两次结果必须一致」：
+     那样会把「并发下被别人抢先删」误报成失败，而那明明是成功。 */
+  return;
+}
+
+/* ============================================================
    第 5 段 · 数据库行 → 前端对象
    ============================================================ */
 
@@ -1104,6 +1450,127 @@ async function createExpense(row) {
 }
 
 /* ============================================================
+   第 6 段之三 · 改与删（Day 22 新增）
+   ------------------------------------------------------------
+   「改」和「删」比「增」多一件**增**不需要的事：**动手之前得知道这一条在不在**。
+
+   为什么这是「增」不需要的：
+     · 新增是自己造一个id 塞进去，**必然不存在**，撞了才是意外（那是防重 409）。
+     · 改和删的对象是**别人给的 id**，它可能指向一条不存在的记录。
+       而「不存在」是一个**必须被回答的业务问题**，不是一个可以糊过去的错误：
+         · 改 → 用户以为改好了，刷新发现原封不动 → 界面在说谎
+         · 删 → 用户以为删掉了，其实数据库里还有 → 换台设备又冒出来
+
+   所以两条路径都是同一个三步：**先查 → 再动 → 动完回报**。
+   唯一能省掉第一步的写法（DELETE 带 Prefer 拿回被删的那一行）
+   在 httpDelete() 的注释里说明了为什么**刻意不省**。
+   ============================================================ */
+
+/**
+ * 按 id 读**一条**。
+ *
+ * ⚠️ 为什么必须 `limit=1`：`id` 是主键，理论上最多命中一行，
+ *    但「理论上」三个字在数据库面前不算保证（将来有人把主键约束去掉、
+ *    或者 id 从 URL 里被拼歪，就可能命中多行）。加了 limit=1，
+ *    **即使命中多行也只取一行**，上层绝不会拿到「两条同id 的记录」这种
+ *    根本无法在界面上表达的东西。
+ *
+ * ⚠️ 为什么 `id=eq.<值>` 而不是 `id=<值>`：PostgREST 的 `eq` 是显式的等于，
+ *    不带运算符时默认也是等于，但**写出来更清楚**，
+ *    而且和下面 PATCH / DELETE 用的筛选条件**一字不差** ——
+ *    「查的那一条」和「动的那一条」必须是同一个口径，否则会出现
+ *    「查得到却改不到」这种极难查的错。
+ *
+ * ⚠️ 注入防护沿用两层（与 queryExpenses 同一套，见 restUrl 的说明）：
+ *    第 1 层在 index.js 的 validateExpenseId()（白名单 + 长度上限），
+ *    第 2 层是这里 restUrl() 的逐个 encodeURIComponent。两层缺一不可。
+ *
+ * @param {string} id 已经过白名单校验的流水 id
+ * @returns {Promise<object|null>} 这一行（数据库列名）；**不存在返回 null**
+ */
+async function fetchExpenseById(id) {
+  const rows = await httpGetJson(restUrl('expenses', [
+    ['select', 'id,date,amount,type,category,note,created_at,updated_at'],
+    ['id', 'eq.' + id],
+    ['limit', '1']
+  ]));
+
+  /* ⚠️ 空数组在这里**不是错误**，它就是「没这一条」。
+     返回 null 让上层决定回什么（index.js 翻译成 404）——
+     本文件不知道 404 对前端意味着什么（分层纪律，见文件开头）。 */
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+  return rows[0];
+}
+
+/**
+ * 改一笔账里**要改的那几个字段**。
+ *
+ * ⚠️⚠️ 本函数是 Day 22 最重要的一条实现纪律，写在这里免得将来被「优化」掉：
+ *
+ *   **PATCH 的请求体只放真正要改的字段，一个字都不多。**
+ *
+ *   为什么不复用 validateExpenseInput 那种「补齐 8 列」的写法：
+ *     那是 POST 需要的 —— 新增一条记录，**8 个列都得有值**
+ *     （id / created_at / updated_at 由服务端生成，5 个业务字段由用户填）。
+ *     但 PATCH 是**局部更新**：用户只改了备注，那就只该发 note 一个字段。
+ *     如果照 POST 的样子把 date / amount / type / category 全带上，
+ *     数据库会把它们**原样写回去** —— 值虽然一样，但：
+ *       · 并发下会**覆盖掉别人刚做的修改**（丢更新）
+ *       · 每次改备注都白写四列，产生无谓的磁盘写入与触发器开销
+ *     「只发改了的」不是偷懒，是 PATCH 的**定义**。
+ *
+ *   唯一一个**必须由服务端补**的列是 updated_at：
+ *     契约第 5 条要求「updatedAt 已刷新」。这个字段由用户填没有意义
+ *     （没有人能手动知道自己上次改是几秒前），所以服务端**强制覆盖**，
+ *     前端传了也忽略 —— 与 POST 忽略 id / createdAt 同一个口径。
+ *
+ * @param {string} id 已经过白名单校验的流水 id
+ * @param {object} patch **只含要改的列**（数据库列名），由 index.js 校验产出
+ * @returns {Promise<object>} 改完之后那一行，已翻译成前端形状
+ * @throws  err.notFound = true 表示「这一条不存在」
+ */
+async function updateExpense(id, patch) {
+  // 只带要改的列 + 服务端强制刷新的 updated_at。
+  // 这里**刻意不补其余列** —— 理由见本函数开头的 ⚠️⚠️。
+  const row = { updated_at: patch.updated_at };
+
+  const PATCHABLE = ['date', 'amount', 'type', 'category', 'note'];
+  for (let i = 0; i < PATCHABLE.length; i++) {
+    const key = PATCHABLE[i];
+    // 用 hasOwnProperty 而不是 `in`：防原型链上的 inherited 属性冒充字段
+    // （与 httpWriteJson 出口校验同一个理由）。
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      row[key] = patch[key];
+    }
+  }
+
+  const updated = await httpPatchJson(restUrl('expenses', [['id', 'eq.' + id]]), row);
+  return toFrontend(updated);
+}
+
+/**
+ * 删一笔账。
+ *
+ * ⚠️ **本函数不做存在性检查** —— 那是上层 fetchExpenseById() 的事。
+ *   这样分工是有意的：查询失败（有网络问题）和「确实不存在」
+ *   是两件完全不同的事，**必须在能分清它们的地方分开**：
+ *     · fetchExpenseById 成功且返回 null → 确定不存在 → 404
+ *     · fetchExpenseById **抛错** → 网络/令牌/权限问题 → 503「稍后重试」
+ *   如果把两步塞进一个函数里，调用方就只看到一个 reject，
+ *   很容易把「网络抖了一下」当成「记录不存在」回404 ——
+ *   而用户看到「记录不存在」很可能重新记一笔，**于是就多了一条重复账目**。
+ *   「不确定」和「确实没有」必须走不同的出口。
+ *
+ * @param {string} id 已经过白名单校验的流水 id
+ * @returns {Promise<void>} 成功即 resolve
+ */
+async function deleteExpense(id) {
+  await httpDelete(restUrl('expenses', [['id', 'eq.' + id]]));
+}
+
+/* ============================================================
    对外接口（本文件只暴露这四样）
    ------------------------------------------------------------
    暴露 runtime 是因为 index.js 的两处判断需要知道
@@ -1115,5 +1582,8 @@ async function createExpense(row) {
 module.exports = {
   runtime: { configError: configError, hasFetch: hasFetch },
   queryExpenses: queryExpenses,
-  createExpense: createExpense
+  createExpense: createExpense,
+  fetchExpenseById: fetchExpenseById,
+  updateExpense: updateExpense,
+  deleteExpense: deleteExpense
 };

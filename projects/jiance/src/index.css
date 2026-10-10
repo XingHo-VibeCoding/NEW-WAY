@@ -93,6 +93,15 @@ body {
   min-height: 100vh;
 }
 
+/* 弹层开着时锁住背景滚动（Day 22 · 弹层三件套之二）。
+   ⚠️ 为什么写在 body 上而不是弹层自己的 CSS 里：body 是全站元素，
+   这条规则管的是「整页不滚」，属于全站样式；弹层组件只负责开关这个类。
+   不锁的话，手机上滑弹层会连带把背后的页面一起滚走 —— 视觉上背景在动、
+   弹层却纹丝不动，很像页面坏了。 */
+body.is-modal-open {
+  overflow: hidden;
+}
+
 a {
   color: var(--line);
   text-decoration: none;
@@ -387,6 +396,15 @@ button {
          上一条的 background:#fff 已能覆盖它；但 border-bottom 会印出一条横线，
          且按钮本身无意义（打印件不需要「回主界面」）。整个撤掉最干净。---- */
   .nav {
+    display: none !important;
+  }
+
+  /* ---- 2c. 浮动提示与确认弹层（Day 22 新增）----
+         toast 是「刚才发生了什么」的临时提示，弹层是「问你要不要删」的交互件 ——
+         两者都属于屏幕上的一瞬，打印件里出现只会让人莫名其妙。
+         ⚠️ 与场景牌心（.scene）同一类：**不是装饰，是完全不该出现在纸上**。---- */
+  .toast,
+  .modal-mask {
     display: none !important;
   }
 

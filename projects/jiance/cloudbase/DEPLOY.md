@@ -901,7 +901,7 @@ node -e "require('D:/tmp/day19ziptest/index.js');console.log('OK')"
 | 1 | **`GET /api/health` 没跟上套壳改造** | 它还是老的裸格式 `{ok, service}`，其它接口是 `{ok, data}`。**格式不一致**。一旦前端开始按 `res.data` 统一解析，health 就会掉队 |
 | 2 | ~~跨域（CORS）仍未处理~~ | ✅ **Day 20 已解决** —— 但**不是靠写代码**。实测发现 **CloudBase 平台层的跨域校验默认就开着**，网关自己校验 Origin、自己发白名单通行证、自己应答预检。官方文档也推荐这个做法。**云函数一行 CORS 代码都不用写**（我一度写的 `cors.js` 已回退，理由详见第九节） |
 | 3 | **契约第九节第 1 条未拍板** | `TECH_DESIGN.md:304/434-435/470` + `research.md:120` 那 5 处「绝对化断言」要改。**Day 20 已改掉其中 4 处**（`TECH_DESIGN` 第一节「零后端零数据库」、`PRD` 第五节「全部存在浏览器里」+ 5.3 隐私口径 + 第七节技术前提 / 8.6 验收）—— 因为今天「前端读云端」让它们**当场失效**。**`research.md:120` 那处仍未动**（那里已标注「v1.12 起部分过时」，属独立待拍板项） |
-| 4 | ~~写入接口（POST/PUT/DELETE）~~ | ✅ **Day 18 已解决一半**：`POST /api/expenses` 上线并公网验证（含防重复提交）。**PUT / DELETE（契约第 5/6 条）仍未做，现在回 405** |
+| 4 | ~~写入接口（POST/PUT/DELETE）~~ | ✅ **Day 22 全部解决**：`POST /api/expenses`（Day 18）+ `PATCH /api/expenses/:id`（Day 22）+ `DELETE /api/expenses/:id`（Day 22）。**`expenses` 表增删改查四类操作闭环**。⚠️ 方法名是 **PATCH 不是 PUT**（契约 v1.6 已更正，理由见 `api-contract.md` 第五节第 5 条） |
 | 5 | ~~前端还没接这三个接口~~ | ✅ **Day 20 已接**：新增 `src/api/client.js`，底牌页改为「优先云端、失败回落本地」，并加检查台。**只剩上传 `dist/` 这一步**。⚠️ 注意：其余 5 页（记一笔 / 记一条 / 简历预览 / 岗位匹配 / 主界面）**仍是本地数据**，还没接接口 |
 | 6 | ~~Day 19 起的写接口要重新评估取数方式~~ | ✅ **Day 18 已验证**：HTTP API **支持写入**（`POST /v1/rdb/rest/:table` + `Prefer: return=representation`）。Day 19 分层后 `expensesRepository.js` 里已有 `sendWrite` / `httpWriteJson` / `createExpense` 可复用 |
 | 7 | **RLS / 授权还没正式配** | schema.sql 第 3 节明确「本脚本不写 GRANT / RLS」。现在靠 HTTP API 绕过去了，但**这不是长久之计** —— 将来若开账号体系，权限必须正式配 |

@@ -302,6 +302,110 @@
   border-color: var(--brand, #c0392b);
 }
 
+/* ================================================================
+   Day 22 新增：接云端 + 编辑 / 删除
+   ================================================================ */
+
+/* ---------- 数据来源那一行 ----------
+   为什么要有它：这一页的数据可能来自「云端」也可能来自「浏览器本地副本」，
+   两种情况下「改了会不会同步」完全不同。不说清楚，用户会以为
+   记的一笔已经存到云上了，其实只在本地 —— 换台设备就没了。
+   ⚠️ 这是**信息**不是装饰，所以字号小但必须可读（不压到看不清）。 */
+.expense-source {
+  margin: 0 0 14px;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+.expense-source strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.expense-source-host {
+  opacity: 0.75;
+  /* 域名可能很长，窄屏要能断行 */
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 列表主体：给焦点留个落点 ----------
+   ⚠️ tabIndex={-1} 的元素默认会有一圈焦点描边，而它是个大块容器，
+   描出来是一整个大方框，很难看。这里只在**键盘真正聚焦到它**时才描边，
+   且用里面的细线（不是全局那条 2px 金线）。
+   为什么需要它：删除之后，原来那个「删除」按钮已经随记录消失了，
+   焦点得有个去处（见 ConfirmDialog 的还焦点逻辑）。 */
+.expense-list-body:focus-visible {
+  outline: 1px dashed var(--line-soft);
+  outline-offset: 6px;
+  border-radius: 6px;
+}
+
+/* ---------- 行内操作列（编辑 / 删除两个按钮） ---------- */
+.row-acts {
+  display: flex;
+  gap: 8px;
+  /* ⚠️ 不换行：窄屏时这两个按钮会各自占一行（见下方媒体查询），
+     在宽屏上它们始终并排 */
+  flex: none;
+}
+
+.row-act {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  color: var(--ink-dim);
+  font-size: var(--fs-xs);
+  /* ⚠️ 触控目标高度基线 ≥ 24px（AGENTS.md 无障碍基线）*/
+  min-height: 26px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: color 180ms ease-out, border-color 180ms ease-out, background 180ms ease-out;
+}
+
+.row-act:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--line);
+  background: rgba(201, 161, 74, 0.1);
+}
+
+/* 「删除」悬停变朱 —— 与全局的危险操作口径一致 */
+.row-act.is-del:hover:not(:disabled) {
+  color: var(--brand, #c0392b);
+  border-color: var(--brand, #c0392b);
+  background: rgba(192, 57, 43, 0.1);
+}
+
+/* ⚠️ 请求进行中禁用两个按钮：防连点。
+   连点两次「删除」在云端模式下会打两次 DELETE 请求（第二次必然 404），
+   连点两次「保存修改」同理。禁用的那一下灰色是必要的反馈。 */
+.row-act:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- 「正在编辑」的那一行 ----------
+   ⚠️ 为什么要有这个高亮：用户点了「编辑」之后视线在表单上，
+   回头看列表时得能立刻认出「我正在改的是哪一条」，否则容易改错行。
+   用左侧一道朱色竖线 + 极淡底色，不做整行大变色（克制）。 */
+.expense-row.is-editing {
+  position: relative;
+  background: rgba(201, 161, 74, 0.06);
+  border-radius: 6px;
+}
+
+.expense-row.is-editing::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brand, #c0392b);
+}
+
 /* 窄屏 */
 @media (max-width: 640px) {
   .expense-form .form-row,
@@ -310,8 +414,10 @@
   }
   .expense-row {
     grid-template-columns: 1fr auto;
+    row-gap: 8px;
   }
-  .row-del {
+  /* 两个按钮各自站满一行右侧，别挤成一小团 */
+  .row-acts {
     grid-column: 1 / -1;
     justify-self: end;
   }

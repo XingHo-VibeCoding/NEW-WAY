@@ -1,0 +1,117 @@
+/* 简册 · 确认弹层（ConfirmDialog）样式 —— Day 22 新增
+   ------------------------------------------------------------
+   ⚠️ 颜色全部引用 index.css 的变量，不新造色板。
+   ⚠️ 「确认」按钮用 --brand（朱）：与记一笔页里删除按钮的 hover 色同源，
+      一眼就知道这是「会扔东西」的那个键。
+
+   ⚠️ 为什么锁滚动写在 index.css 的 body 上、而不是这里：
+      body 是全站元素，规则理应归全站样式管（本文件只管弹层自己长什么样）。
+      `.is-modal-open` 那条在 index.css 里，本组件只负责开关它。 */
+
+.confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+  /* 半透明墨色遮罩：不用纯黑，纯黑会把背后的账簿纸面完全盖掉，
+     看不出「这是浮在当前页面上的一层」 */
+  background: rgba(8, 6, 4, 0.62);
+  /* 遮罩本身也做一点模糊，强化「弹层在前、页面在后」的层次 */
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.confirm-box {
+  width: 100%;
+  max-width: 380px;
+  padding: 24px 24px 20px;
+
+  background: var(--kraft-2, #241c14);
+  border: 1px solid var(--kraft-line, rgba(201, 161, 74, 0.22));
+  border-radius: var(--radius, 12px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.confirm-title {
+  margin: 0 0 10px;
+  font-family: var(--serif, serif);
+  font-size: var(--fs-lg, 20px);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.confirm-text {
+  margin: 0;
+  font-size: var(--fs-sm, 14px);
+  line-height: 1.8;
+  color: var(--ink-dim);
+  /* ⚠️ 正文里会拼进用户自己填的备注，可能又长又没空格 —— 必须让它断行 */
+  overflow-wrap: anywhere;
+}
+
+.confirm-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.confirm-btn {
+  appearance: none;
+  min-height: 34px;
+  padding: 8px 18px;
+
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm, 14px);
+  cursor: pointer;
+
+  transition: background 180ms ease-out, border-color 180ms ease-out;
+}
+
+.confirm-btn:hover {
+  border-color: var(--line);
+  background: rgba(201, 161, 74, 0.1);
+}
+
+/* 「确认」是危险动作，用朱色标出来 —— 但**只在 hover 时变色**，
+   常态保持克制（AGENTS.md：审美克制，反对过度设计） */
+.confirm-btn.is-danger {
+  border-color: var(--brand, #c0392b);
+  color: #fff;
+  background: var(--brand, #c0392b);
+}
+
+.confirm-btn.is-danger:hover {
+  background: #a93226;
+  border-color: #a93226;
+}
+
+/* ⚠️ 焦点描边：全局 :focus-visible（index.css）会给金线描边，
+   但「确认」键本身就是朱底，金线描边在上面不够醒目 —— 补一道白描边。 */
+.confirm-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---------- 窄屏：两个按钮等宽并排，别挤成豆腐块 ---------- */
+@media (max-width: 420px) {
+  .confirm-box {
+    padding: 20px 18px 16px;
+  }
+  .confirm-btns {
+    gap: 8px;
+  }
+  .confirm-btn {
+    flex: 1;
+    padding: 8px 12px;
+  }
+}
