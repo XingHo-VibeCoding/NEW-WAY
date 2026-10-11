@@ -457,7 +457,12 @@ export default function Expense() {
       {/* 数据来源说明：让「这份数据是哪来的」看得见，不用开 F12 猜 */}
       <p className="expense-source" role="status">
         数据来源：<strong>{sourceLabel}</strong>
-        {loadError === '' ? '' : `（${loadError}）`}
+        {/* ⚠️ Day 23 修：这里以前写成 `（${loadError}）` —— 把错误文案**又套了一层括号**。
+            而后端那句 503 自己就带括号（「…稍后重试（网关返回 403，权限不足）」），
+            两下一叠，页面上出现「（…（…））」双括号套娃（真跑断网场景时抓到的）。
+            改成和后面那截同一种「 · 」分隔，**不再自己套括号**：
+            括号该由写那句话的人决定，套的人越多越乱。 */}
+        {loadError === '' ? '' : ` · ${loadError}`}
         {source === 'cloud' ? '' : ' · 改动只存在这台设备上'}
         <span className="expense-source-host"> · {apiOriginLabel()}</span>
       </p>

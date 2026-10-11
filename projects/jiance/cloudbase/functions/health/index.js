@@ -47,14 +47,28 @@ function json(statusCode, payload) {
 exports.main = async (event, context) => {
   const method = (event && event.httpMethod) || 'GET';
 
-  // 今天只认 GET。其它方法（POST / PUT / DELETE）一律拒掉，
-  // 而不是「也回一句 ok」—— 回了就是假话，前端会被误导。
+  /* 今天只认 GET。其它方法（POST / PUT / DELETE）一律拒掉，
+     而不是「也回一句 ok」—— 回了就是假话，前端会被误导。
+
+     ⚠️ Day 23 两处统一（和 expenses / profile 对齐，同一个项目不许两种说法）：
+       ① 文案改成同一句式：`这个接口支持 <方法（一句注解）>；不支持 <X>`。
+          以前那句是「请用浏览器直接打开（不要用 POST）」——
+          那是**给开发者看的操作指导**，不是给用户看的错误说明
+          （用户要的是「我这次请求哪里不对」，不是「你该去哪打开」）。
+          ⚠️ 并且加了白名单过滤：回显 httpMethod 是一个**反射面**，
+          畸形的方法名一律换成「该方法」（Day 18 在 expenses 上踩过同一个坑）。
+       ② 失败体补上 `data: null`。以前这里是 `{ ok, error }` 两字段，
+          而 expenses / profile 回的是 `{ ok, data, error }` 三字段
+          —— 第二节 v1.2 定的规矩就是「失败体统一三字段、data 恒为 null」，
+          本文件当时漏改了。前端两种都能读，但**口径只能有一种**。 */
   if (method !== 'GET') {
+    const safeMethod = /^[A-Za-z-]{1,20}$/.test(method) ? method : '该方法';
     return json(405, {
       ok: false,
+      data: null,
       error: {
         code: 'method_not_allowed',
-        message: '这个接口只支持 GET，请用浏览器直接打开（不要用 POST）'
+        message: '这个接口支持 GET（问一句「服务还在吗」）；不支持 ' + safeMethod
       }
     });
   }

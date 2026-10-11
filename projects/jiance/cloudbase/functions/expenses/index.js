@@ -1018,6 +1018,136 @@ function extractIdFromPath(event) {
 }
 
 /* ============================================================
+   第 4 段之五 · 列表地址的「多余后缀」检查（Day 23 新增）
+   ------------------------------------------------------------
+   修的是什么（Day 21 验收时就发现、今天才关掉的遗留不一致）：
+     触发路径 `/api/expenses` 在网关上是**前缀匹配**，所以
+     `/api/expenses/summary` 这种**还没实现的地址**也会进到本函数，
+     然后被当成「读列表」正常执行 —— 实测回 **200 + 全量账目**。
+
+   为什么这是 bug、而不是「宽容一点没关系」：
+     调用方以为自己在调一个叫 summary 的接口（多半想要汇总的三数），
+     拿回来的却是一整个数组。它按数字去用就会得到 NaN，
+     而 HTTP 状态码是 **200** —— 调用方**没有任何办法察觉自己调错了**。
+     「静默返回一个错的东西」比直接报错难查得多：报错至少有人会去看。
+
+   修法：只认「前缀之后没有多余段」的地址；有多余段就 404 + 中文，
+     并在文案里把正确地址写出来 —— 让调错的人一眼看到该用什么。
+
+   ⚠️ 与契约的关系（不是擅自发明）：
+     契约第五节接口清单第 3 号就是 `/api/expenses/summary`，
+     状态写的是 **⬜ 占位** —— 也就是「这个地址还没有实现」。
+     以前它静默回 200 全量列表，是**与契约不符**；现在回 404「还没实现」，才是。
+     📌 契约那行状态说明需要在下次补记时同步（列入待办，今天不动契约）。
+
+   ⚠️ 副作用（刻意接受，写在这里免得以后被当成 bug 删掉）：
+     `GET /api/expenses/ex_xxx` 现在也回 404（以前静默回全量列表）。
+     它本来就没实现 —— 改/删要用 PATCH / DELETE。
+     **没实现过的地址，就该明确说不存在。**
+
+   ⚠️ 判据为什么是「两种形态都认」（Day 23 部署当天实测修正过一次，原因是我的锅）：
+     第一版只认「以 /api/expenses 开头」的候选，理由是「宁可少拦不可误拦」。
+     传上云端后**没生效**（`/summary` 仍回 200）—— 排查出来是**判断口径写窄了**：
+
+       · `PATCH /api/expenses/ex_nope12345` 线上能认出编号 → 路径**确实**传进来了；
+       · 但 `extractIdFromPath` 取的是「**最后一段**」，**带不带前缀它都认** ——
+         所以它能证明「路径给了」，**证明不了「路径里带不带 /api/expenses 这段前缀」**。
+       · 如果平台把路由前缀**剥掉**、只给 `/summary`，第一版的守卫就会
+         `continue` 掉它 → 永远返回「没有多余段」→ 放行 → 200。
+         这与线上观测**完全一致**。
+
+     ⇒ 现在改成**两趟**：先找带前缀的形态，找不到再找被剥掉前缀的形态。
+       两种形态在本项目的 `extractIdFromPath` 里本来就都存在（它先砍前缀、
+       再取最后一段，砍不砍都不影响结果），所以两种都得支持。
+
+     ⚠️ 仍然保留「认不出来一律放行」的底线（见下），并且排除了 `/api` 这种
+        半截路径 —— 它要是被当后缀，`GET /api/expenses` 会整个 404，
+        那是比漏拦严重得多的错。**部署后必查 `GET /api/expenses` 仍是 200。**
+   ============================================================ */
+
+/**
+ * 找出「触发路径之后多出来的那一段」。
+ *
+ * @param {object} event CloudBase 递给函数的事件对象
+ * @returns {string} 多余的那一段（例如 'summary'）；没有多余段就返回空串
+ */
+function findExtraPathSegment(event) {
+  if (!event || typeof event !== 'object') return '';
+
+  /* ⚠️ 候选来源与 extractIdFromPath **保持一致**（同一套平台字段兜底）。
+     刻意复制而不是抽成公共函数：那边是 Day 22 逐字节验过的代码，
+     今天不碰它。**改其中一处必须同步另一处** —— 两处不一致时，
+     PATCH 能认出 id 而 GET 认不出后缀，就是最难查的那种 bug。 */
+  const candidates = [];
+  const push = function (v) {
+    if (typeof v === 'string' && v !== '') candidates.push(v);
+  };
+  push(event.path);
+  push(event.httpPath);
+  push(event.rawPath);
+  if (event.requestContext && typeof event.requestContext === 'object') {
+    push(event.requestContext.path);
+    push(event.requestContext.httpPath);
+  }
+  if (event.headers && typeof event.headers === 'object') {
+    const raw = event.headers['x-original-url'] || event.headers['X-Original-URL'];
+    if (typeof raw === 'string' && raw !== '') candidates.push(raw);
+  }
+
+  /** 剥查询串 / 锚点 / 协议域名，只留路径部分。 */
+  const toPathPart = function (raw) {
+    let p = raw;
+    const q = p.indexOf('?');
+    if (q !== -1) p = p.slice(0, q);
+    const h = p.indexOf('#');
+    if (h !== -1) p = p.slice(0, h);
+    const schemeAt = p.indexOf('://');
+    if (schemeAt !== -1) {
+      const afterSlash = p.indexOf('/', schemeAt + 3);
+      p = afterSlash === -1 ? '' : p.slice(afterSlash);
+    }
+    return p;
+  };
+
+  /** 两头削斜杠后取第一段（`/summary/x` 与 `/summary` 同等对待）。 */
+  const firstSegment = function (tail) {
+    let t = tail.replace(/^\/+/, '');
+    while (t.length > 0 && t.charAt(t.length - 1) === '/') {
+      t = t.slice(0, t.length - 1);
+    }
+    if (t === '') return '';
+    const cut = t.indexOf('/');
+    return cut === -1 ? t : t.slice(0, cut);
+  };
+
+  /* ---- 第一趟：整条路径（带 /api/expenses 前缀）----
+     ⚠️ 先跑这一趟，是因为它最确定 —— 一旦命中，答案就定了，
+     不会被第二趟的更宽松规则覆盖。 */
+  for (let i = 0; i < candidates.length; i++) {
+    const p = toPathPart(candidates[i]);
+    if (p.indexOf(ROUTE_PREFIX) === 0) {
+      return firstSegment(p.slice(ROUTE_PREFIX.length));
+    }
+  }
+
+  /* ---- 第二趟：平台把路由前缀剥掉之后剩下的那一截 ----
+     ⚠️⚠️ 这一趟是「更宽松」的，所以设了两道闸：
+       ① 必须是路径形态（以 / 开头）；
+       ② 不能是 `/api/...` 开头的半截路径 —— 万一平台给的是 `/api`，
+          把它当后缀就会让 `GET /api/expenses` 整个 404（灾难级误拦）。
+     宁可漏拦（继续回 200，维持旧行为），也不冒误拦的风险。 */
+  for (let i = 0; i < candidates.length; i++) {
+    const p = toPathPart(candidates[i]);
+    if (p.charAt(0) !== '/') continue;
+    const seg = firstSegment(p);
+    if (seg === '' || seg === 'api') continue;
+    return seg;
+  }
+
+  return '';
+}
+
+/* ============================================================
    第 4 段之四 · 局部更新的参数校验（Day 22 新增）
    ------------------------------------------------------------
    ⚠️⚠️ 本段是 Day 22 技术上**最难的一块**，难在「只发改的字段」
@@ -1669,6 +1799,9 @@ exports.main = async (event, context) => {
   // 读：GET /api/expenses（契约第五节第 2 条）。
   // ↓↓↓ 从这一行往下到函数结束，与 Day 18 上线版**逐字相同**
   //（Day 22 只动了下面 405 那句文案，因为支持的列表变了）
+  // ⚠️ Day 23 更新：这条「逐字相同」**不再成立**，如实记下来 ——
+  //    下面 queryStringParameters 之后新插了一段「多余后缀 → 404」的检查
+  //    （背景见第 4 段之五）。除此之外，参数校验、查询、catch 三段一字未动。
   if (method !== 'GET') {
     /* ⚠️ Day 18 修 bug：这里原来直接 `+ method`，把 httpMethod **原样拼进响应**。
        那是一个反射面 —— 原则是「不把原始输入甩给用户」（AGENTS.md 附三第 6 条的同一口径）。
@@ -1691,6 +1824,20 @@ exports.main = async (event, context) => {
   // queryStringParameters 在没有任何查询参数时可能是 null，
   // 所以给个空对象兜住，免得后面读属性报错。
   const raw = (event && event.queryStringParameters) || {};
+
+  /* ---- Day 23：列表地址不许有多余后缀（背景见第 4 段之五）----
+     放在参数校验**之前**：地址都不对的时候，先纠正地址，
+     不然用户会以为是 month 填错了，去改一个本来没错的参数。 */
+  const extraSegment = findExtraPathSegment(event);
+  if (extraSegment !== '') {
+    /* ⚠️ 回显前过白名单：extraSegment 是**用户输入**，直接拼进响应就是一个反射面
+       —— Day 18 在 405 那句的 method 上踩过同一个坑（见下面 405 分支的注释）。
+       畸形的那段一律换成一句固定的话，不原样回显。 */
+    const safeSegment = /^[A-Za-z0-9_.-]{1,30}$/.test(extraSegment) ? extraSegment : '这段地址';
+    return fail(404, 'not_found',
+      '这个地址还没实现（/api/expenses/' + safeSegment + '）。'
+      + '读账目列表请用 /api/expenses，末尾不带别的词');
+  }
 
 
 

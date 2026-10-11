@@ -67,6 +67,85 @@ function url(path) {
 }
 
 /* ============================================================
+   第 1 段之二 · 错误翻译表（Day 23 新增：三类错误统一说人话）
+   ------------------------------------------------------------
+   为什么单开这一段：以前浏览器和网关抛出来的**原始英文报错**会一路冒到
+   页面上，用户看到的是 `Failed to fetch`、`Invalid path. For more
+   information, please refer to https://...` 这种东西 ——
+   那不是「提示」，那是把机器的抱怨原样甩给人看。
+
+   三类错误，收在**一个出口**：
+     ① 输入错 / 路径错（400 / 404 / 405）→ 后端已经回中文，直接用；
+        但**平台层**（访问一个没绑路由的地址）回的是英文，靠下面的码表翻。
+     ② 网络错（断网 / 连不上 / 超时）→ fetch 自己抛异常，浏览器文案是英文，
+        靠 translateNetworkError() 翻。
+     ③ 服务端错（5xx / 网关挂了）→ 回一句「稍后重试」，不带任何内部细节。
+
+   🔴 三条铁律（与云函数那侧同一条纪律，AGENTS.md 附三第 6 条）：
+     · 翻译表里**只有我们自己写死的常量**，绝不把原始报错拼进去 ——
+       原始报错可能带域名、端口、内网 IP、响应体正文，那是信息泄露。
+     · 码表里查不到的码，**也不把原文甩出去**，退回一句按状态码的通用话。
+     · 这里只负责「翻译成人话」，**不负责决定怎么处理** ——
+       分档处理（回落本地副本 / 弹 toast / 标红输入框）仍然由调用方决定。
+   ============================================================ */
+
+/** 网络错：fetch 根本没拿到响应（连接被拒 / DNS 失败 / 断网） */
+const MSG_OFFLINE = '连不上服务器，请检查网络后重试';
+
+/** 网络错：我们自己设的超时掐断的 */
+const MSG_TIMEOUT = '请求超时了，请稍后再试';
+
+/**
+ * 云开发**平台层**自己的错误码（请求根本没进我们的云函数时出现）。
+ *
+ * 实测抓到的原文（Day 23，随便访问一个没绑路由的地址）：
+ *   {"code":"INVALID_PATH","message":"Invalid path. For more information,
+ *     please refer to https://docs.cloudbase.net/error-code/...","requestId":"..."}
+ * 那句英文带一串文档链接，用户要的是「我该改什么」，不是去读平台文档。
+ */
+const PLATFORM_CODE_MESSAGES = {
+  INVALID_PATH: '接口地址不对，可能是路径写错了',
+  UNAUTHORIZED: '这个请求没有访问权限',
+  FORBIDDEN: '这个请求没有访问权限',
+  RESOURCE_NOT_FOUND: '这个接口不存在',
+  INTERNAL_ERROR: '服务器暂时出问题了，请稍后再试',
+};
+
+/**
+ * 把 fetch 抛出来的异常翻成中文。
+ *
+ * ⚠️ 这层以前**不存在** —— 这就是今天抓到的那句裸报错的来源：
+ *    浏览器断网时抛 `TypeError: Failed to fetch`，
+ *    原样冒到页面 e.message，线上页面上显示的就是
+ *    「账目：Failed to fetch；个人参数：Failed to fetch」（实测截图见 Day 23 记录）。
+ *
+ * @param {object} err 浏览器抛的原始错误
+ * @returns {string} 中文说明
+ */
+function translateNetworkError(err) {
+  const name = err && err.name ? err.name : '';
+  if (name === 'AbortError') return MSG_TIMEOUT;
+  return MSG_OFFLINE;
+}
+
+/**
+ * 把「非 2xx 且不是我们后端套的壳」的响应翻成中文。
+ *
+ * ⚠️ 为什么不去猜具体原因：拿不到正文的时候就只剩状态码这一个可靠信息，
+ *    硬猜（比如 404 一律说「数据不存在」）会让用户去改一个本来没错的东西。
+ *    按 HTTP 的公开语义说一句就够 —— 状态码本身不是秘密。
+ *
+ * @param {number} status HTTP 状态码
+ * @returns {string} 中文说明
+ */
+function translateHttpStatus(status) {
+  if (status >= 500) return '服务器暂时出问题了（HTTP ' + status + '），请稍后再试';
+  if (status === 404) return '接口地址不对，可能是路径写错了';
+  if (status === 405) return '这个操作不被接口支持';
+  return '请求没成功（HTTP ' + status + '）';
+}
+
+/* ============================================================
    第 2 段 · 统一的取数函数
    ============================================================ */
 
@@ -102,11 +181,32 @@ async function request(path, options) {
 
   // ⚠️ 不加这个字段，同一个网址的结果可能被缓存住，
   //    「改数据库 → 刷新 → 数据没变」就是这么来的。
-  const res = await fetch(full, {
-    cache: 'no-store',
-    ...options,
-    headers: headers,
-  });
+  //
+  // ⚠️⚠️ Day 23：这一句**必须包在 try 里**（改动原因写在下面 catch 第一行）
+  let res;
+  try {
+    res = await fetch(full, {
+      cache: 'no-store',
+      ...options,
+      headers: headers,
+    });
+  } catch (rawErr) {
+    /* ---- 网络错：中文出口（Day 23 新增，这是今天修的那句裸报错）----
+       【改之前】没有这层 try/catch。浏览器断网 / 被跨域拦下 / DNS 失败时，
+         `fetch` 自己抛 `TypeError: Failed to fetch`，它一路冒到页面
+         `e.message` 上，用户看到的就是这句英文（线上实测原文：
+         「最后同步 … 账目：Failed to fetch；个人参数：Failed to fetch」）。
+       【为什么最该修这个】它出现的频率最高（地铁里、断网、公司网拦掉后端域名），
+         而且它是**唯一一类用户完全无法自救**的错误 —— 他看不懂英文，
+         也不知道该等还是该改设置。给一句「检查网络后重试」他立刻知道怎么办。
+       【为什么不用 status】这里根本没拿到响应，`res` 都不存在，
+         所以 status 记 0。想区分「断网」和「超时」只能看错误名（见 translateNetworkError）。
+       ⚠️ 抛出去的 message **是中文常量**，rawErr 一个字都不往外带。 */
+    const err = new Error(translateNetworkError(rawErr));
+    err.code = (rawErr && rawErr.name === 'AbortError') ? 'request_timeout' : 'network_unreachable';
+    err.status = 0;
+    throw err;
+  }
 
   /* ---- 读响应体（先按文字读，不是直接 res.json()） ----
      ⚠️ 为什么要绕这一步：`res.json()` 对**空正文**会抛错，
@@ -139,10 +239,27 @@ async function request(path, options) {
       // health 的形状：ok:true 但没有 data，data 就是它本身
       return body.data !== undefined ? body.data : body;
     }
-    // ok 不为真 → 取人话错误
+
+    /* ---- 输入错 / 路径错 · 平台层那一种（Day 23 新增）----
+       ⚠️ 形状不一样，必须先分开判断：
+         我们后端套的壳 = { ok:false, data:null, error:{ code, message, field } }
+         平台层的报错   = { code, message, requestId }  ← **没有 error 字段**
+       判据就是「有没有 error」。
+       ⚠️ 为什么平台那种要单独翻：它那句 message 是**英文 + 一串文档链接**，
+         照抄给用户等于没给提示（实测原文见上面 PLATFORM_CODE_MESSAGES 的注释）。
+       ⚠️ 码表里查不到的码，退回按状态码的通用话 —— **绝不把英文原文甩出去**。 */
+    if (body.error === undefined && typeof body.code === 'string') {
+      const err = new Error(PLATFORM_CODE_MESSAGES[body.code] || translateHttpStatus(res.status));
+      err.code = body.code;
+      err.field = null;
+      err.status = res.status;
+      throw err;
+    }
+
+    // 我们后端套的壳：ok 不为真 → 取后端已经写好的那句中文
     const msg =
       (body.error && typeof body.error.message === 'string' && body.error.message) ||
-      `请求没成功（HTTP ${res.status}）`;
+      translateHttpStatus(res.status);
     const err = new Error(msg);
     err.code = body.error && body.error.code ? body.error.code : 'unknown';
     err.field = body.error && body.error.field ? body.error.field : null;
@@ -174,7 +291,11 @@ async function request(path, options) {
   }
 
   // 非 2xx 且没有 JSON 正文：确实出问题了（网关挂了 / 被安全页拦下 / 502…）
-  const err = new Error(`服务暂时不可用（HTTP ${res.status}）`);
+  // ⚠️ Day 23：文案交给 translateHttpStatus() 统一出 ——
+  //    以前这里写死「服务暂时不可用」，哪怕状态码是 404（地址写错）也这么说，
+  //    用户会一直等一个永远不会好的「暂时」，而不是去改地址。
+  // ⚠️ error.code 仍然是 service_unavailable：契约里登记过这个码，不动它。
+  const err = new Error(translateHttpStatus(res.status));
   err.code = 'service_unavailable';
   err.status = res.status;
   throw err;

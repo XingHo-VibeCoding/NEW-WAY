@@ -115,6 +115,89 @@ function fail(statusCode, code, message, field) {
 }
 
 /* ============================================================
+   第 2 段之二 · 503 失败原因分档（Day 23 新增 · 从 expenses 搬过来）
+   ------------------------------------------------------------
+   为什么今天补这一段：同一个项目里，「数据库连不上」这件事
+   两个函数原来**有两种说法** ——
+     · expenses：`数据库暂时连不上，稍后重试（网关返回 403，权限不足）`
+     · profile ：`数据库暂时连不上，稍后重试`  ← 只到这里，后面什么都没有
+   于是排查同一个故障时，读 expenses 的日志能直接看出是权限问题，
+   读 profile 的日志只能看出「连不上」，还得再猜一轮。
+   **同一件事有两种说法，就会有两种理解** —— 这就是要统一的原因。
+
+   ⚠️ 本段的代码与 expenses/index.js 第 2 段之二**逐字一致**（只改了函数
+      上面的说明文字，因为两个函数的处境不同）。要改一起改，别只改一边。
+      📌 两处不一致时，排查的人会以为「两个函数坏的原因不一样」，反而误导。
+
+   ⚠️ 三条铁律（照抄 expenses 那一段，忘了就是安全事故）：
+     ① 状态码可以带出去 —— 401 / 403 / 404 / 400 是公开的 HTTP 语义。
+     ② **绝不带**：令牌原文或片段、数据库密码、host:port、内网 IP、
+        响应体正文、表结构与列名。
+     ③ 前端只认 error.code（契约规定），多出来的这段是给**日志和截图**看的。
+   ============================================================ */
+
+/** 503 的那句固定前缀。**只改后半段，前面一个字都不动**，前端文案不变。 */
+const UNAVAILABLE_PREFIX = '数据库暂时连不上，稍后重试';
+
+/**
+ * 把失败原因翻译成一句可以安全外发的话。
+ *
+ * @param {string} reason 分档代码，见下面的 translateReason()
+ * @returns {string} 完整的中文说明，形如「……（网关返回 403，权限不足）」
+ */
+function unavailableMessage(reason) {
+  return reason === '' ? UNAVAILABLE_PREFIX : UNAVAILABLE_PREFIX + '（' + reason + '）';
+}
+
+/**
+ * 把一个失败翻译成「分档代码」。
+ *
+ * ⚠️ 这里**只做翻译，不发任何请求** —— 诊断不该留在用户请求的必经之路上。
+ *
+ * @param {object} err catch 到的错误对象（可能带 dbStatus）
+ * @returns {string} 分档代码；'' 表示原因不明
+ */
+function translateReason(err) {
+  // 缺 TCB_ENV：连 URL 都拼不出来，根本没发出去过。
+  if (configError !== '') {
+    return '服务配置不完整';
+  }
+  if (!hasFetch) {
+    return '服务配置不完整';
+  }
+
+  const status = err && err.dbStatus ? err.dbStatus : 0;
+
+  if (status === 401) {
+    return '网关返回 401，令牌无效';
+  }
+  if (status === 403) {
+    return '网关返回 403，权限不足';
+  }
+  if (status === 404) {
+    return '网关返回 404，表或路径不存在';
+  }
+  if (status === 400) {
+    return '网关返回 400，查询语法不被接受';
+  }
+  if (status >= 500) {
+    return '网关返回 ' + status + '，数据库服务异常';
+  }
+
+  // 没有状态码 = 没收到 HTTP 响应。
+  //   AbortError = 我们自己的超时打上来的
+  //   其它 = DNS 解析失败 / 出网被拦 / 连不上
+  const name = err && err.name ? err.name : '';
+  if (name === 'AbortError') {
+    return '连不上数据库网络';
+  }
+  if (status === 0) {
+    return '连不上数据库网络';
+  }
+  return '网关返回 ' + status;
+}
+
+/* ============================================================
    第 7 段 · 云函数入口
    ============================================================ */
 
@@ -129,8 +212,19 @@ exports.main = async (event, context) => {
 
   // 今天只认 GET。PUT / POST / DELETE 是第 12 号接口，留 Day 18。
   // 别的方法一律拒掉，而不是「也回一句 ok」—— 回了就是假话。
+  //
+  /* ⚠️ Day 23 统一 405 文案（三个函数同句式）：
+     以前这里写的是「这个接口只支持 GET（存参数等 Day 18）」——
+     那是**写给自己的进度备注**，不是给用户看的提示：Day 18 早就过完了，
+     而用户根本不知道「存参数」是哪一年的事。
+     现在统一成与 expenses / health 一样的句式：
+       这个接口支持 <方法（这句注解）>；不支持 <X>
+     并加白名单过滤 —— ⚠️ 回显 httpMethod 是一个**反射面**，
+     畸形的方法名一律换成「该方法」（Day 18 在 expenses 上踩过同一个坑）。 */
   if (method !== 'GET') {
-    return fail(405, 'method_not_allowed', '这个接口只支持 GET（存参数等 Day 18）');
+    const safeMethod = /^[A-Za-z-]{1,20}$/.test(method) ? method : '该方法';
+    return fail(405, 'method_not_allowed',
+      '这个接口支持 GET（读个人参数）；不支持 ' + safeMethod);
   }
 
   // 本接口无查询参数，所以不需要校验段（对比 expenses 的 month / type / limit）。
@@ -141,7 +235,7 @@ exports.main = async (event, context) => {
   if (configError !== '' || !hasFetch) {
     console.error('[profile] 运行配置缺失：'
       + (configError !== '' ? configError : '运行时不支持 fetch，请确认使用 Node.js 18 及以上'));
-    return fail(503, 'service_unavailable', '数据库暂时连不上，稍后重试');
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(null)));
   }
 
   try {
@@ -160,14 +254,19 @@ exports.main = async (event, context) => {
          —— 这是信息泄露，不是「方便排查」。
          而且万一网关报错里掺进了本表的数据（含 contact），
          把它甩出去或写进日志都是红线事故。
-         所以只回一句人话，真实原因留在服务端日志，且只记状态码。
+         所以只回一句人话 + 一个**分档原因**，真实细节留在服务端日志。
 
-       日志只记 err.dbStatus，不记整个 err ——
-       err.message 同样可能带地址或结构信息。
+       ⚠️ 日志纪律：**只记 err.dbStatus（状态码）和 err.name（错误类）**，
+         **不记 err.message**（它带域名、IP、端口）、**不记 err 整个对象**。
+         Day 23 起多记一个「分档」—— 它和我们回给用户的那段是同一个来源，
+         截图/日志对得上，排查时不用再猜。
        -------------------------------------------------------- */
-    console.error('[profile] 查询失败，网关状态码：'
-      + (err && err.dbStatus ? err.dbStatus : '无响应或超时'));
-    return fail(503, 'service_unavailable', '数据库暂时连不上，稍后重试');
+    console.error('[profile] 查询失败：网关状态码='
+      + (err && err.dbStatus ? err.dbStatus : '无响应或超时')
+      + '，错误名='
+      + (err && err.name ? err.name : 'Error')
+      + '，分档=' + translateReason(err));
+    return fail(503, 'service_unavailable', unavailableMessage(translateReason(err)));
   }
 };
 
