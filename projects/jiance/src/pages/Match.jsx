@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
 import Icon from '../components/Icon.jsx'
+import AskModel from '../components/AskModel.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
+import { buildMatchPrompt } from '../data/prompts.js'
 import './Match.css'
 
 /**
@@ -10,16 +12,21 @@ import './Match.css'
  * 已实现：
  *   - 装订册三件套（灰细线 + 点阵 + "履"印章）
  *   - 卡 1 岗位信息：JD（必填）+ 岗位名称 / 公司 / 城市 / 薪资期望 / 学历要求（选填）
- *   - 卡 2 匹配分析：六维打分（技术栈30 · 经验25 · 行业15 · 学历10 · 薪资10 · 证书10）+ 开场白 + 复制
+ *   - 卡 2 匹配分析：**本地演示算法**的六维参考分 + 开场白
  *   - 卡 3 匹配记录：快照列表（新的在最前）+ 删除；存 localStorage
  *
- * ⚠️ 本版是「1:1 简化」——AI 通道**尚未接入**，打分由本地演示算法算（不联网）。
- *    真 AI（官方云服务免密钥网关，Day 14 单文件版已实现）迁移 → Day 20。
+ * 📌 Day 23 改版（v1.16）—— 本页的 AI 相关口径变了，改之前先读完：
+ *   · **删掉了「简册自己调云端大模型」这件事**（路由到官网，见卡 2 后面那块）。
+ *   · 卡 2 的六维打分**保留**，但它从来不是 AI —— 它是**本地关键词演示算法**。
+ *     以前界面话术容易让人误以为是 AI 算的，现在**到处都写明「本地参考分，不是 AI」**。
+ *   · 想拿真分析：用「拿去问 AI」——简册把提示词复制到剪贴板 + 打开你选的官网，
+ *     你在官网用**自己的账号**问。简册不调模型、不碰密钥。
  *
  * 🔴 红线（秋鹰师 2026-09-29 明令）：
  *   本页**不访问任何招聘网站、不抓取任何他人信息**。
  *   只处理「用户自己粘贴的 JD 文字」+「用户自己填的偏好」。
- *   profile.contact **绝不**进任何 AI 提示词（AGENTS.md 附三第 5 条）。
+ *   profile.contact **绝不**进任何提示词 —— `buildMatchPrompt` 的入参里
+ *   **根本没有 contact 这个字段**，传不进来（AGENTS.md 附三第 4 / 5 条）。
  */
 
 const DIMENSIONS = [
@@ -107,6 +114,17 @@ export default function Match() {
   const [result, setResult] = useState(null)
   const [formError, setFormError] = useState('')
 
+  /* 拼提示词要用到「我自己的经历」。
+     ⚠️ 只读 entries，**不读 profile** —— 也就拿不到 contact（红线见文件头）。 */
+  const [entries] = useLocalStorage(KEYS.entries, [])
+
+  /* 给模型的那段话：JD + 我填的偏好 + 我的经历 + 六维标准。
+     用 useMemo 是因为它只跟这几个输入有关，表单每敲一个字都重算一遍没意义。 */
+  const askPrompt = useMemo(
+    () => buildMatchPrompt({ form, entries, dimensions: DIMENSIONS }),
+    [form, entries],
+  )
+
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   const onRun = (e) => {
@@ -116,7 +134,7 @@ export default function Match() {
     setStatus('running')
     setResult(null)
 
-    // 演示：本地延时 900ms 模拟「分析中」。真 AI 接入后这里换成真实请求（Day 20）。
+    // 演示：本地延时 900ms 模拟「算一下」的手感（**不是网络请求**，本页不联网）。
     window.setTimeout(() => {
       const r = runDemoMatch(form)
       setResult(r)
@@ -170,13 +188,15 @@ export default function Match() {
           岗位匹配
         </h2>
         <p className="card-sub">
-          把岗位 JD 粘进来，AI 拿它跟你「记一条」攒下的经历比一比，算出匹配度和开场白
+          把岗位 JD 粘进来，先给你一个<b>本地参考分</b>（一下就算完，不联网）；
+          想要真的分析，用下面那块「拿去问 AI」
         </p>
 
         <div className="todo-note">
           <b>怎么用：</b>在招聘网站上找到心仪岗位，<b>你自己</b>把「职位描述」那段文字复制下来，粘进下面的框里。
           简册不会去访问任何招聘网站，也不会碰别人的信息 —— 它只分析<b>你主动交出来的这段文字</b>。
-          下面的岗位名称 / 公司 / 城市 / 薪资期望都是选填，只有你自己知道，填了算得更准。
+          下面的岗位名称 / 公司 / 城市 / 薪资期望都是选填，只有你自己知道，填了算得更准
+          （<b>填得越全，下面「拿去问 AI」拼出来的提示词也越准</b>）。
         </div>
 
         <div className="field">
@@ -283,20 +303,32 @@ export default function Match() {
         </div>
       </form>
 
-      {/* 卡 2：匹配分析 */}
+      {/* 卡 2：拿去问 AI（Day 23 新增）
+          ⚠️ 这一块**不调模型**：只把提示词复制到剪贴板 + 新标签打开官网。
+             ⚠️ JD 没填时传空串 —— 这样 8 张卡片会显示「先填内容」而不是让人问一个空岗位。 */}
+      <div className="card">
+        <AskModel
+          prompt={form.jd.trim() ? askPrompt : ''}
+          title="拿去问 AI（简册不代你调模型）"
+          note="选一家你惯用的官网，简册会把这段提示词复制到剪贴板并打开它 —— 你在那边用自己的账号问，答案复制回来即可。简册不接触你的任何密钥。"
+        />
+      </div>
+
+      {/* 卡 3：本地参考分（原名「匹配分析」· Day 23 改名，因为这两件事本来就不是一回事） */}
       <div className="card">
         <h2 className="card-title card-title-with-icon">
           <Icon name="radar" size={22} />
-          匹配分析
+          本地参考分
         </h2>
         <p className="card-sub">
-          按技能口径六维打分：技术栈 30% · 经验 25% · 行业 15% · 学历 10% · 薪资 10% · 证书 10%
+          <b>这一块不是 AI</b> —— 它是本机按关键词算的演示分，一下就算完。口径照技能包：
+          技术栈 30% · 经验 25% · 行业 15% · 学历 10% · 薪资 10% · 证书 10%
         </p>
 
         <div className="ai-status" role="status" aria-live="polite">
-          {status === 'idle' && '还没开始匹配'}
-          {status === 'running' && 'AI 正在分析…'}
-          {status === 'ok' && `分析完成 · 综合 ${result?.total} 分`}
+          {status === 'idle' && '还没算过'}
+          {status === 'running' && '正在本机算参考分…'}
+          {status === 'ok' && `本地参考分算好了 · 综合 ${result?.total} 分（不是 AI 的判断）`}
         </div>
 
         {status === 'ok' && result && (
@@ -330,20 +362,21 @@ export default function Match() {
             onClick={onCopy}
             disabled={status !== 'ok'}
           >
-            复制分析结果
+            复制这份参考分
           </button>
         </div>
 
         <div className="todo-note">
-          这只是 AI 的分析参考，投不投、怎么谈，最后都由你定。
+          这只是本机算法的粗筛参考，<b>不是 AI 的判断</b>；投不投、怎么谈，最后都由你定。
           <br />
           <span className="demo-flag">
-            ⚠️ 本版为演示：打分由本地演示算法算出（不联网），真 AI 通道在 Day 20 接入。
+            ⚠️ 这一块从头到尾都是<b>本地演示算法</b>（不联网）：按 JD 里出现的关键词算分，
+            同一段 JD 每次结果一样。想要真的分析，用上面那块「<b>拿去问 AI</b>」。
           </span>
         </div>
       </div>
 
-      {/* 卡 3：匹配记录 */}
+      {/* 卡 4：匹配记录 */}
       <div className="card">
         <h2 className="card-title card-title-with-icon">
           <Icon name="list" size={22} />

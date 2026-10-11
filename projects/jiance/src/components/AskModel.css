@@ -1,0 +1,244 @@
+/* ============================================================
+   简册 · 「拿去问 AI」跳转组件（Day 23 新增）
+   ------------------------------------------------------------
+   材质口径照 AGENTS.md 附三第 2 条：**简历面 = 真玻璃，账簿面 = 深褐纸**。
+   本组件只会放进简历面（简历预览 / 岗位匹配），但两套材质都写上 ——
+   万一以后挪到账簿面，不会突然变成一张格格不入的玻璃。
+
+   ⚠️ 三条视觉铁律（附四）在本文件里的落法：
+     ① 选择器全部带 `.ask-model` 前缀 —— 不许出现裸 `.card` 这种全局名
+     ② hover 里**只动** border-color / box-shadow / transform，**绝不动 background**
+        （动了就会把玻璃与深褐纸冲回同一种灰 —— 附四第 4 条）
+     ③ 本文件**不写 @media print** —— 打印规则只许出现在 index.css 那唯一一段
+        （附四第 5 条），那边已经把 .ask-model 整块撕掉了
+   ============================================================ */
+
+.ask-model {
+  margin: 22px 0 0;
+}
+
+.ask-model-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: var(--fs-lg);
+  color: var(--ink);
+}
+
+.ask-model-title .icon {
+  color: var(--line);
+  flex: none;
+}
+
+.ask-model-intro {
+  margin: 0 0 16px;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+.ask-model-warn {
+  margin: 0 0 14px;
+  font-size: var(--fs-sm);
+  color: var(--brand);
+}
+
+/* ---------- 站点卡片网格 ----------
+   窄屏一列、宽屏自动铺开。用 auto-fill 而不是写死几列：
+   站点从 8 家变成 6 家或 10 家时，这里一个字都不用改。 */
+.ask-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ask-model-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: 10px;
+  align-items: center;
+  /* 触控目标远大于 24px 的无障碍下限（附三第 2 条的基线），整卡可点 */
+  padding: 14px 16px;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  color: var(--ink);
+  text-decoration: none;
+  /* ⚠️ 只过渡这三个属性；写 transition: all 会连 background 一起动 */
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.ask-model-card:hover {
+  /* 🔴 只动这三样（附四第 4 条）。这里**不许**出现 background。 */
+  border-color: var(--line);
+  box-shadow: var(--glass-shadow);
+  transform: translateY(-2px);
+}
+
+/* 账簿面版本：换成深褐纸的变量（本组件目前用不到，留着防挪页时穿帮） */
+.page-ledger .ask-model-card {
+  border-color: var(--kraft-line);
+  background: var(--kraft);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.page-ledger .ask-model-card:hover {
+  border-color: var(--line);
+  box-shadow: var(--kraft-shadow);
+}
+
+/* 禁用态（内容没填 / 地址不在白名单）：不给指针、也不做 hover 动效 */
+.ask-model-card.is-off {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ask-model-card.is-off:hover {
+  border-color: var(--glass-line);
+  box-shadow: none;
+  transform: none;
+}
+
+/* ---------- 卡片内部四件 ---------- */
+.ask-model-badge {
+  grid-row: 1 / span 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  /* 底色由站点自己的品牌色内联给出（style={{backgroundColor}}）；
+     字色固定白 —— 8 家的品牌色都是深到中等亮度，白字对比度够 */
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  flex: none;
+}
+
+.ask-model-name {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ask-model-vendor {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+  line-height: 1.3;
+}
+
+.ask-model-summary {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.ask-model-off {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--brand);
+}
+
+/* ---------- 提示词预览（details） ---------- */
+.ask-model-peek {
+  margin: 14px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-dim);
+}
+
+.ask-model-peek summary {
+  cursor: pointer;
+  /* 触控 ≥24px 基线：details 的 summary 默认行高偏小，给一点内边距 */
+  padding: 6px 0;
+}
+
+.ask-model-peek pre {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  background: var(--glass-2);
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  /* 提示词里有换行（JD 原文），必须原样保留 */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- 状态与兜底 ---------- */
+.ask-model-status {
+  margin: 14px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.ask-model-status.is-ok {
+  color: var(--ink);
+}
+
+.ask-model-status.is-err {
+  color: var(--brand);
+}
+
+.ask-model-manual {
+  margin: 12px 0 0;
+}
+
+.ask-model-manual-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+}
+
+.ask-model-manual textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  background: var(--glass-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.ask-model-foot {
+  margin: 16px 0 0;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+.ask-model-foot strong {
+  color: var(--ink);
+}
+
+/* ---------- 动效偏好：用户要求「减少动态效果」时全部关停 ----------
+   不是可选礼貌 —— AGENTS.md 附三第 2 条把 reduced-motion 列进了无障碍基线。 */
+@media (prefers-reduced-motion: reduce) {
+  .ask-model-card {
+    transition: none;
+  }
+
+  .ask-model-card:hover {
+    transform: none;
+  }
+}
