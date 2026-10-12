@@ -1,0 +1,73 @@
+/* ============================================================
+   简册 · 跨面联动按钮（Day 24 新增 · C 方案）
+   ------------------------------------------------------------
+   ⚠️ 选择器全部带 `.cross-link` 前缀（附四第 1 条：裸类名会泄漏全站）
+   ⚠️ hover 里**只动** border-color / box-shadow / transform，**不动 background**
+      （附四第 4 条：动了会把两种材质冲成同一种灰）
+   ⚠️ 打印规则不写这里 —— 由 index.css 唯一那段统一撕（附四第 5 条）
+   ============================================================ */
+
+.cross-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* 触控目标 ≥24px 的无障碍基线：上下内边距 14px 起，整条约 60px 高 */
+  padding: 14px 18px;
+  margin: 18px 0 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.cross-link:hover {
+  /* 🔴 只动这三样（附四第 4 条）。这里**不许**出现 background。 */
+  border-color: var(--line);
+  box-shadow: var(--shadow);
+  transform: translateX(2px);
+}
+
+.cross-link .icon {
+  color: var(--line);
+  flex: none;
+}
+
+.cross-link-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cross-link-text {
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.cross-link-hint {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+
+/* 窄屏：箭头会挤压文字，把内边距收一点 */
+@media (max-width: 640px) {
+  .cross-link {
+    padding: 12px 14px;
+  }
+}
+
+/* 动效偏好：用户要求"减少动态效果"时关停位移 */
+@media (prefers-reduced-motion: reduce) {
+  .cross-link {
+    transition: none;
+  }
+
+  .cross-link:hover {
+    transform: none;
+  }
+}

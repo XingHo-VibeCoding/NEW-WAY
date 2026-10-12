@@ -1,8 +1,11 @@
 import { useMemo, useState, useEffect, useCallback } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
 import Icon from '../components/Icon.jsx'
+import CrossLink from '../components/CrossLink.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import { getExpenses, getProfile, getHealth, createExpense, apiOriginLabel, IS_WIRED } from '../api/client.js'
+import { calcOffer, VERDICT, SAFE_MONTHS, runwayText } from '../lib/offer.js'
+import { calcTodayBudget, BUDGET_VERDICT, ymd } from '../lib/budget.js'
 import './Home.css'
 
 /**
@@ -243,6 +246,84 @@ export default function Home() {
       ? (Number(profile.savings) / divisor).toFixed(1)
       : null
 
+  /* ================================================================
+     Day 24 · 「接 offer 试算」（板块①：钱 × 履历 联动）
+     ----------------------------------------------------------------
+     这是把「还能撑几个月」和「这份 offer 该不该接」接起来的那一步 ——
+     上面那个数字只回答"我现在能撑多久"，这一段回答"**换一份工作之后呢**"。
+
+     ⚠️ 全在本机算，四则运算，**不发任何请求、不调 AI**。
+        钱的事，确定比聪明重要。
+
+     ⚠️ 基准支出用上面那个 `divisor`（和「还能撑几个月」同一个口径）——
+        两处口径不一致的话，会出现"上面说 4.2 个月、下面算出 9 个月"这种打脸。
+     ================================================================ */
+  const [offerDraft, setOfferDraft] = useLocalStorage(KEYS.offerDraft, {
+    offerSalary: '',
+    currentSalary: '',
+  })
+
+  const setOfferField = (k, v) => setOfferDraft((d) => ({ ...d, [k]: v }))
+
+  const trial = useMemo(
+    () =>
+      calcOffer({
+        savings: profile.savings,
+        monthlyExpense: divisor,
+        offerSalary: offerDraft.offerSalary,
+        currentSalary: offerDraft.currentSalary,
+      }),
+    [profile.savings, divisor, offerDraft.offerSalary, offerDraft.currentSalary],
+  )
+
+  const yuan = (n) => '¥' + Math.round(Number(n) || 0).toLocaleString()
+
+  /* ================================================================
+     Day 24 · 「今天还能花多少」（板块③ AI 财务管家的算数部分）
+     ----------------------------------------------------------------
+       本月额度 − 本月已花
+       ────────────────────  =  今天的上限
+        本月剩余天数（含今天）
+
+     ⚠️ 口径是**上限**（秋鹰师 2026-10-12 拍板），所以超了要明确预警。
+     ⚠️ 「今天是几号」只取**一次**，而且用 `useState` 的惰性初始化而不是
+        `useMemo(() => new Date(), [])` —— 后者会让 React Compiler 报 `purity`：
+        组件渲染必须是纯的，调用 `new Date()` 不纯。`useState(() => ...)` 表达的是
+        "这个值在本次会话里只确定一次"，语义本来就对，也符合 React 的惯用写法。
+        （顺带：取一次还避免了同一次渲染里日期字符串和 Date 对象对不上 —— 跨午夜时。）
+     ================================================================ */
+  const [nowDate] = useState(() => new Date())
+  const todayYmd = useMemo(() => ymd(nowDate), [nowDate])
+
+  const spentToday = useMemo(
+    () => sumAmounts(monthExpenses.filter((e) => e.type === '支出' && e.date === todayYmd)),
+    [monthExpenses, todayYmd],
+  )
+
+  const todayBudget = useMemo(
+    () =>
+      calcTodayBudget({
+        monthlyBudget: profile.monthlyExpense,
+        spentThisMonth: expense,
+        spentToday,
+        today: nowDate,
+      }),
+    [profile.monthlyExpense, expense, spentToday, nowDate],
+  )
+
+  /* 大字上写什么：正常 = 还能花多少；超了 = 超了多少（两种超要分开） */
+  const budgetBigLabel = !todayBudget.ok
+    ? ''
+    : todayBudget.verdict === BUDGET_VERDICT.OVER_MONTH
+      ? '本月已超'
+      : todayBudget.verdict === BUDGET_VERDICT.OVER_TODAY
+        ? '今天超出'
+        : '今天还能花'
+
+  const budgetBigNum = !todayBudget.ok
+    ? ''
+    : yuan(todayBudget.verdict === BUDGET_VERDICT.OVER_MONTH ? todayBudget.remaining : todayBudget.todayLeft)
+
   const onFieldChange = (field, value) => {
     setProfile({
       ...profile,
@@ -358,6 +439,177 @@ export default function Home() {
             ? `按月均支出 ¥${Number(profile.monthlyExpense).toLocaleString()} 算`
             : '未填月均支出，先按本月支出做近似'}
         </p>
+      </div>
+
+      {/* ---------- Day 24 · 今天还能花多少（板块③「AI 财务管家」）----------
+          上面那个数字管"长期能撑多久"，这一块管"今天还能花多少"。
+          口径是**上限**（秋鹰师拍板）：超了要预警，不是软提醒 ——
+          「我能不能买这个」需要一个硬数字。纯算术、不联网。
+          顺序：这两块都是"我的钱够不够"，挨着放；换工作的假设题（试算）排在后面。 */}
+      <div className={`card today-budget is-${todayBudget.ok ? todayBudget.verdict : 'na'}`}>
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="coin" size={22} />
+          今天还能花多少
+        </h2>
+        <p className="card-sub">
+          本月额度摊到剩下的每一天 —— <b>纯算术，不联网、不调 AI</b>。
+        </p>
+
+        {!todayBudget.ok ? (
+          <p className="budget-hint">{todayBudget.reason}</p>
+        ) : (
+          <>
+            <div className="budget-main">
+              <div className="budget-big-label">{budgetBigLabel}</div>
+              <div className="budget-big">{budgetBigNum}</div>
+              <p className="budget-headline" role="status">
+                {todayBudget.headline}
+              </p>
+            </div>
+
+            <div className="budget-grid">
+              <div className="budget-cell">
+                <div className="budget-cell-label">今日上限</div>
+                <div className="budget-cell-value">{yuan(todayBudget.dailyCap)}</div>
+              </div>
+              <div className="budget-cell">
+                <div className="budget-cell-label">今天已花</div>
+                <div className="budget-cell-value">{yuan(todayBudget.spentToday)}</div>
+              </div>
+              <div className="budget-cell">
+                <div className="budget-cell-label">本月剩余额度</div>
+                <div className="budget-cell-value">{yuan(todayBudget.remaining)}</div>
+              </div>
+            </div>
+
+            <p className="budget-pace">
+              到这个日子，理想上该花 {yuan(todayBudget.idealByNow)}，你已经花了{' '}
+              {yuan(todayBudget.spentThisMonth)}
+              {todayBudget.isAhead
+                ? ` —— 快了 ${yuan(todayBudget.aheadBy)}，所以今天的上限被摊薄了。`
+                : ' —— 没超进度。'}
+            </p>
+
+            {todayBudget.projectedOver > 1 && !todayBudget.overMonth && (
+              <p className="budget-warn">按这个花法，月底会超 {yuan(todayBudget.projectedOver)}。</p>
+            )}
+
+            <p className="budget-foot">
+              本月还剩 {todayBudget.daysLeft} 天（含今天）· 额度取「个人参数 → 月均支出」
+              {profile.monthlyExpense ? ` ¥${Number(profile.monthlyExpense).toLocaleString()}` : ''}。
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* ---------- Day 24 · 接 offer 试算（板块① 钱 × 履历 联动）----------
+          回答的是那句**别人永远不会告诉你**的话：
+          「你还能撑 4.2 个月 —— 所以这份降薪 20% 的 offer 该不该接？」
+          纯算术，不联网。 */}
+      <div className="card offer-trial">
+        <h2 className="card-title card-title-with-icon">
+          <Icon name="coin" size={22} />
+          接 offer 试算
+        </h2>
+        <p className="card-sub">
+          把新工作的月薪填进来，看你的跑道会变成几个月 —— <b>纯算术，不联网、不调 AI</b>。
+        </p>
+
+        <div className="offer-form">
+          <label className="profile-row">
+            <span className="profile-key">
+              offer 月薪<span className="req">*</span>
+            </span>
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              aria-label="这份 offer 的月薪"
+              value={offerDraft.offerSalary}
+              onChange={(e) => setOfferField('offerSalary', e.target.value)}
+            />
+            <span className="profile-unit">元</span>
+          </label>
+          <label className="profile-row">
+            <span className="profile-key">目前月薪</span>
+            <span className="opt">选填</span>
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              aria-label="目前月薪（填了才能和现在对比）"
+              value={offerDraft.currentSalary}
+              onChange={(e) => setOfferField('currentSalary', e.target.value)}
+            />
+            <span className="profile-unit">元</span>
+          </label>
+        </div>
+
+        {!trial.ok ? (
+          <p className="offer-hint">{trial.reason}</p>
+        ) : (
+          <div className={`offer-result is-${trial.verdict}`}>
+            {/* 这句话就是整个功能的价值所在 —— 用 role=status 让读屏也能念出来 */}
+            <p className="offer-headline" role="status">
+              {trial.headline}
+            </p>
+
+            <div className="offer-grid">
+              <div className="offer-col">
+                <div className="offer-col-label">现在</div>
+                <div className="offer-col-value">
+                  {trial.before ? runwayText(trial.before) : '—'}
+                </div>
+                <div className="offer-col-note">
+                  {trial.before
+                    ? trial.before.selfSustaining
+                      ? '每月不亏'
+                      : `每月掏 ${yuan(trial.before.net)}`
+                    : '填上「目前月薪」才能对比'}
+                </div>
+              </div>
+              <div className="offer-col is-after">
+                <div className="offer-col-label">接了之后</div>
+                <div className="offer-col-value">{runwayText(trial.after)}</div>
+                <div className="offer-col-note">
+                  {trial.after.selfSustaining
+                    ? trial.after.net > 0
+                      ? `每月结余 ${yuan(trial.after.net)}`
+                      : '刚好打平'
+                    : `每月掏 ${yuan(trial.after.net)}`}
+                </div>
+              </div>
+            </div>
+
+            <p className="offer-lines">
+              打平线 <b>{yuan(trial.breakEven)}</b>（月薪 = 月支出，不亏不赚）
+              <br />
+              安全线 <b>{yuan(trial.safeLine)}</b>
+              {trial.safeLineClamped
+                ? '（你的存款够厚，就算月薪为 0 也撑得过 3 个月）'
+                : `（低于它，跑道就不足 ${SAFE_MONTHS} 个月）`}
+            </p>
+
+            {trial.cutPercent !== null && (
+              <p className="offer-cut">
+                比现在降薪 <b>{trial.cutPercent.toFixed(1)}%</b>
+              </p>
+            )}
+          </div>
+        )}
+
+        <p className="offer-foot">
+          基准：{profile.monthlyExpense
+            ? `月均支出 ¥${Number(profile.monthlyExpense).toLocaleString()}`
+            : '未填月均支出，暂按本月支出近似'}
+          。
+          试算内容只存在<b>这台设备</b>上，不进云端、不发出去。
+        </p>
+
+        {/* C 方案联动：试算完的下一步是"去看岗位"（跨面，导航条管不到，所以放这儿） */}
+        <CrossLink to="/match" hint="看看这种薪资水平的岗位，你合不合、值不值得投">
+          去比一个岗位
+        </CrossLink>
       </div>
 
       <div className="card">

@@ -191,3 +191,236 @@
     padding: 24px !important;
   }
 }
+
+/* ============================================================
+   Day 24 · AI 改写稿回填（放在 `.resume-paper` 外面）
+   ------------------------------------------------------------
+   选择器用 `rewrite-` / `rw-` 这种**独有**前缀（附四第 1 条的用意：别用会泄漏全站的通名）
+   hover 只动 border / box-shadow，不动 background（附四第 4 条）
+   打印隐藏**写在这里之外** —— 由 index.css 唯一那段统一撕（附四第 5 条）
+   ============================================================ */
+
+.rewrite-back {
+  margin: 26px 0 0;
+}
+
+.rewrite-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: var(--fs-lg);
+  color: var(--ink);
+}
+
+.rewrite-title .icon {
+  color: var(--line);
+  flex: none;
+}
+
+.rewrite-intro {
+  margin: 0 0 16px;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+.rewrite-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rewrite-row {
+  padding: 14px 16px;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  background: var(--glass);
+}
+
+.rewrite-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* 编号：和上面提示词里的编号一一对上，所以做得显眼 */
+.rewrite-no {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  font-size: var(--fs-xs);
+  color: var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.rewrite-who {
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+
+.rewrite-orig {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+/* ---------- 改写稿（对照用） ---------- */
+.rewrite-cand {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rewrite-cand-label {
+  font-size: var(--fs-xs);
+  color: var(--line);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.rewrite-cand-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  color: var(--ink);
+}
+
+/* ---------- 粘贴表单 ---------- */
+.rewrite-form {
+  margin: 12px 0 0;
+}
+
+.rewrite-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+}
+
+.rewrite-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.rewrite-input:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+/* ---------- 按钮 ---------- */
+.rewrite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* 触控目标 ≥24px 的无障碍基线：上下内边距 8px + 17px 字 ≈ 36px 高，够 */
+.rw-btn {
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.rw-btn:hover:not(:disabled) {
+  border-color: var(--line);
+}
+
+.rw-btn:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+
+.rw-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rw-btn.is-primary {
+  border-color: var(--line);
+  color: var(--line);
+}
+
+/* 空闲态那个「＋ 粘回这一条的改写稿」入口：整行可点 */
+.rw-open {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px dashed var(--line-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.rw-open:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.rw-open:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+}
+
+/* ---------- 已采用：上一版 + 换回 ---------- */
+.rewrite-prev {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.rewrite-prev-text {
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--ink-dim);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 动效偏好：用户要求"减少动态效果"时全部关停（附三第 2 条基线） */
+@media (prefers-reduced-motion: reduce) {
+  .rw-btn,
+  .rw-open {
+    transition: none;
+  }
+}

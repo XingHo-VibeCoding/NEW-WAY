@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import BindingDecor from '../components/BindingDecor.jsx'
 import Icon from '../components/Icon.jsx'
 import AskModel from '../components/AskModel.jsx'
+import CrossLink from '../components/CrossLink.jsx'
 import { useLocalStorage, KEYS } from '../hooks/useLocalStorage.js'
 import { buildMatchPrompt } from '../data/prompts.js'
 import './Match.css'
@@ -374,6 +375,11 @@ export default function Match() {
             同一段 JD 每次结果一样。想要真的分析，用上面那块「<b>拿去问 AI</b>」。
           </span>
         </div>
+
+        {/* C 方案联动：匹配算完，下一问必然是"这 offer 我接得起吗"（跨面，导航条管不到） */}
+        <CrossLink to="/home" hint="把月薪填进去，看你的存款还能撑几个月、低到多少就不能接">
+          看看这份 offer 能不能接
+        </CrossLink>
       </div>
 
       {/* 卡 4：匹配记录 */}

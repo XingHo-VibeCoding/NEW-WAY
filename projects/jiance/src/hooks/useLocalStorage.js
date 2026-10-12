@@ -66,4 +66,9 @@ export const KEYS = {
   matches: 'jiance.v1.matches',
   meta: 'jiance.v1.meta',
   matchDraft: 'jiance.v1.matchDraft',
+  /* Day 24 新增：底牌页「接 offer 试算」的输入草稿。
+     ⚠️ 只存草稿，**不进 profile、不进云端** —— 试算是件本机临时的事，
+        没必要为了它去改数据库表结构与接口契约（那是另一件事的成本）。
+        与 matchDraft 同一套模式（PRD 5.4 已有先例）。 */
+  offerDraft: 'jiance.v1.offerDraft',
 }

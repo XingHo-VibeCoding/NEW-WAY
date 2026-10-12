@@ -267,3 +267,290 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ============================================================
+   Day 24 · 接 offer 试算（板块① 钱 × 履历 联动）
+   ------------------------------------------------------------
+   ⚠️ 选择器全部带 `.home` 前缀（附四第 1 条：裸 `.card` 这种全局名会泄漏全站）
+   ⚠️ hover 里**不改 background**（附四第 4 条）—— 本块没有 hover，故意的
+   ⚠️ 打印规则**不写在这里**，写在 index.css 唯一那段（附四第 5 条）；
+      那边已经把 `.offer-trial` 加进「屏幕上的一次性工具」那一组
+   ============================================================ */
+
+.home .offer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0 16px;
+}
+
+/* 标签列比「个人参数」那栏宽一点：「offer 月薪*」放不进 96px */
+.home .offer-form .profile-row {
+  grid-template-columns: 110px 1fr auto;
+}
+
+.home .offer-form input {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.home .offer-form input:focus-visible {
+  outline: 2px solid var(--line);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+/* 还没填够数时的提示（不是一个错误，只是一句"先把 X 填上"） */
+.home .offer-hint {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-dim);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+}
+
+/* ---------- 结果区 ---------- */
+.home .offer-result {
+  margin: 0;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* 三档结论用左边一道竖线区分，**不引入新色值**：
+   绿 = 安全 / 金 = 吃存款但撑得住 / 朱 = 危险。
+   （与检查台那三个状态色是同一组，见上面 .inspect-val） */
+.home .offer-result.is-safe {
+  border-left: 3px solid #8fbf7f;
+}
+.home .offer-result.is-eating {
+  border-left: 3px solid var(--line);
+}
+.home .offer-result.is-danger {
+  border-left: 3px solid var(--brand);
+}
+
+.home .offer-headline {
+  margin: 0 0 16px;
+  font-size: var(--fs-md);
+  line-height: 1.8;
+  color: var(--ink);
+}
+
+/* ---------- 现在 vs 接了之后 ---------- */
+.home .offer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.home .offer-col {
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* 「接了之后」用更实的边 + 金线，一眼看出重点在哪一列 */
+.home .offer-col.is-after {
+  border-color: var(--line);
+}
+
+.home .offer-col-label {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+}
+
+.home .offer-col-value {
+  font-family: var(--serif, serif);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 6px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.home .offer-col-note {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+}
+
+.home .offer-lines {
+  margin: 16px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+  color: var(--ink-dim);
+}
+
+.home .offer-lines b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.home .offer-cut {
+  margin: 12px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--brand);
+}
+
+.home .offer-foot {
+  margin: 16px 0 0;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--ink-dim);
+  opacity: 0.85;
+}
+
+/* 窄屏：两列叠成一列，标签列收窄 */
+@media (max-width: 640px) {
+  .home .offer-grid {
+    grid-template-columns: 1fr;
+  }
+  .home .offer-form .profile-row {
+    grid-template-columns: 88px 1fr auto;
+  }
+}
+
+/* ============================================================
+   Day 24 · 今天还能花多少（板块③「AI 财务管家」）
+   ------------------------------------------------------------
+   视觉口径与上面「接 offer 试算」保持一套：左边一道竖线分三档、
+   不引入新色值、选择器全带 `.home` 前缀、打印规则交给 index.css。
+   ============================================================ */
+
+.home .today-budget {
+  /* 三档：正常 / 今天超 / 本月超。颜色沿用检查台那组（绿 / 金 / 朱） */
+  border-left: 3px solid transparent;
+}
+
+.home .today-budget.is-ok {
+  border-left-color: #8fbf7f;
+}
+.home .today-budget.is-over-today {
+  border-left-color: var(--line);
+}
+.home .today-budget.is-over-month {
+  border-left-color: var(--brand);
+}
+.home .today-budget.is-na {
+  border-left-color: var(--line-soft);
+}
+
+/* 还没填月均支出时的提示（不是错误，只是"先填这个"） */
+.home .budget-hint {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-dim);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+}
+
+/* ---------- 大字区 ---------- */
+.home .budget-main {
+  text-align: center;
+  padding: 6px 0 2px;
+}
+
+.home .budget-big-label {
+  font-size: var(--fs-sm);
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+}
+
+.home .budget-big {
+  font-family: var(--serif, serif);
+  font-size: clamp(38px, 4.4vw, 56px);
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 超支时大字换成警示色 —— 这是"上限"口径该有的硬提醒 */
+.home .today-budget.is-over-today .budget-big {
+  color: var(--line);
+}
+.home .today-budget.is-over-month .budget-big {
+  color: var(--brand);
+}
+
+.home .budget-headline {
+  margin: 8px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+/* ---------- 三格小表 ---------- */
+.home .budget-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.home .budget-cell {
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.home .budget-cell-label {
+  font-size: var(--fs-xs);
+  color: var(--ink-dim);
+  letter-spacing: 0.06em;
+}
+
+.home .budget-cell-value {
+  margin-top: 6px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 进度与预测 ---------- */
+.home .budget-pace {
+  margin: 16px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  color: var(--ink-dim);
+}
+
+.home .budget-warn {
+  margin: 10px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--brand);
+}
+
+.home .budget-foot {
+  margin: 16px 0 0;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--ink-dim);
+  opacity: 0.85;
+}
+
+/* 窄屏：三格 → 一列（数字大，横排会挤成一行小字） */
+@media (max-width: 640px) {
+  .home .budget-grid {
+    grid-template-columns: 1fr;
+  }
+}

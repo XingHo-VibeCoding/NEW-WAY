@@ -1,8 +1,16 @@
-/* 简册 · 顶部导航（Day 15 纪律：只留一个「主界面」按钮） */
+/* ============================================================
+   简册 · 顶部导航
+   ------------------------------------------------------------
+   Day 15：只留一个「主界面」按钮（纪律）
+   Day 24：改成**按面分组** —— 同面的兄弟页直接可点，跨面回主界面。
+           见 Nav.jsx 头部的说明与 AGENTS.md 附三第 2 条。
+   ============================================================ */
 
 .nav {
   display: flex;
   align-items: center;
+  /* 按钮之间留一点气口，免得四个按钮挤成一条 */
+  gap: 4px;
   padding: 12px 24px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--bg-2);
@@ -16,14 +24,73 @@
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 8px 16px;
+  /* 触控目标 ≥24px 的无障碍基线：16px 上下内边距 + 17px 字 ≈ 40px 高，够 */
   transition: color 180ms ease-out, border-color 180ms ease-out;
+  white-space: nowrap;
 }
 
 .nav-btn:hover {
   color: var(--ink);
 }
 
+/* 当前页：金线描边 + 亮字。NavLink 匹配到当前路由时自动加这个类 */
 .nav-btn.is-active {
   color: var(--line);
   border-color: var(--line-soft);
+}
+
+/* ---------- 分隔线与"你在哪一面" ---------- */
+.nav-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 10px;
+  background: var(--line-soft);
+  flex: none;
+}
+
+.nav-face {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+  opacity: 0.7;
+  margin-right: 8px;
+  flex: none;
+}
+
+/* ---------- 窄屏 ----------
+   手机上 4 个按钮 + 面标签放不下，所以：
+     ① 藏掉面标签（那只是位置感，导航条本身已经能看出在哪一页）
+     ② 允许横向滚动，而不是换行 —— 换行会长出一条两行的导航条，
+        把首屏内容往下挤（底牌页那个大数字会掉出屏幕） */
+@media (max-width: 640px) {
+  .nav {
+    padding: 10px 12px;
+    overflow-x: auto;
+    /* 滚动时不要出现横向滚动条，触摸滑动更自然 */
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-face {
+    display: none;
+  }
+
+  .nav-sep {
+    margin: 0 6px;
+  }
+
+  .nav-btn {
+    padding: 8px 12px;
+  }
+}
+
+/* ---------- 动效偏好：用户要求"减少动态效果"时全部关停 ----------
+   AGENTS.md 附三第 2 条把 reduced-motion 列进了无障碍基线。 */
+@media (prefers-reduced-motion: reduce) {
+  .nav-btn {
+    transition: none;
+  }
 }
