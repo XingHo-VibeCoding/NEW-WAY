@@ -18,6 +18,15 @@ import './Entry.css'
  * 字段（按 PRD 5.2 / TECH_DESIGN 5.2）：
  *   startDate, endDate（"" = 还做）, content（成果前缀在显示处加）, org, role, result
  *   ⚠️ 不含 tags（Day 7 拍板砍掉）
+ *   + aiRewrite / aiPrev（Day 24 新增 · **只在本机抽屉里**，由简历预览页回填区维护，
+ *     不在这张表单里编辑，也不进云端表结构）
+ *
+ * 长度上限（Day 24 修 Bug 时补 · 见 PRD 5.2「长度上限」）：
+ *   content 120 / result 60 / org 40 / role 40
+ *   ⚠️ 为什么必须有：老版本的简历纸 CSS 是 `overflow-wrap: normal`（零兜底），
+ *      一段既没有空格也没有连字符的长串（英文长词 / URL / 长数字）会**把纸顶宽**。
+ *      兜底已在 Resume.css 补上（治显），这里的 maxLength 是**治源** —— 两道都要有：
+ *      只治显 → 老数据仍能撑破；只治源 → 已存在的超长数据照样撑破。
  */
 
 const SEED_ENTRIES = [
@@ -147,7 +156,8 @@ export default function Entry() {
           <label className="form-key">公司</label>
           <input
             type="text"
-            placeholder="选填"
+            maxLength={40}
+            placeholder="选填（40 字内）"
             value={draft.org}
             onChange={(e) => setDraft({ ...draft, org: e.target.value })}
             aria-label="公司"
@@ -157,7 +167,8 @@ export default function Entry() {
           <label className="form-key">职位</label>
           <input
             type="text"
-            placeholder="选填"
+            maxLength={40}
+            placeholder="选填（40 字内）"
             value={draft.role}
             onChange={(e) => setDraft({ ...draft, role: e.target.value })}
             aria-label="职位"
@@ -168,7 +179,8 @@ export default function Entry() {
           <input
             type="text"
             required
-            placeholder="做了什么（动词开头）"
+            maxLength={120}
+            placeholder="做了什么（动词开头，120 字内）"
             value={draft.content}
             onChange={(e) => setDraft({ ...draft, content: e.target.value })}
           />
@@ -177,7 +189,8 @@ export default function Entry() {
           <label className="form-key">成果</label>
           <input
             type="text"
-            placeholder="量化更好（选填）"
+            maxLength={60}
+            placeholder="量化更好（选填，60 字内）"
             value={draft.result}
             onChange={(e) => setDraft({ ...draft, result: e.target.value })}
           />

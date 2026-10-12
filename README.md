@@ -73,8 +73,8 @@
 
 ```
 README.md           本文件
-PRD.md              产品需求文档（v1.17）
-TECH_DESIGN.md      技术设计文档（v1.17）
+PRD.md              产品需求文档（v1.18）
+TECH_DESIGN.md      技术设计文档（v1.18）
 research.md         需求研究
 AGENTS.md           协作规则（含项目专属规则与红线）
 projects/           练习与归档（一个特性一个文件夹）
